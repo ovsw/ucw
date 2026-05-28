@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sandcastle": "tsx .sandcastle/main.ts",
     "workbench": "tsx src/retrieval-workbench/cli.ts",
     "check": "tsc --noEmit"
   },
@@ -11,6 +12,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@ai-hero/sandcastle": "^0.6.5",
     "@types/node": "^20.14.10",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
