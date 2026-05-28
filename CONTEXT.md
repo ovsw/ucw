@@ -50,8 +50,12 @@ _Avoid_: Evidence, RAG response, generated answer, rendered UI
 The **GuideSite**'s constructed answer to a **Prompt**, represented by an **Answer Composition** and rendered as an **Answer Presentation**.
 _Avoid_: Generated answer, chatbot answer, generated text, freeform response
 
+**Answer Assembly Process**:
+The process that turns a **Prompt** into an **Answer Composition** using approved **Sources of Truth** and **Composition Rules**.
+_Avoid_: Answer Assembly, RAG pipeline, chatbot flow, generation process
+
 **Content Entity**:
-A semantically meaningful source object that can contribute to an **Assembled Answer**.
+A semantically meaningful source object, including its fields and relevance metadata, that can contribute to an **Assembled Answer**.
 _Avoid_: Content atom, data atom, media atom, trust/proof category
 
 **Entity Field**:
@@ -71,7 +75,7 @@ A stable subsection of **Narrative Content** that can be cited or used independe
 _Avoid_: Portable Text block, text chunk, RAG chunk
 
 **Content Map**:
-A distilled description of what a **Content Entity** contains and how it may be relevant in an **Answer Composition**.
+A short, formulaic description of what a **Content Entity** contains and how it may be relevant in an **Answer Composition**.
 _Avoid_: Summary, alt text, transcript, embedding metadata
 
 **Claim**:
@@ -145,19 +149,26 @@ _Avoid_: Session, GuideSite Session
 - A **Camp Program** can have one or more **Camp Sessions**.
 - A **Camp Session** is a scheduled offering that can affect **Fit** through dates, availability, and pricing.
 - A **GuideSite** presents an **Answer Presentation** rather than a chat message or static page.
+- The **Answer Assembly Process** turns a **Prompt** into an **Answer Composition**.
 - An **Assembled Answer** is grounded in **Content Entities**.
 - An **Answer Composition** selects **Content Entities**, **Entity Fields**, and **Answer Components**.
+- A **Content Entity** can include relevance metadata such as related **Concerns** and a **Content Map**.
 - A **Computable Field** can support deterministic logic.
 - **Narrative Content** can address a **Concern** or build **Decision Confidence**.
 - An **Addressable Block** allows part of **Narrative Content** to be used or cited without turning it into an atom.
 - A **Content Map** helps a **GuideSite** decide when and how a **Content Entity** is relevant to an **Answer Composition**.
-- A **Content Map** is needed when a **Content Entity**'s relevance cannot be reliably inferred from its structured fields or text.
+- A **Content Map** can support early relevance screening in the **Answer Assembly Process**.
+- A **Content Map** is required only when a **Content Entity**'s relevance cannot be reliably inferred from its structured fields, text, or relationships.
 - A **Claim** is used for sensitive, reusable, trust-relevant assertions.
+- A **Claim** should be backed by **Sources of Truth**.
 - A **Concern** may be represented as a **Content Entity** to connect **Prompts** to related **Content Entities**.
+- A **Concern** is a primary relevance signal in the **Answer Assembly Process**.
+- A sensitive **Concern** should be addressed with concrete **Sources of Truth** such as policies, protocols, checklists, standards, and procedures rather than unsupported reassurance.
 - **Ultimate Camp Website** uses camp-specific **Content Entities**; terms named here are examples, not an exhaustive schema catalog.
 - **Content Entities**, **Entity Fields**, **Narrative Content**, **Addressable Blocks**, and **Claims** can be **Sources of Truth**.
 - **Composition Rules** constrain use of **Sources of Truth** but are not source material by default.
 - LLM memory and model knowledge are not **Sources of Truth**.
+- Relevant retrieved context is the critical input to an **Answer Composition**.
 - Any **Source of Truth** used in an **Answer Composition** requires a **Citation**.
 - A **Citation** links part of an **Answer Composition** to the **Source of Truth** it uses.
 - An **Assembled Answer** is represented by an **Answer Composition**.
