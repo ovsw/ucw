@@ -193,6 +193,10 @@ test("workbench CLI exits cleanly for a valid fixture", () => {
   assert.match(result.stdout, /Concerns: 8/);
   assert.match(result.stdout, /Non-Concern Content Entities: 19/);
   assert.match(result.stdout, /Gold-set Parent Prompts: 10/);
+  assert.match(result.stdout, /Deterministic retrieval workbench report/);
+  assert.match(result.stdout, /Direct Content Entity matches/);
+  assert.match(result.stdout, /Merged Content Entity ranking/);
+  assert.match(result.stdout, /Missing required content/);
 });
 
 test("workbench CLI exits non-zero and reports validation errors for an invalid fixture", async () => {
@@ -211,4 +215,33 @@ test("workbench CLI exits non-zero and reports validation errors for an invalid 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Retrieval workbench fixture validation failed/);
   assert.match(result.stderr, /Gold-set prompt references missing document id/);
+});
+
+test("generated fixture expands the corpus while staying within the contract", async () => {
+  const tempDirectory = mkdtempSync(join(tmpdir(), "retrieval-workbench-generated-"));
+  const fixturePath = join(tempDirectory, "generated.json");
+
+  const generation = spawnSync(
+    process.execPath,
+    ["--import", "tsx", "src/retrieval-workbench/generate-fixture.ts", "--output", fixturePath],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(generation.status, 0, generation.stderr);
+  assert.match(generation.stdout, /Generated retrieval workbench fixture/);
+
+  const generatedFixture = await loadFixture(fixturePath);
+  const concerns = generatedFixture.documents.filter((document) => document._type === "concern");
+  const contentEntities = generatedFixture.documents.filter((document) => document._type !== "concern");
+
+  assert.equal(concerns.length, 8);
+  assert.equal(contentEntities.length, 25);
+  assert.equal(generatedFixture.goldSet.length, 12);
+  assert.match(
+    generatedFixture.documents.map((document) => document._id).join(" "),
+    /policy-bullying-response|program-day-camp|policy-registration-cancellation/,
+  );
 });

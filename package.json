@@ -6,9 +6,13 @@
   "scripts": {
     "sandcastle": "tsx .sandcastle/main.ts",
     "workbench": "tsx src/retrieval-workbench/cli.ts",
-    "check": "tsc --noEmit"
+    "workbench:generate": "tsx src/retrieval-workbench/generate-fixture.ts",
+    "check": "npm run typecheck",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
+    "minisearch": "^7.2.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

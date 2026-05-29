@@ -1,0 +1,760 @@
+{
+  "fixtureVersion": 1,
+  "description": "Generated retrieval workbench corpus expanded from the hand-written seed fixture using archived Canadian Adventure Camp source notes.",
+  "documents": [
+    {
+      "_id": "concern-allergy-medical-safety",
+      "_type": "concern",
+      "title": "Allergy and medical safety",
+      "contentMap": "Parent concern about whether camp can safely support allergies, medication, health incidents, nurse access, and emergency escalation.",
+      "concernArea": "medical-safety",
+      "parentSignals": [
+        "allergy",
+        "epipen",
+        "medication",
+        "asthma",
+        "nurse",
+        "medical",
+        "emergency"
+      ],
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-swimming-water-safety"
+        }
+      ]
+    },
+    {
+      "_id": "concern-homesickness-readiness",
+      "_type": "concern",
+      "title": "Homesickness and child readiness",
+      "contentMap": "Parent concern about whether a child is emotionally ready for separation, overnight routines, independence, and homesickness support.",
+      "concernArea": "child-readiness",
+      "parentSignals": [
+        "homesick",
+        "first time",
+        "separation",
+        "readiness",
+        "nervous",
+        "overnight"
+      ],
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-cabin-social-fit"
+        }
+      ]
+    },
+    {
+      "_id": "concern-transportation-logistics",
+      "_type": "concern",
+      "title": "Transportation logistics",
+      "contentMap": "Parent concern about bus routes, drop-off, pick-up, travel supervision, luggage handling, and arrival timing.",
+      "concernArea": "transportation",
+      "parentSignals": [
+        "bus",
+        "pickup",
+        "drop-off",
+        "airport",
+        "luggage",
+        "travel"
+      ]
+    },
+    {
+      "_id": "concern-packing-equipment",
+      "_type": "concern",
+      "title": "Packing and equipment",
+      "contentMap": "Parent concern about what a child should bring, what is prohibited, laundry, labels, bedding, electronics, and forgotten items.",
+      "concernArea": "packing",
+      "parentSignals": [
+        "packing",
+        "bring",
+        "bedding",
+        "laundry",
+        "labels",
+        "electronics"
+      ]
+    },
+    {
+      "_id": "concern-sibling-attendance",
+      "_type": "concern",
+      "title": "Sibling attendance and grouping",
+      "contentMap": "Parent concern about siblings attending together, cabin grouping, age differences, and whether siblings can see each other.",
+      "concernArea": "family-fit",
+      "parentSignals": [
+        "sibling",
+        "brother",
+        "sister",
+        "together",
+        "same cabin"
+      ]
+    },
+    {
+      "_id": "concern-pricing-affordability",
+      "_type": "concern",
+      "title": "Pricing and affordability",
+      "contentMap": "Parent concern about tuition, deposits, payment timing, refunds, optional costs, and whether camp fits the family budget.",
+      "concernArea": "pricing",
+      "parentSignals": [
+        "price",
+        "cost",
+        "tuition",
+        "deposit",
+        "refund",
+        "payment"
+      ]
+    },
+    {
+      "_id": "concern-swimming-water-safety",
+      "_type": "concern",
+      "title": "Swimming and water safety",
+      "contentMap": "Parent concern about swim ability, waterfront supervision, lifejackets, swim tests, boating, and water emergency protocols.",
+      "concernArea": "water-safety",
+      "parentSignals": [
+        "swim",
+        "water",
+        "lake",
+        "lifeguard",
+        "lifejacket",
+        "boating"
+      ]
+    },
+    {
+      "_id": "policy-medical-care",
+      "_type": "policy",
+      "title": "Health Centre and medication policy",
+      "contentMap": "Explains Health Centre staffing, medication storage, daily medication administration, parent notifications, and when off-site medical care is used.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-allergy-medical-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "policyOwner": "Camp Director",
+      "sensitiveUse": true
+    },
+    {
+      "_id": "protocol-allergy-response",
+      "_type": "protocol",
+      "title": "Anaphylaxis and severe allergy response protocol",
+      "contentMap": "Step-by-step protocol for severe allergy prevention, Epipen access, staff response, emergency services contact, and parent communication.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-allergy-medical-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "escalationRequired": true
+    },
+    {
+      "_id": "procedure-medication-checkin",
+      "_type": "procedure",
+      "title": "Medication check-in procedure",
+      "contentMap": "Describes how families hand in medication at arrival, required labels, dosage confirmation, Health Centre logging, and secure storage.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-allergy-medical-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "training-staff-medical",
+      "_type": "trainingStandard",
+      "title": "Staff medical awareness training",
+      "contentMap": "Outlines pre-camp staff training for allergy awareness, medication privacy, incident reporting, and knowing when to involve medical staff.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-allergy-medical-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "guide-first-time-overnight",
+      "_type": "guide",
+      "title": "First-time overnight readiness guide",
+      "contentMap": "Helps parents assess Child Readiness for overnight camp with practice sleepovers, separation confidence, self-care routines, and communication expectations.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "procedure-homesickness-support",
+      "_type": "procedure",
+      "title": "Homesickness support procedure",
+      "contentMap": "Explains how cabin staff notice homesickness, provide reassurance, keep children engaged, escalate concerns, and communicate with parents when needed.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "testimonial-parent-readiness",
+      "_type": "testimonial",
+      "title": "Parent story about a nervous first-time child",
+      "contentMap": "A parent describes sending a nervous first-time child, the first letters home, staff support, and the child's growing confidence by pickup.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        }
+      ],
+      "sourceKind": "supportingSource"
+    },
+    {
+      "_id": "checklist-packing",
+      "_type": "checklist",
+      "title": "Packing checklist",
+      "contentMap": "Lists required clothing, bedding, footwear, toiletries, rain gear, labels, laundry bag, and optional comfort items for camp.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-packing-equipment"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "camper-rule-electronics",
+      "_type": "camperRule",
+      "title": "Electronics and phone rule",
+      "contentMap": "States which electronics are not allowed at camp, why phones stay home, and how parents can contact the camp office.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-packing-equipment"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "transportation-route-toronto",
+      "_type": "transportationRoute",
+      "title": "Toronto bus route",
+      "contentMap": "Provides the Toronto bus departure location, check-in timing, luggage expectations, travel supervision, and pickup process.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-transportation-logistics"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "origin": "Toronto"
+    },
+    {
+      "_id": "transportation-route-airport",
+      "_type": "transportationRoute",
+      "title": "Airport pickup route",
+      "contentMap": "Explains airport pickup coordination, flight details required from parents, staff greeting procedure, and supervised transfer to camp.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-transportation-logistics"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "origin": "Airport"
+    },
+    {
+      "_id": "program-swim",
+      "_type": "program",
+      "title": "Waterfront and swimming program",
+      "contentMap": "Describes swim periods, lake activities, swim ability grouping, boating options, supervision expectations, and waterfront participation.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-swimming-water-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "protocol-waterfront-safety",
+      "_type": "protocol",
+      "title": "Waterfront safety protocol",
+      "contentMap": "Defines waterfront supervision, swim checks, buddy system, lifejacket rules, boating boundaries, and emergency response at the lake.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-swimming-water-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "session-junior-overnight",
+      "_type": "session",
+      "title": "Junior overnight session",
+      "contentMap": "Session for younger children with dates, age range, cabin support, activity mix, pricing, and availability fields.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-pricing-affordability"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "ageRange": "7-10",
+      "priceCad": 1450
+    },
+    {
+      "_id": "session-two-week-classic",
+      "_type": "session",
+      "title": "Two-week classic session",
+      "contentMap": "Two-week session with dates, age range, activity breadth, sibling attendance options, pricing, deposits, and availability fields.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-sibling-attendance"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-pricing-affordability"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "ageRange": "9-15",
+      "priceCad": 2600
+    },
+    {
+      "_id": "policy-pricing-refunds",
+      "_type": "policy",
+      "title": "Pricing, deposit, and refund policy",
+      "contentMap": "Explains tuition, required deposit, payment schedule, refund dates, optional charges, and what is included in the camp fee.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-pricing-affordability"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "procedure-cabin-assignments",
+      "_type": "procedure",
+      "title": "Cabin assignment procedure",
+      "contentMap": "Explains how cabin groups are assigned by age, session, friendship requests, sibling considerations, and social fit.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-sibling-attendance"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-cabin-social-fit"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "concern-cabin-social-fit",
+      "_type": "concern",
+      "title": "Cabin social fit",
+      "contentMap": "Parent concern about cabin assignments, friendship requests, social comfort, peer age, and whether a child will feel included.",
+      "concernArea": "social-fit",
+      "parentSignals": [
+        "cabin",
+        "friend",
+        "roommate",
+        "social",
+        "included",
+        "same group"
+      ],
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-sibling-attendance"
+        }
+      ]
+    },
+    {
+      "_id": "parent-requirement-health-form",
+      "_type": "parentRequirement",
+      "title": "Health form requirement",
+      "contentMap": "States that parents must submit health history, medication details, allergy notes, emergency contacts, and physician instructions before arrival.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-allergy-medical-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth"
+    },
+    {
+      "_id": "claim-small-cabin-groups",
+      "_type": "claim",
+      "title": "Cabins are grouped by age and social fit",
+      "contentMap": "Trust-relevant claim that cabin assignments consider age, social fit, friendship requests, and staff judgment rather than only registration order.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-cabin-social-fit"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-sibling-attendance"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "claimSources": [
+        {
+          "_type": "reference",
+          "_ref": "procedure-cabin-assignments"
+        }
+      ]
+    },
+    {
+      "_id": "policy-bullying-response",
+      "_type": "policy",
+      "title": "Bullying detection and response policy",
+      "contentMap": "Counselors monitor cabin time, meals, activities, and transitions. Camp uses a reporting process for campers who feel unsafe and escalates concerns when needed.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-cabin-social-fit"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "policyOwner": "Camp Director",
+      "sensitiveUse": true
+    },
+    {
+      "_id": "testimonial-shy-first-time-camper",
+      "_type": "testimonial",
+      "title": "Parent story about a shy first-time camper",
+      "contentMap": "A parent describes a nervous first-time camper, letters home, staff reassurance, and the child growing in confidence by pickup.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        }
+      ],
+      "sourceKind": "supportingSource"
+    },
+    {
+      "_id": "program-day-camp",
+      "_type": "program",
+      "title": "Day camp alternative",
+      "contentMap": "A day camp option for families who want a gentler starting point than overnight camp, with daily pickup and a shorter separation window.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-pricing-affordability"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "format": "day"
+    },
+    {
+      "_id": "policy-parent-communication",
+      "_type": "policy",
+      "title": "Parent communication and escalation policy",
+      "contentMap": "Explains when the camp contacts parents, how routine updates work, and how families reach the office when a child is nervous or needs attention.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-homesickness-readiness"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-allergy-medical-safety"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "communicationChannels": [
+        "camp office",
+        "letters",
+        "emergency call"
+      ]
+    },
+    {
+      "_id": "staff-standard-supervision",
+      "_type": "staffStandard",
+      "title": "Counselor supervision standard",
+      "contentMap": "Describes supervision ratios, transition coverage, and when counselors stay with campers during activities and at the waterfront.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-swimming-water-safety"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-cabin-social-fit"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "supervisionContext": [
+        "activities",
+        "transitions",
+        "waterfront"
+      ]
+    },
+    {
+      "_id": "policy-registration-cancellation",
+      "_type": "policy",
+      "title": "Registration and cancellation policy",
+      "contentMap": "Explains registration deadlines, payment timing, refund cutoffs, and what families should do if plans change before camp begins.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern-pricing-affordability"
+        },
+        {
+          "_type": "reference",
+          "_ref": "concern-transportation-logistics"
+        }
+      ],
+      "sourceKind": "sourceOfTruth",
+      "policyOwner": "Registrar"
+    }
+  ],
+  "goldSet": [
+    {
+      "_id": "prompt-allergy-epipen",
+      "prompt": "My child has a peanut allergy and carries an Epipen. How would camp keep them safe?",
+      "expectedConcernIds": [
+        "concern-allergy-medical-safety"
+      ],
+      "requiredContentEntityIds": [
+        "policy-medical-care",
+        "protocol-allergy-response",
+        "parent-requirement-health-form"
+      ],
+      "supportingContentEntityIds": [
+        "training-staff-medical",
+        "procedure-medication-checkin"
+      ],
+      "requiredSourceOfTruthIds": [
+        "policy-medical-care",
+        "protocol-allergy-response"
+      ]
+    },
+    {
+      "_id": "prompt-medication-daily",
+      "prompt": "Can staff make sure my son takes his daily medication at the right time?",
+      "expectedConcernIds": [
+        "concern-allergy-medical-safety"
+      ],
+      "requiredContentEntityIds": [
+        "policy-medical-care",
+        "procedure-medication-checkin"
+      ],
+      "supportingContentEntityIds": [
+        "training-staff-medical"
+      ],
+      "requiredSourceOfTruthIds": [
+        "policy-medical-care",
+        "procedure-medication-checkin"
+      ]
+    },
+    {
+      "_id": "prompt-first-time-homesick",
+      "prompt": "My daughter has never slept away from home and gets homesick. Is overnight camp too much?",
+      "expectedConcernIds": [
+        "concern-homesickness-readiness"
+      ],
+      "requiredContentEntityIds": [
+        "guide-first-time-overnight",
+        "procedure-homesickness-support"
+      ],
+      "supportingContentEntityIds": [
+        "testimonial-parent-readiness",
+        "camper-rule-electronics"
+      ],
+      "requiredSourceOfTruthIds": [
+        "guide-first-time-overnight",
+        "procedure-homesickness-support"
+      ]
+    },
+    {
+      "_id": "prompt-phone-contact",
+      "prompt": "If phones are not allowed, how do I know my nervous child is doing okay?",
+      "expectedConcernIds": [
+        "concern-homesickness-readiness",
+        "concern-packing-equipment"
+      ],
+      "requiredContentEntityIds": [
+        "camper-rule-electronics",
+        "procedure-homesickness-support"
+      ],
+      "supportingContentEntityIds": [
+        "testimonial-parent-readiness"
+      ],
+      "requiredSourceOfTruthIds": [
+        "camper-rule-electronics",
+        "procedure-homesickness-support"
+      ]
+    },
+    {
+      "_id": "prompt-toronto-bus",
+      "prompt": "We live in Toronto. How does the bus pickup work and who supervises the trip?",
+      "expectedConcernIds": [
+        "concern-transportation-logistics"
+      ],
+      "requiredContentEntityIds": [
+        "transportation-route-toronto"
+      ],
+      "supportingContentEntityIds": [
+        "checklist-packing"
+      ],
+      "requiredSourceOfTruthIds": [
+        "transportation-route-toronto"
+      ]
+    },
+    {
+      "_id": "prompt-airport-pickup",
+      "prompt": "Can my child fly in alone, and will someone meet them at the airport?",
+      "expectedConcernIds": [
+        "concern-transportation-logistics"
+      ],
+      "requiredContentEntityIds": [
+        "transportation-route-airport"
+      ],
+      "supportingContentEntityIds": [
+        "parent-requirement-health-form"
+      ],
+      "requiredSourceOfTruthIds": [
+        "transportation-route-airport"
+      ]
+    },
+    {
+      "_id": "prompt-what-to-pack",
+      "prompt": "What exactly should we pack for a two-week session, and are electronics allowed?",
+      "expectedConcernIds": [
+        "concern-packing-equipment"
+      ],
+      "requiredContentEntityIds": [
+        "checklist-packing",
+        "camper-rule-electronics"
+      ],
+      "supportingContentEntityIds": [
+        "session-two-week-classic"
+      ],
+      "requiredSourceOfTruthIds": [
+        "checklist-packing",
+        "camper-rule-electronics"
+      ]
+    },
+    {
+      "_id": "prompt-siblings-same-cabin",
+      "prompt": "Can my two children attend the same session and be placed near each other?",
+      "expectedConcernIds": [
+        "concern-sibling-attendance",
+        "concern-cabin-social-fit"
+      ],
+      "requiredContentEntityIds": [
+        "session-two-week-classic",
+        "procedure-cabin-assignments",
+        "claim-small-cabin-groups"
+      ],
+      "requiredSourceOfTruthIds": [
+        "procedure-cabin-assignments",
+        "claim-small-cabin-groups"
+      ]
+    },
+    {
+      "_id": "prompt-price-refund",
+      "prompt": "How much does camp cost, what is due as a deposit, and what happens if we cancel?",
+      "expectedConcernIds": [
+        "concern-pricing-affordability"
+      ],
+      "requiredContentEntityIds": [
+        "policy-pricing-refunds",
+        "session-junior-overnight",
+        "session-two-week-classic"
+      ],
+      "requiredSourceOfTruthIds": [
+        "policy-pricing-refunds"
+      ]
+    },
+    {
+      "_id": "prompt-swim-weak-swimmer",
+      "prompt": "My child is not a strong swimmer. Can they still join lake activities safely?",
+      "expectedConcernIds": [
+        "concern-swimming-water-safety"
+      ],
+      "requiredContentEntityIds": [
+        "program-swim",
+        "protocol-waterfront-safety"
+      ],
+      "supportingContentEntityIds": [
+        "policy-medical-care"
+      ],
+      "requiredSourceOfTruthIds": [
+        "protocol-waterfront-safety"
+      ]
+    },
+    {
+      "_id": "prompt-bullying-and-homesickness",
+      "prompt": "My child is shy and I worry they could get bullied or overwhelmed during the first few days. What support do you have?",
+      "expectedConcernIds": [
+        "concern-homesickness-readiness",
+        "concern-cabin-social-fit"
+      ],
+      "requiredContentEntityIds": [
+        "policy-bullying-response",
+        "testimonial-shy-first-time-camper",
+        "procedure-homesickness-support"
+      ],
+      "supportingContentEntityIds": [
+        "guide-first-time-overnight",
+        "claim-small-cabin-groups"
+      ],
+      "requiredSourceOfTruthIds": [
+        "policy-bullying-response",
+        "procedure-homesickness-support"
+      ]
+    },
+    {
+      "_id": "prompt-day-camp-alternative",
+      "prompt": "If overnight camp is too much right now, do you have a day camp or another gentler option?",
+      "expectedConcernIds": [
+        "concern-homesickness-readiness",
+        "concern-pricing-affordability"
+      ],
+      "requiredContentEntityIds": [
+        "program-day-camp",
+        "guide-first-time-overnight",
+        "policy-registration-cancellation"
+      ],
+      "supportingContentEntityIds": [
+        "testimonial-parent-readiness"
+      ],
+      "requiredSourceOfTruthIds": [
+        "program-day-camp",
+        "policy-registration-cancellation"
+      ]
+    }
+  ]
+}
