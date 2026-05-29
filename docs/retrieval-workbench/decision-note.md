@@ -30,21 +30,29 @@ The generated-corpus run found all expected Concern ids and all required Content
 Summary: 0 missing expected concerns, 0 missing required content entities, 27/27 required content hits
 ```
 
-No required source-of-truth item was missing in the report output. This is a useful baseline for proving the workbench wiring and fixture contract, but it should not be read as production retrieval quality.
+After the deterministic scoring tune, the main source-of-truth examples now rank in the inspection range:
 
-## Noisy Matches
+- `prompt-allergy-epipen` ranks the allergy response protocol at #1, health form requirement at #2, and medical-care policy at #4.
+- `prompt-airport-pickup` ranks the airport pickup route at #1.
+- `prompt-swim-weak-swimmer` ranks the swimming program at #1 and waterfront safety protocol at #2.
+- `prompt-bullying-and-homesickness` ranks the bullying response policy at #1.
 
-The main weakness is broad lexical noise from common terms and highly connected Concern expansion:
+No required source-of-truth item is missing in the report output. This is a useful baseline for proving the workbench wiring and fixture contract, but it should not be read as production retrieval quality.
 
-- `prompt-allergy-epipen` ranks `policy-parent-communication` above the required allergy protocol and medical-care policy because it shares child/allergy/safety terms and receives Concern-expansion score from both medical safety and homesickness.
-- `prompt-bullying-and-homesickness` ranks `policy-parent-communication` and `testimonial-parent-readiness` ahead of the generated bullying policy. The required bullying policy is present, but lower in the merged ranking.
-- Several prompts surface `camper-rule-electronics` as a high-ranked distractor because common terms such as child/and/camp plus homesickness or packing Concern expansion make it broadly eligible.
-- `prompt-day-camp-alternative` correctly ranks `program-day-camp` first, but still gives high merged scores to parent communication, junior overnight, and pricing documents because they share overnight/camp/affordability vocabulary.
+## Remaining Weaknesses
 
-The field-level reasons make these failures inspectable: common terms such as `and`, `a`, `the`, `child`, and `camp` appear frequently in match reasons and can dominate when combined with broad Concern expansion.
+The first tuning pass reduced broad lexical noise from common terms and highly connected Concern expansion by filtering stop words, adding small query aliases, lowering Concern expansion weight, and expanding only from stronger Concern matches.
+
+The remaining weakness is that some required supporting documents are still only weakly implied by the prompt:
+
+- `prompt-day-camp-alternative` ranks `program-day-camp` at #1 and the readiness guide at #2, but `policy-registration-cancellation` remains at #14 because the prompt does not mention registration, cancellation, refunds, or plan changes.
+- `prompt-bullying-and-homesickness` ranks the bullying policy at #1, but `procedure-homesickness-support` remains below several related social/readiness documents.
+- `prompt-what-to-pack` still gives `session-two-week-classic` the top rank because the prompt explicitly says "two-week session"; the required packing checklist and electronics rule are present at #4 and #2.
+
+The field-level reasons remain useful for diagnosing these cases: they show whether a result came from direct title/content evidence, related Concern titles, or Concern expansion.
 
 ## Decision
 
 Keep this MiniSearch baseline as the deterministic retrieval workbench baseline for now. It is deterministic, fixture-backed, and exposes enough ranking detail to compare future retrieval changes without adding embeddings, LLM classification, browser UI, production Sanity schemas, or answer composition.
 
-The next useful improvement is not a new retrieval stack. It is better scoring hygiene inside the baseline: stop-word handling, more selective Concern-expansion weighting, and tests that assert noisy distractors stay below required source-of-truth content for representative prompts.
+The next useful improvement is still not a new retrieval stack. The baseline now has complete recall and better top-rank behavior for the observed source-of-truth failures. Further work should focus on explicit query-intent fixtures and ranking expectations for weakly implied supporting documents before adding embeddings.
