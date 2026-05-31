@@ -36,8 +36,8 @@ function buildSearchClause(fields: string[]): string {
   return `[${fields.join(", ")}] match text::query($searchQuery)`;
 }
 
-function buildScoreClause(fields: string[], includeSemanticSimilarity: boolean): string {
-  const scoreTerms = [`boost(${buildSearchClause(fields)}, 2)`];
+function buildScoreClause(searchClause: string, includeSemanticSimilarity: boolean): string {
+  const scoreTerms = [`boost(${searchClause}, 2)`];
 
   if (includeSemanticSimilarity) {
     scoreTerms.push("boost(text::semanticSimilarity($searchQuery), 1)");
@@ -51,9 +51,11 @@ function buildDocumentQuery(
   searchFields: string[],
   includeSemanticSimilarity: boolean,
 ): string {
-  return `*[${documentFilterExpression} && ${buildSearchClause(searchFields)}]
+  const searchClause = buildSearchClause(searchFields);
+
+  return `*[${documentFilterExpression} && ${searchClause}]
   | score(
-      ${buildScoreClause(searchFields, includeSemanticSimilarity)}
+      ${buildScoreClause(searchClause, includeSemanticSimilarity)}
     )
   | order(_score desc, _id asc)[0...$limit]{
       _id,
@@ -85,7 +87,24 @@ function buildQueryPlan(kind: SanityRetrievalMode, prompt: string): SanityRetrie
   };
 }
 
-function mapHitsToConcernMatches(hits: SanitySearchHit[]): PromptRetrievalResult["matchedConcerns"] {
+function cloneContentEntityMatches(
+  matches: PromptRetrievalResult["directContentEntities"],
+): PromptRetrievalResult["mergedContentEntities"] {
+  return matches.map((match) => ({
+    ...match,
+    reasons: [...match.reasons],
+    sources: match.sources.map((source) =>
+      source.kind === "direct"
+        ? {
+            ...source,
+            matchedTerms: [...source.matchedTerms],
+          }
+        : { ...source },
+    ),
+  }));
+}
+
+function mapSearchHitsToConcernMatches(hits: SanitySearchHit[]): PromptRetrievalResult["matchedConcerns"] {
   return hits.map((hit, index) => ({
     _id: hit._id,
     _type: "concern",
@@ -96,7 +115,7 @@ function mapHitsToConcernMatches(hits: SanitySearchHit[]): PromptRetrievalResult
   }));
 }
 
-function mapHitsToContentEntityMatches(
+function mapSearchHitsToContentEntityMatches(
   prompt: string,
   hits: SanitySearchHit[],
 ): PromptRetrievalResult["mergedContentEntities"] {
@@ -124,15 +143,15 @@ function mapHitsToContentEntityMatches(
 }
 
 function mapQueryResult(prompt: string, result: SanityRetrievalQueryResult): PromptRetrievalResult {
-  const directContentEntities = mapHitsToContentEntityMatches(prompt, result.directContentEntities);
+  const directContentEntities = mapSearchHitsToContentEntityMatches(prompt, result.directContentEntities);
   const mergedContentEntities =
     result.mergedContentEntities.length > 0
-      ? mapHitsToContentEntityMatches(prompt, result.mergedContentEntities)
-      : structuredClone(directContentEntities);
+      ? mapSearchHitsToContentEntityMatches(prompt, result.mergedContentEntities)
+      : cloneContentEntityMatches(directContentEntities);
 
   return {
     prompt,
-    matchedConcerns: mapHitsToConcernMatches(result.matchedConcerns),
+    matchedConcerns: mapSearchHitsToConcernMatches(result.matchedConcerns),
     directContentEntities,
     mergedContentEntities,
   };
