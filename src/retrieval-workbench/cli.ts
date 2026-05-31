@@ -4,7 +4,10 @@ import { printFixtureValidationError } from "./fixture-errors.js";
 import { summarizeFixture } from "./fixture-summary.js";
 import { renderRetrievalWorkbenchReport } from "./report.js";
 
-const fixturePath = resolve(process.argv[2] ?? "fixtures/retrieval-workbench/seed.json");
+const cliArgs = process.argv.slice(2);
+const deterministicOnly = cliArgs.includes("--deterministic-only");
+const fixtureArg = cliArgs.find((arg) => !arg.startsWith("--"));
+const fixturePath = resolve(fixtureArg ?? "fixtures/retrieval-workbench/seed.json");
 
 try {
   const fixture = await loadFixture(fixturePath);
@@ -17,6 +20,10 @@ try {
   console.log(`Gold-set Parent Prompts: ${fixture.goldSet.length}`);
   console.log(`Content Entity types: ${contentEntityTypes.join(", ")}`);
   console.log("");
+  if (deterministicOnly) {
+    console.log("Workbench mode: deterministic-only");
+    console.log("");
+  }
   console.log(renderRetrievalWorkbenchReport(fixture));
 } catch (error) {
   printFixtureValidationError("Retrieval workbench fixture validation failed", error);

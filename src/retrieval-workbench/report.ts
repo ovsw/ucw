@@ -1,4 +1,4 @@
-import { createDeterministicWorkbench } from "./deterministic-retrieval.js";
+import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
 import type {
   FieldMatchReason,
   PromptRetrievalResult,
@@ -8,6 +8,7 @@ import type {
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import { summarizeFixture } from "./fixture-summary.js";
 import type { ContentEntityDocument, ParentPromptExpectation } from "./types.js";
+import type { RetrievalStrategy } from "./retrieval-strategy.js";
 
 type Hit = {
   id: string;
@@ -204,14 +205,35 @@ function renderPromptReport(
   return { lines, summary };
 }
 
-export function renderRetrievalWorkbenchReport(fixture: ParsedRetrievalWorkbenchFixture): string {
+function renderStrategyReport(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  strategy: RetrievalStrategy,
+): { lines: string[]; summaries: PromptReportSummary[] } {
   const lookup = buildLookup(fixture);
-  const workbench = createDeterministicWorkbench(fixture);
-  const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
   const lines: string[] = [];
   const summaries: PromptReportSummary[] = [];
+  lines.push(`## Strategy: ${strategy.label}`);
 
-  lines.push("Deterministic retrieval workbench report");
+  for (const prompt of fixture.goldSet) {
+    const promptReport = renderPromptReport(prompt, strategy.evaluatePrompt(prompt.prompt), lookup);
+    lines.push(...promptReport.lines);
+    summaries.push(promptReport.summary);
+  }
+
+  return { lines, summaries };
+}
+
+export function renderRetrievalWorkbenchReport(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  strategies: RetrievalStrategy[] = [createDeterministicRetrievalStrategy(fixture)],
+): string {
+  const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
+  const lines: string[] = [];
+  const strategyReports = strategies.map((strategy) => renderStrategyReport(fixture, strategy));
+
+  lines.push(
+    strategies.length === 1 ? "Deterministic retrieval workbench report" : "Retrieval strategy comparison report",
+  );
   lines.push(`Fixture description: ${fixture.description}`);
   lines.push(
     `Corpus: ${concernCount} concerns, ${nonConcernCount} non-Concern Content Entities, ${fixture.goldSet.length} Parent Prompts`,
@@ -219,26 +241,35 @@ export function renderRetrievalWorkbenchReport(fixture: ParsedRetrievalWorkbench
   lines.push(`Content Entity types: ${contentEntityTypes.join(", ")}`);
   lines.push("");
 
-  for (const prompt of fixture.goldSet) {
-    const promptReport = renderPromptReport(prompt, workbench.evaluatePrompt(prompt.prompt), lookup);
-    lines.push(...promptReport.lines);
-    summaries.push(promptReport.summary);
+  for (const strategyReport of strategyReports) {
+    lines.push(...strategyReport.lines);
   }
 
-  const missingConcernCount = summaries.reduce(
-    (total, summary) => total + summary.missingExpectedConcernIds.length,
+  const missingConcernCount = strategyReports.reduce(
+    (total, strategyReport) =>
+      total + strategyReport.summaries.reduce((innerTotal, summary) => innerTotal + summary.missingExpectedConcernIds.length, 0),
     0,
   );
-  const missingRequiredContentCount = summaries.reduce(
-    (total, summary) => total + summary.missingRequiredContentEntityIds.length,
+  const missingRequiredContentCount = strategyReports.reduce(
+    (total, strategyReport) =>
+      total +
+      strategyReport.summaries.reduce(
+        (innerTotal, summary) => innerTotal + summary.missingRequiredContentEntityIds.length,
+        0,
+      ),
     0,
   );
-  const requiredContentHitCount = summaries.reduce(
-    (total, summary) => total + summary.requiredContentEntityHits.length,
+  const requiredContentHitCount = strategyReports.reduce(
+    (total, strategyReport) =>
+      total +
+      strategyReport.summaries.reduce(
+        (innerTotal, summary) => innerTotal + summary.requiredContentEntityHits.length,
+        0,
+      ),
     0,
   );
   const requiredContentExpectationCount = fixture.goldSet.reduce(
-    (total, prompt) => total + prompt.requiredContentEntityIds.length,
+    (total, prompt) => total + prompt.requiredContentEntityIds.length * strategies.length,
     0,
   );
 
