@@ -28,12 +28,31 @@ type CorpusLookup = {
 };
 
 type StrategyReport = {
+  strategy: RetrievalStrategy;
   lines: string[];
   summaries: PromptReportSummary[];
+  requiredRanksByPrompt: Map<string, Map<string, number>>;
+};
+
+type StrategyAggregateSummary = {
+  missingExpectedConcernCount: number;
+  missingRequiredContentCount: number;
+  requiredContentExpectationCount: number;
+  requiredContentHitCount: number;
+  topFiveRequiredContentHitCount: number;
+  topTenRequiredContentHitCount: number;
+  averageRequiredContentRank: number | null;
+  improvementCount: number | null;
+  regressionCount: number | null;
+  tieCount: number | null;
 };
 
 function formatScore(score: number): string {
   return score.toFixed(2);
+}
+
+function formatRank(rank: number | null): string {
+  return rank === null ? "n/a" : rank.toFixed(2);
 }
 
 function formatList(values: string[]): string {
@@ -160,6 +179,130 @@ function summarizePrompt(
   };
 }
 
+function buildRequiredRankLookup(
+  summary: PromptReportSummary,
+): Map<string, number> {
+  return new Map(
+    summary.requiredContentEntityHits.map((hit) => [
+      hit.id,
+      hit.rank,
+    ]),
+  );
+}
+
+function buildStrategyAggregateSummary(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  strategyReport: StrategyReport,
+  baselineReport: StrategyReport | null,
+): StrategyAggregateSummary {
+  const missingExpectedConcernCount = strategyReport.summaries.reduce(
+    (total, summary) => total + summary.missingExpectedConcernIds.length,
+    0,
+  );
+  const missingRequiredContentCount = strategyReport.summaries.reduce(
+    (total, summary) => total + summary.missingRequiredContentEntityIds.length,
+    0,
+  );
+  const requiredContentExpectationCount = fixture.goldSet.reduce(
+    (total, prompt) => total + prompt.requiredContentEntityIds.length,
+    0,
+  );
+  const requiredContentHits = strategyReport.summaries.flatMap((summary) => summary.requiredContentEntityHits);
+  const topFiveRequiredContentHitCount = requiredContentHits.filter((hit) => hit.rank <= 5).length;
+  const topTenRequiredContentHitCount = requiredContentHits.filter((hit) => hit.rank <= 10).length;
+  const averageRequiredContentRank =
+    requiredContentHits.length === 0
+      ? null
+      : requiredContentHits.reduce((total, hit) => total + hit.rank, 0) / requiredContentHits.length;
+
+  if (!baselineReport || baselineReport.strategy.id === strategyReport.strategy.id) {
+    return {
+      missingExpectedConcernCount,
+      missingRequiredContentCount,
+      requiredContentExpectationCount,
+      requiredContentHitCount: requiredContentHits.length,
+      topFiveRequiredContentHitCount,
+      topTenRequiredContentHitCount,
+      averageRequiredContentRank,
+      improvementCount: null,
+      regressionCount: null,
+      tieCount: null,
+    };
+  }
+
+  let improvementCount = 0;
+  let regressionCount = 0;
+  let tieCount = 0;
+
+  for (const prompt of fixture.goldSet) {
+    const baselineRanks = baselineReport.requiredRanksByPrompt.get(prompt._id) ?? new Map<string, number>();
+    const currentRanks = strategyReport.requiredRanksByPrompt.get(prompt._id) ?? new Map<string, number>();
+
+    for (const requiredContentEntityId of prompt.requiredContentEntityIds) {
+      const baselineRank = baselineRanks.get(requiredContentEntityId);
+      const currentRank = currentRanks.get(requiredContentEntityId);
+
+      if (baselineRank === undefined || currentRank === undefined) {
+        if (baselineRank === undefined && currentRank === undefined) {
+          tieCount += 1;
+        } else if (baselineRank === undefined) {
+          improvementCount += 1;
+        } else {
+          regressionCount += 1;
+        }
+
+        continue;
+      }
+
+      if (currentRank < baselineRank) {
+        improvementCount += 1;
+      } else if (currentRank > baselineRank) {
+        regressionCount += 1;
+      } else {
+        tieCount += 1;
+      }
+    }
+  }
+
+  return {
+    missingExpectedConcernCount,
+    missingRequiredContentCount,
+    requiredContentExpectationCount,
+    requiredContentHitCount: requiredContentHits.length,
+    topFiveRequiredContentHitCount,
+    topTenRequiredContentHitCount,
+    averageRequiredContentRank,
+    improvementCount,
+    regressionCount,
+    tieCount,
+  };
+}
+
+function renderStrategySummaryLine(
+  strategy: RetrievalStrategy,
+  aggregate: StrategyAggregateSummary,
+  baselineStrategy: RetrievalStrategy | null,
+): string {
+  const summaryParts = [
+    `missing expected concerns: ${aggregate.missingExpectedConcernCount}`,
+    `missing required content: ${aggregate.missingRequiredContentCount}`,
+    `top 5 required content hits: ${aggregate.topFiveRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
+    `top 10 required content hits: ${aggregate.topTenRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
+    `average required rank: ${formatRank(aggregate.averageRequiredContentRank)}`,
+  ];
+
+  if (baselineStrategy && baselineStrategy.id !== strategy.id) {
+    summaryParts.push(`improvements: ${aggregate.improvementCount ?? 0}`);
+    summaryParts.push(`regressions: ${aggregate.regressionCount ?? 0}`);
+    summaryParts.push(`ties: ${aggregate.tieCount ?? 0}`);
+  }
+
+  const comparisonLabel =
+    baselineStrategy && baselineStrategy.id !== strategy.id ? ` vs ${baselineStrategy.label}` : " (baseline)";
+
+  return `- ${strategy.label}${comparisonLabel}: ${summaryParts.join(", ")}`;
+}
+
 function renderPromptReport(
   prompt: ParentPromptExpectation,
   result: PromptRetrievalResult,
@@ -212,27 +355,17 @@ function renderStrategyReport(
 ): StrategyReport {
   const lines: string[] = [];
   const summaries: PromptReportSummary[] = [];
+  const requiredRanksByPrompt = new Map<string, Map<string, number>>();
   lines.push(`## Strategy: ${strategy.label}`);
 
   for (const prompt of fixture.goldSet) {
     const promptReport = renderPromptReport(prompt, strategy.evaluatePrompt(prompt.prompt), lookup);
     lines.push(...promptReport.lines);
     summaries.push(promptReport.summary);
+    requiredRanksByPrompt.set(prompt._id, buildRequiredRankLookup(promptReport.summary));
   }
 
-  return { lines, summaries };
-}
-
-function sumPromptSummaryCounts(
-  strategyReports: StrategyReport[],
-  selectCount: (summary: PromptReportSummary) => number,
-): number {
-  return strategyReports.reduce((outerTotal, strategyReport) => {
-    return (
-      outerTotal +
-      strategyReport.summaries.reduce((innerTotal, summary) => innerTotal + selectCount(summary), 0)
-    );
-  }, 0);
+  return { strategy, lines, summaries, requiredRanksByPrompt };
 }
 
 export function renderRetrievalWorkbenchReport(
@@ -243,6 +376,16 @@ export function renderRetrievalWorkbenchReport(
   const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
   const lines: string[] = [];
   const strategyReports = strategies.map((strategy) => renderStrategyReport(fixture, lookup, strategy));
+  const baselineStrategy = strategyReports.find((strategyReport) => strategyReport.strategy.id === "deterministic")
+    ?.strategy ?? strategyReports[0]?.strategy ?? null;
+  const strategySummaries = strategyReports.map((strategyReport) => ({
+    strategy: strategyReport.strategy,
+    aggregate: buildStrategyAggregateSummary(
+      fixture,
+      strategyReport,
+      strategyReports.find((candidate) => candidate.strategy.id === "deterministic") ?? null,
+    ),
+  }));
   const reportTitle =
     strategies.length === 1 ? "Deterministic retrieval workbench report" : "Retrieval strategy comparison report";
 
@@ -253,32 +396,15 @@ export function renderRetrievalWorkbenchReport(
   );
   lines.push(`Content Entity types: ${contentEntityTypes.join(", ")}`);
   lines.push("");
+  lines.push("Strategy summary:");
+  for (const { strategy, aggregate } of strategySummaries) {
+    lines.push(renderStrategySummaryLine(strategy, aggregate, baselineStrategy));
+  }
+  lines.push("");
 
   for (const strategyReport of strategyReports) {
     lines.push(...strategyReport.lines);
   }
-
-  const missingConcernCount = sumPromptSummaryCounts(
-    strategyReports,
-    (summary) => summary.missingExpectedConcernIds.length,
-  );
-  const missingRequiredContentCount = sumPromptSummaryCounts(
-    strategyReports,
-    (summary) => summary.missingRequiredContentEntityIds.length,
-  );
-  const requiredContentHitCount = sumPromptSummaryCounts(
-    strategyReports,
-    (summary) => summary.requiredContentEntityHits.length,
-  );
-  const requiredContentExpectationCount = fixture.goldSet.reduce(
-    (total, prompt) => total + prompt.requiredContentEntityIds.length * strategies.length,
-    0,
-  );
-
-  lines.unshift(
-    `Summary: ${missingConcernCount} missing expected concerns, ${missingRequiredContentCount} missing required content entities, ${requiredContentHitCount}/${requiredContentExpectationCount} required content hits`,
-    "",
-  );
 
   return lines.join("\n");
 }
