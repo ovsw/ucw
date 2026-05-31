@@ -32,6 +32,10 @@ function sortIds(ids: Iterable<string>): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right));
 }
 
+function isSanitySystemDocumentId(id: string): boolean {
+  return id.startsWith("_");
+}
+
 export function buildSanitySeedDocuments(fixture: ParsedRetrievalWorkbenchFixture): SanitySeedDocument[] {
   return fixture.documents.map((document) => structuredClone(document));
 }
@@ -41,7 +45,10 @@ export function compareSanitySeedParity(
   actualDocuments: SanitySeedDocumentRef[],
 ): SanitySeedParityReport {
   const expectedById = new Map(expectedDocuments.map((document) => [document._id, document]));
-  const actualById = new Map(actualDocuments.map((document) => [document._id, document]));
+  const comparableActualDocuments = actualDocuments.filter(
+    (document) => expectedById.has(document._id) || !isSanitySystemDocumentId(document._id),
+  );
+  const actualById = new Map(comparableActualDocuments.map((document) => [document._id, document]));
 
   const missingDocumentIds: string[] = [];
   for (const expectedDocument of expectedDocuments) {
@@ -51,7 +58,7 @@ export function compareSanitySeedParity(
   }
 
   const extraDocumentIds: string[] = [];
-  for (const actualDocument of actualDocuments) {
+  for (const actualDocument of comparableActualDocuments) {
     if (!expectedById.has(actualDocument._id)) {
       extraDocumentIds.push(actualDocument._id);
     }

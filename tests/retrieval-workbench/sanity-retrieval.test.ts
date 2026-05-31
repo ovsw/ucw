@@ -21,10 +21,20 @@ test("sanity hybrid query plan includes keyword and semantic scoring", async () 
   assert.equal(plan.kind, "sanityHybrid");
   assert.match(plan.concernQuery, /_type == "concern"/);
   assert.match(plan.contentEntityQuery, /_type != "concern"/);
+  assert.match(plan.contentEntityBridgeQuery, /relatedConcerns\[_ref in \$matchedConcernIds\]/);
+  assert.match(plan.contentEntityBridgeQuery, /relatedConcerns\[\]\._ref/);
   assert.match(plan.concernQuery, /text::query\(\$searchQuery\)/);
   assert.match(plan.contentEntityQuery, /text::query\(\$searchQuery\)/);
   assert.match(plan.concernQuery, /text::semanticSimilarity\(\$searchQuery\)/);
   assert.match(plan.contentEntityQuery, /text::semanticSimilarity\(\$searchQuery\)/);
+  assert.doesNotMatch(plan.concernQuery, /boost\(/);
+  assert.doesNotMatch(plan.contentEntityQuery, /boost\(/);
+  assert.doesNotMatch(plan.concernQuery, /->/);
+  assert.doesNotMatch(plan.contentEntityQuery, /->/);
+  assert.match(
+    plan.contentEntityQuery,
+    /score\(\s*title match text::query\(\$searchQuery\),\s*contentMap match text::query\(\$searchQuery\),\s*text::semanticSimilarity\(\$searchQuery\)\s*\)/s,
+  );
 });
 
 test("sanity keyword query plan omits semantic similarity scoring", () => {
@@ -34,6 +44,14 @@ test("sanity keyword query plan omits semantic similarity scoring", () => {
   assert.match(plan.concernQuery, /text::query\(\$searchQuery\)/);
   assert.doesNotMatch(plan.concernQuery, /text::semanticSimilarity\(\$searchQuery\)/);
   assert.doesNotMatch(plan.contentEntityQuery, /text::semanticSimilarity\(\$searchQuery\)/);
+  assert.doesNotMatch(plan.concernQuery, /boost\(/);
+  assert.doesNotMatch(plan.contentEntityQuery, /boost\(/);
+  assert.doesNotMatch(plan.concernQuery, /->/);
+  assert.doesNotMatch(plan.contentEntityQuery, /->/);
+  assert.match(
+    plan.concernQuery,
+    /score\(\s*title match text::query\(\$searchQuery\),\s*contentMap match text::query\(\$searchQuery\)\s*\)/s,
+  );
 });
 
 test("sanity hybrid strategy maps query results into comparable ranks for the shared report", async () => {

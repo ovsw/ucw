@@ -31,10 +31,14 @@ test("default comparison renders deterministic, Sanity keyword, and Sanity hybri
 
       if (query.includes('order(_id asc)')) {
         return createJsonResponse({
-          result: fixture.documents.map((document) => ({
-            _id: document._id,
-            _type: document._type,
-          })),
+          result: [
+            ...fixture.documents.map((document) => ({
+              _id: document._id,
+              _type: document._type,
+            })),
+            { _id: "_.groups.public", _type: "system.group" },
+            { _id: "_.retention._maximum_project", _type: "system.retention" },
+          ],
         });
       }
 
@@ -50,6 +54,7 @@ test("default comparison renders deterministic, Sanity keyword, and Sanity hybri
   assert.match(report.report, /Strategy: Sanity Hybrid/);
   assert.ok(seenQueries.some((query) => query.includes('text::semanticSimilarity($searchQuery)')));
   assert.ok(seenQueries.some((query) => query.includes('order(_id asc)')));
+  assert.ok(seenQueries.some((query) => query.includes('!(_id in path("_.*"))')));
 });
 
 test("default comparison stops before retrieval when Sanity fixture parity is missing", async () => {

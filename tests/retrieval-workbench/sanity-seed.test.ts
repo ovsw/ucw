@@ -42,6 +42,8 @@ test("seed parity comparison reports missing, extra, and type-mismatched Sanity 
       { _id: "concern-a", _type: "concern" },
       { _id: "policy-b", _type: "guide" },
       { _id: "extra-d", _type: "policy" },
+      { _id: "_.groups.public", _type: "system.group" },
+      { _id: "_.retention._maximum_project", _type: "system.retention" },
     ],
   );
 
@@ -58,3 +60,18 @@ test("seed parity comparison reports missing, extra, and type-mismatched Sanity 
   assert.equal(parity.hasWarnings, true);
 });
 
+test("seed parity comparison ignores Sanity system documents", () => {
+  const parity = compareSanitySeedParity(
+    [{ _id: "concern-a", _type: "concern" }],
+    [
+      { _id: "concern-a", _type: "concern" },
+      { _id: "_.groups.public", _type: "system.group" },
+      { _id: "_.groups.sanity.viewer", _type: "system.group" },
+    ],
+  );
+
+  assert.equal(parity.isExactMatch, true);
+  assert.deepEqual(parity.missingDocumentIds, []);
+  assert.deepEqual(parity.extraDocumentIds, []);
+  assert.deepEqual(parity.typeMismatches, []);
+});
