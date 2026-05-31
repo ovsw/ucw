@@ -47,6 +47,11 @@ type StrategyAggregateSummary = {
   tieCount: number | null;
 };
 
+type StrategySummaryContext = {
+  baselineReport: StrategyReport | null;
+  comparisonStrategy: RetrievalStrategy | null;
+};
+
 function formatScore(score: number): string {
   return score.toFixed(2);
 }
@@ -179,17 +184,6 @@ function summarizePrompt(
   };
 }
 
-function buildRequiredRankLookup(
-  summary: PromptReportSummary,
-): Map<string, number> {
-  return new Map(
-    summary.requiredContentEntityHits.map((hit) => [
-      hit.id,
-      hit.rank,
-    ]),
-  );
-}
-
 function buildStrategyAggregateSummary(
   fixture: ParsedRetrievalWorkbenchFixture,
   strategyReport: StrategyReport,
@@ -214,13 +208,14 @@ function buildStrategyAggregateSummary(
     requiredContentHits.length === 0
       ? null
       : requiredContentHits.reduce((total, hit) => total + hit.rank, 0) / requiredContentHits.length;
+  const requiredContentHitCount = requiredContentHits.length;
 
   if (!baselineReport || baselineReport.strategy.id === strategyReport.strategy.id) {
     return {
       missingExpectedConcernCount,
       missingRequiredContentCount,
       requiredContentExpectationCount,
-      requiredContentHitCount: requiredContentHits.length,
+      requiredContentHitCount,
       topFiveRequiredContentHitCount,
       topTenRequiredContentHitCount,
       averageRequiredContentRank,
@@ -268,7 +263,7 @@ function buildStrategyAggregateSummary(
     missingExpectedConcernCount,
     missingRequiredContentCount,
     requiredContentExpectationCount,
-    requiredContentHitCount: requiredContentHits.length,
+    requiredContentHitCount,
     topFiveRequiredContentHitCount,
     topTenRequiredContentHitCount,
     averageRequiredContentRank,
@@ -281,7 +276,7 @@ function buildStrategyAggregateSummary(
 function renderStrategySummaryLine(
   strategy: RetrievalStrategy,
   aggregate: StrategyAggregateSummary,
-  baselineStrategy: RetrievalStrategy | null,
+  comparisonStrategy: RetrievalStrategy | null,
 ): string {
   const summaryParts = [
     `missing expected concerns: ${aggregate.missingExpectedConcernCount}`,
@@ -291,14 +286,14 @@ function renderStrategySummaryLine(
     `average required rank: ${formatRank(aggregate.averageRequiredContentRank)}`,
   ];
 
-  if (baselineStrategy && baselineStrategy.id !== strategy.id) {
+  if (comparisonStrategy && comparisonStrategy.id !== strategy.id) {
     summaryParts.push(`improvements: ${aggregate.improvementCount ?? 0}`);
     summaryParts.push(`regressions: ${aggregate.regressionCount ?? 0}`);
     summaryParts.push(`ties: ${aggregate.tieCount ?? 0}`);
   }
 
   const comparisonLabel =
-    baselineStrategy && baselineStrategy.id !== strategy.id ? ` vs ${baselineStrategy.label}` : " (baseline)";
+    comparisonStrategy && comparisonStrategy.id !== strategy.id ? ` vs ${comparisonStrategy.label}` : " (baseline)";
 
   return `- ${strategy.label}${comparisonLabel}: ${summaryParts.join(", ")}`;
 }
@@ -362,10 +357,20 @@ function renderStrategyReport(
     const promptReport = renderPromptReport(prompt, strategy.evaluatePrompt(prompt.prompt), lookup);
     lines.push(...promptReport.lines);
     summaries.push(promptReport.summary);
-    requiredRanksByPrompt.set(prompt._id, buildRequiredRankLookup(promptReport.summary));
+    requiredRanksByPrompt.set(
+      prompt._id,
+      new Map(promptReport.summary.requiredContentEntityHits.map((hit) => [hit.id, hit.rank])),
+    );
   }
 
   return { strategy, lines, summaries, requiredRanksByPrompt };
+}
+
+function buildStrategySummaryContext(strategyReports: StrategyReport[]): StrategySummaryContext {
+  const baselineReport = strategyReports.find((strategyReport) => strategyReport.strategy.id === "deterministic") ?? null;
+  const comparisonStrategy = baselineReport?.strategy ?? strategyReports[0]?.strategy ?? null;
+
+  return { baselineReport, comparisonStrategy };
 }
 
 export function renderRetrievalWorkbenchReport(
@@ -376,15 +381,10 @@ export function renderRetrievalWorkbenchReport(
   const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
   const lines: string[] = [];
   const strategyReports = strategies.map((strategy) => renderStrategyReport(fixture, lookup, strategy));
-  const baselineStrategy = strategyReports.find((strategyReport) => strategyReport.strategy.id === "deterministic")
-    ?.strategy ?? strategyReports[0]?.strategy ?? null;
+  const { baselineReport, comparisonStrategy } = buildStrategySummaryContext(strategyReports);
   const strategySummaries = strategyReports.map((strategyReport) => ({
     strategy: strategyReport.strategy,
-    aggregate: buildStrategyAggregateSummary(
-      fixture,
-      strategyReport,
-      strategyReports.find((candidate) => candidate.strategy.id === "deterministic") ?? null,
-    ),
+    aggregate: buildStrategyAggregateSummary(fixture, strategyReport, baselineReport),
   }));
   const reportTitle =
     strategies.length === 1 ? "Deterministic retrieval workbench report" : "Retrieval strategy comparison report";
@@ -398,7 +398,7 @@ export function renderRetrievalWorkbenchReport(
   lines.push("");
   lines.push("Strategy summary:");
   for (const { strategy, aggregate } of strategySummaries) {
-    lines.push(renderStrategySummaryLine(strategy, aggregate, baselineStrategy));
+    lines.push(renderStrategySummaryLine(strategy, aggregate, comparisonStrategy));
   }
   lines.push("");
 
