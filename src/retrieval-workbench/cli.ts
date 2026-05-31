@@ -3,6 +3,7 @@ import { loadFixture } from "./load-fixture.js";
 import { printFixtureValidationError } from "./fixture-errors.js";
 import { summarizeFixture } from "./fixture-summary.js";
 import { renderRetrievalWorkbenchReport } from "./report.js";
+import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
 
 const cliArgs = process.argv.slice(2);
 const deterministicOnly = cliArgs.includes("--deterministic-only");
@@ -24,7 +25,7 @@ try {
     console.log("Workbench mode: deterministic-only");
     console.log("");
   }
-  console.log(renderRetrievalWorkbenchReport(fixture));
+  console.log(renderRetrievalWorkbenchReport(fixture, [createDeterministicRetrievalStrategy(fixture)]));
 } catch (error) {
   printFixtureValidationError("Retrieval workbench fixture validation failed", error);
 

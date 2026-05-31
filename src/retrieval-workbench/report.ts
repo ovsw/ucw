@@ -7,7 +7,7 @@ import type {
 } from "./deterministic-retrieval.js";
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import { summarizeFixture } from "./fixture-summary.js";
-import type { ContentEntityDocument, ParentPromptExpectation } from "./types.js";
+import type { ParentPromptExpectation } from "./types.js";
 import type { RetrievalStrategy } from "./retrieval-strategy.js";
 
 type Hit = {
@@ -25,7 +25,11 @@ type PromptReportSummary = {
 
 type CorpusLookup = {
   titlesById: Map<string, string>;
-  entitiesById: Map<string, ContentEntityDocument>;
+};
+
+type StrategyReport = {
+  lines: string[];
+  summaries: PromptReportSummary[];
 };
 
 function formatScore(score: number): string {
@@ -42,16 +46,12 @@ function formatExpected(ids: string[], lookup: CorpusLookup): string {
 
 function buildLookup(fixture: ParsedRetrievalWorkbenchFixture): CorpusLookup {
   const titlesById = new Map<string, string>();
-  const entitiesById = new Map<string, ContentEntityDocument>();
 
   for (const document of fixture.documents) {
     titlesById.set(document._id, document.title);
-    if (document._type !== "concern") {
-      entitiesById.set(document._id, document as ContentEntityDocument);
-    }
   }
 
-  return { titlesById, entitiesById };
+  return { titlesById };
 }
 
 function findHits(ids: string[], matches: Array<{ _id: string; rank: number; title: string }>): Hit[] {
@@ -207,9 +207,9 @@ function renderPromptReport(
 
 function renderStrategyReport(
   fixture: ParsedRetrievalWorkbenchFixture,
+  lookup: CorpusLookup,
   strategy: RetrievalStrategy,
-): { lines: string[]; summaries: PromptReportSummary[] } {
-  const lookup = buildLookup(fixture);
+): StrategyReport {
   const lines: string[] = [];
   const summaries: PromptReportSummary[] = [];
   lines.push(`## Strategy: ${strategy.label}`);
@@ -223,17 +223,30 @@ function renderStrategyReport(
   return { lines, summaries };
 }
 
+function sumPromptSummaryCounts(
+  strategyReports: StrategyReport[],
+  selectCount: (summary: PromptReportSummary) => number,
+): number {
+  return strategyReports.reduce((outerTotal, strategyReport) => {
+    return (
+      outerTotal +
+      strategyReport.summaries.reduce((innerTotal, summary) => innerTotal + selectCount(summary), 0)
+    );
+  }, 0);
+}
+
 export function renderRetrievalWorkbenchReport(
   fixture: ParsedRetrievalWorkbenchFixture,
   strategies: RetrievalStrategy[] = [createDeterministicRetrievalStrategy(fixture)],
 ): string {
+  const lookup = buildLookup(fixture);
   const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
   const lines: string[] = [];
-  const strategyReports = strategies.map((strategy) => renderStrategyReport(fixture, strategy));
+  const strategyReports = strategies.map((strategy) => renderStrategyReport(fixture, lookup, strategy));
+  const reportTitle =
+    strategies.length === 1 ? "Deterministic retrieval workbench report" : "Retrieval strategy comparison report";
 
-  lines.push(
-    strategies.length === 1 ? "Deterministic retrieval workbench report" : "Retrieval strategy comparison report",
-  );
+  lines.push(reportTitle);
   lines.push(`Fixture description: ${fixture.description}`);
   lines.push(
     `Corpus: ${concernCount} concerns, ${nonConcernCount} non-Concern Content Entities, ${fixture.goldSet.length} Parent Prompts`,
@@ -245,28 +258,17 @@ export function renderRetrievalWorkbenchReport(
     lines.push(...strategyReport.lines);
   }
 
-  const missingConcernCount = strategyReports.reduce(
-    (total, strategyReport) =>
-      total + strategyReport.summaries.reduce((innerTotal, summary) => innerTotal + summary.missingExpectedConcernIds.length, 0),
-    0,
+  const missingConcernCount = sumPromptSummaryCounts(
+    strategyReports,
+    (summary) => summary.missingExpectedConcernIds.length,
   );
-  const missingRequiredContentCount = strategyReports.reduce(
-    (total, strategyReport) =>
-      total +
-      strategyReport.summaries.reduce(
-        (innerTotal, summary) => innerTotal + summary.missingRequiredContentEntityIds.length,
-        0,
-      ),
-    0,
+  const missingRequiredContentCount = sumPromptSummaryCounts(
+    strategyReports,
+    (summary) => summary.missingRequiredContentEntityIds.length,
   );
-  const requiredContentHitCount = strategyReports.reduce(
-    (total, strategyReport) =>
-      total +
-      strategyReport.summaries.reduce(
-        (innerTotal, summary) => innerTotal + summary.requiredContentEntityHits.length,
-        0,
-      ),
-    0,
+  const requiredContentHitCount = sumPromptSummaryCounts(
+    strategyReports,
+    (summary) => summary.requiredContentEntityHits.length,
   );
   const requiredContentExpectationCount = fixture.goldSet.reduce(
     (total, prompt) => total + prompt.requiredContentEntityIds.length * strategies.length,
