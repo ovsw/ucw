@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { loadFixture } from "../../src/retrieval-workbench/load-fixture.js";
+import {
+  buildSanitySeedDocuments,
+  compareSanitySeedParity,
+  seedSanityFixture,
+} from "../../src/retrieval-workbench/sanity-seed.js";
+
+test("seed workflow upserts only fixture documents and preserves their ids", async () => {
+  const fixture = await loadFixture("fixtures/retrieval-workbench/generated.json");
+  const upsertedDocumentIds: string[] = [];
+
+  const result = await seedSanityFixture(fixture, {
+    async upsertDocuments(documents) {
+      upsertedDocumentIds.push(...documents.map((document) => document._id));
+    },
+    async listDocuments() {
+      return fixture.documents.map((document) => ({
+        _id: document._id,
+        _type: document._type,
+      }));
+    },
+  });
+
+  assert.deepEqual(upsertedDocumentIds, fixture.documents.map((document) => document._id));
+  assert.deepEqual(result.documents, buildSanitySeedDocuments(fixture));
+  assert.equal(result.parity.isExactMatch, true);
+  assert.deepEqual(result.parity.missingDocumentIds, []);
+  assert.deepEqual(result.parity.extraDocumentIds, []);
+  assert.deepEqual(result.parity.typeMismatches, []);
+});
+
+test("seed parity comparison reports missing, extra, and type-mismatched Sanity documents", () => {
+  const parity = compareSanitySeedParity(
+    [
+      { _id: "concern-a", _type: "concern" },
+      { _id: "policy-b", _type: "policy" },
+      { _id: "session-c", _type: "session" },
+    ],
+    [
+      { _id: "concern-a", _type: "concern" },
+      { _id: "policy-b", _type: "guide" },
+      { _id: "extra-d", _type: "policy" },
+    ],
+  );
+
+  assert.deepEqual(parity.missingDocumentIds, ["session-c"]);
+  assert.deepEqual(parity.extraDocumentIds, ["extra-d"]);
+  assert.deepEqual(parity.typeMismatches, [
+    {
+      id: "policy-b",
+      expectedType: "policy",
+      actualType: "guide",
+    },
+  ]);
+  assert.equal(parity.isExactMatch, false);
+  assert.equal(parity.hasWarnings, true);
+});
+
