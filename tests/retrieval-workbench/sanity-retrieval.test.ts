@@ -21,6 +21,8 @@ test("sanity hybrid query plan includes keyword and semantic scoring", async () 
   assert.equal(plan.kind, "sanityHybrid");
   assert.match(plan.concernQuery, /_type == "concern"/);
   assert.match(plan.contentEntityQuery, /_type != "concern"/);
+  assert.ok(plan.concernQuery.includes('!(_id in path("_.*"))'));
+  assert.ok(plan.contentEntityQuery.includes('!(_id in path("_.*"))'));
   assert.match(plan.contentEntityBridgeQuery, /relatedConcerns\[_ref in \$matchedConcernIds\]/);
   assert.match(plan.contentEntityBridgeQuery, /relatedConcerns\[\]\._ref/);
   assert.match(plan.concernQuery, /text::query\(\$searchQuery\)/);

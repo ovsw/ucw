@@ -1,5 +1,6 @@
 import MiniSearch from "minisearch";
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
+import { processIndexedSearchTerm, processQuerySearchTerm } from "./search-query-shaping.js";
 import type { ConcernDocument, ContentEntityDocument, ParentPromptExpectation } from "./types.js";
 
 type SearchMatch = Record<string, string[]>;
@@ -116,132 +117,9 @@ const ENTITY_FIELD_BOOSTS: Record<string, number> = {
   _type: 0.25,
 };
 
-const SEARCH_STOP_WORDS = new Set([
-  "a",
-  "about",
-  "an",
-  "and",
-  "another",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "camp",
-  "camper",
-  "campers",
-  "can",
-  "child",
-  "children",
-  "could",
-  "do",
-  "does",
-  "during",
-  "family",
-  "families",
-  "few",
-  "first",
-  "for",
-  "from",
-  "get",
-  "have",
-  "has",
-  "how",
-  "i",
-  "if",
-  "in",
-  "is",
-  "it",
-  "make",
-  "my",
-  "of",
-  "or",
-  "our",
-  "parent",
-  "parents",
-  "right",
-  "should",
-  "sure",
-  "support",
-  "that",
-  "the",
-  "their",
-  "them",
-  "they",
-  "this",
-  "time",
-  "to",
-  "too",
-  "up",
-  "we",
-  "what",
-  "when",
-  "where",
-  "who",
-  "will",
-  "with",
-  "would",
-  "worry",
-  "worried",
-  "you",
-  "your",
-]);
-
 const CONCERN_EXPANSION_WEIGHT = 0.35;
 const MAX_EXPANSION_CONCERNS = 3;
 const MIN_EXPANSION_SCORE_RATIO = 0.1;
-
-const INDEX_TERM_ALIASES: Record<string, string> = {
-  bullied: "bully",
-  bullies: "bully",
-  bullying: "bully",
-  phones: "phone",
-  safely: "safety",
-  safe: "safety",
-  swimmer: "swim",
-  swimming: "swim",
-};
-
-const QUERY_TERM_ALIASES: Record<string, string | string[]> = {
-  bullied: ["bully", "unsafe", "reporting"],
-  bullies: ["bully", "unsafe", "reporting"],
-  bullying: ["bully", "unsafe", "reporting"],
-  overwhelmed: ["nervous", "homesickness", "social"],
-  phone: ["phone", "electronics"],
-  phones: ["phone", "electronics"],
-  safely: "safety",
-  safe: "safety",
-  shy: ["shy", "nervous", "social"],
-  swimmer: "swim",
-  swimming: "swim",
-};
-
-function keepSearchTerm(term: string): boolean {
-  return term.length >= 2 && !SEARCH_STOP_WORDS.has(term);
-}
-
-function processTermWithAliases(term: string, aliases: Record<string, string | string[]>): string | string[] | null {
-  const alias = aliases[term.toLowerCase()] ?? term.toLowerCase();
-  const normalized = Array.isArray(alias) ? alias.filter(keepSearchTerm) : alias;
-
-  if (Array.isArray(normalized)) {
-    return normalized.length > 0 ? normalized : null;
-  }
-
-  if (!keepSearchTerm(normalized)) {
-    return null;
-  }
-
-  return normalized;
-}
-
-function processIndexedTerm(term: string): string | string[] | null {
-  return processTermWithAliases(term, INDEX_TERM_ALIASES);
-}
-
-function processQueryTerm(term: string): string | string[] | null {
-  return processTermWithAliases(term, QUERY_TERM_ALIASES);
-}
 
 function compareRetrievalSources(left: RetrievalSource, right: RetrievalSource): number {
   if (right.score !== left.score) {
@@ -389,12 +267,12 @@ function buildConcernIndex(fixture: ParsedRetrievalWorkbenchFixture): {
   const index = new MiniSearch<IndexedConcernDocument>({
     idField: "_id",
     fields: [...CONCERN_FIELDS],
-    processTerm: processIndexedTerm,
+    processTerm: processIndexedSearchTerm,
     storeFields: ["_id", "_type", "title", "contentMap", "concernArea", "parentSignals"],
     searchOptions: {
       combineWith: "OR",
       prefix: true,
-      processTerm: processQueryTerm,
+      processTerm: processQuerySearchTerm,
       boost: CONCERN_FIELD_BOOSTS,
     },
   });
@@ -512,7 +390,7 @@ function buildEntityIndex(fixture: ParsedRetrievalWorkbenchFixture, concernById:
   const index = new MiniSearch<IndexedContentEntityDocument>({
     idField: "_id",
     fields: [...ENTITY_FIELDS],
-    processTerm: processIndexedTerm,
+    processTerm: processIndexedSearchTerm,
     storeFields: [
       "_id",
       "_type",
@@ -527,7 +405,7 @@ function buildEntityIndex(fixture: ParsedRetrievalWorkbenchFixture, concernById:
     searchOptions: {
       combineWith: "OR",
       prefix: true,
-      processTerm: processQueryTerm,
+      processTerm: processQuerySearchTerm,
       boost: ENTITY_FIELD_BOOSTS,
     },
   });

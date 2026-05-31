@@ -1,4 +1,5 @@
 import type { PromptRetrievalResult, RetrievalStrategy } from "./retrieval-strategy.js";
+import { shapeSanitySearchQuery } from "./search-query-shaping.js";
 
 export type SanityRetrievalMode = "sanityKeyword" | "sanityHybrid";
 
@@ -25,6 +26,7 @@ export type SanityRetrievalQueryResult = Omit<PromptRetrievalResult, "prompt">;
 export type SanityRetrievalQueryRunner = (plan: SanityRetrievalQueryPlan) => SanityRetrievalQueryResult;
 
 const DEFAULT_LIMIT = 10;
+const PUBLIC_DOCUMENT_FILTER = '!(_id in path("_.*"))';
 
 function escapeGroqString(value: string): string {
   return JSON.stringify(value);
@@ -49,7 +51,7 @@ function buildDocumentQuery(
   searchFields: string[],
   includeSemanticSimilarity: boolean,
 ): string {
-  return `*[${documentFilterExpression}]
+  return `*[${PUBLIC_DOCUMENT_FILTER} && ${documentFilterExpression}]
   | score(
       ${buildScoreClause(searchFields, includeSemanticSimilarity)}
     )
@@ -72,7 +74,7 @@ function buildContentEntityBridgeQuery(): string {
 }
 
 function buildQueryPlan(kind: SanityRetrievalMode, prompt: string): SanityRetrievalQueryPlan {
-  const searchQuery = prompt;
+  const searchQuery = shapeSanitySearchQuery(prompt);
   const includeSemanticSimilarity = kind === "sanityHybrid";
 
   return {
