@@ -52,6 +52,11 @@ type StrategySummaryContext = {
   comparisonStrategy: RetrievalStrategy | null;
 };
 
+type RankUsefulness = "usable" | "diagnostic" | "weak";
+
+const USABLE_RANK_THRESHOLD = 5;
+const DIAGNOSTIC_RANK_THRESHOLD = 10;
+
 function formatScore(score: number): string {
   return score.toFixed(2);
 }
@@ -60,8 +65,34 @@ function formatRank(rank: number | null): string {
   return rank === null ? "n/a" : rank.toFixed(2);
 }
 
+function classifyRank(rank: number): RankUsefulness {
+  if (rank <= USABLE_RANK_THRESHOLD) {
+    return "usable";
+  }
+
+  if (rank <= DIAGNOSTIC_RANK_THRESHOLD) {
+    return "diagnostic";
+  }
+
+  return "weak";
+}
+
 function formatList(values: string[]): string {
   return values.length === 0 ? "none" : values.join(", ");
+}
+
+function formatRankBandSummary(hits: Hit[], expectedCount: number, missingCount: number): string {
+  const counts: Record<RankUsefulness, number> = {
+    usable: 0,
+    diagnostic: 0,
+    weak: 0,
+  };
+
+  for (const hit of hits) {
+    counts[classifyRank(hit.rank)] += 1;
+  }
+
+  return `usable: ${counts.usable}/${expectedCount}, diagnostic: ${counts.diagnostic}/${expectedCount}, weak: ${counts.weak}/${expectedCount}, missing: ${missingCount}`;
 }
 
 function formatExpected(ids: string[], lookup: CorpusLookup): string {
@@ -156,7 +187,7 @@ function renderHits(hits: Hit[]): string {
     return "none";
   }
 
-  return hits.map((hit) => `${hit.title} [${hit.id}] at #${hit.rank}`).join("; ");
+  return hits.map((hit) => `${hit.title} [${hit.id}] at #${hit.rank} (${classifyRank(hit.rank)})`).join("; ");
 }
 
 function findDistractors(
@@ -305,6 +336,7 @@ function renderStrategySummaryLine(
     `missing required content: ${aggregate.missingRequiredContentCount}`,
     `top 5 required content hits: ${aggregate.topFiveRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
     `top 10 required content hits: ${aggregate.topTenRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
+    `weak required content hits: ${aggregate.requiredContentHitCount - aggregate.topTenRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
     `average required rank: ${formatRank(aggregate.averageRequiredContentRank)}`,
   ];
 
@@ -345,6 +377,7 @@ function renderPromptReport(
 
   lines.push("Matched concerns:");
   lines.push(...renderConcernMatches(result.matchedConcerns));
+  lines.push(`Concern status: ${formatRankBandSummary(expectedConcernHits, prompt.expectedConcernIds.length, summary.missingExpectedConcernIds.length)}`);
   lines.push(`Concern hits: ${renderHits(expectedConcernHits)}`);
   lines.push(`Missing expected concerns: ${formatList(summary.missingExpectedConcernIds)}`);
 
@@ -353,6 +386,13 @@ function renderPromptReport(
 
   lines.push("Merged Content Entity ranking:");
   lines.push(...renderEntityMatches(result.mergedContentEntities, 8));
+  lines.push(
+    `Required content status: ${formatRankBandSummary(
+      summary.requiredContentEntityHits,
+      prompt.requiredContentEntityIds.length,
+      summary.missingRequiredContentEntityIds.length,
+    )}`,
+  );
   lines.push(`Required content hits: ${renderHits(summary.requiredContentEntityHits)}`);
   lines.push(`Supporting content hits: ${renderHits(supportingHits)}`);
   lines.push(`Source-of-truth hits: ${renderHits(sourceOfTruthHits)}`);
