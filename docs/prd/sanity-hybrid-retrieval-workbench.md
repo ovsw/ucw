@@ -175,3 +175,14 @@ This PRD also preserves the controlled answer assembly direction: LLM memory and
 Sanity MCP is helpful for coding agents when researching Sanity documentation or debugging Sanity-specific behavior, but it is not installed at the moment and must not become a dependency of the workbench. The prototype should be runnable through ordinary Sanity tooling and APIs.
 
 The practical question this prototype should answer is: does Sanity hybrid semantic retrieval improve the ranking of relevant Concerns and Content Entities enough to become the likely production retrieval backend, while leaving reasoning-dependent Implied Needs for a later AI Retrieval Planner?
+
+## Sanity Setup Notes
+
+- Use the Sanity `LWJ` coupon for the prototype trial setup.
+- Create the initial Sanity project with `npm create sanity@latest -- --coupon=lwj`.
+- Query workflows require `SANITY_PROJECT_ID`, `SANITY_DATASET`, and `SANITY_API_VERSION`.
+- Seed workflows additionally require `SANITY_WRITE_TOKEN`.
+- `SANITY_READ_TOKEN` is optional and should only be used when the dataset requires authenticated reads.
+- Do not add dummy or placeholder fallbacks for any required Sanity value.
+- Sanity MCP is not currently installed in this repo and is optional agent tooling only.
+- Prototype runtime code must use the normal Sanity CLI, client, and GROQ APIs rather than MCP.
