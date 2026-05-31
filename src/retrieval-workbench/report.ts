@@ -82,17 +82,17 @@ function formatList(values: string[]): string {
 }
 
 function formatRankBandSummary(hits: Hit[], expectedCount: number, missingCount: number): string {
-  const counts: Record<RankUsefulness, number> = {
+  const rankBandCounts: Record<RankUsefulness, number> = {
     usable: 0,
     diagnostic: 0,
     weak: 0,
   };
 
   for (const hit of hits) {
-    counts[classifyRank(hit.rank)] += 1;
+    rankBandCounts[classifyRank(hit.rank)] += 1;
   }
 
-  return `usable: ${counts.usable}/${expectedCount}, diagnostic: ${counts.diagnostic}/${expectedCount}, weak: ${counts.weak}/${expectedCount}, missing: ${missingCount}`;
+  return `usable: ${rankBandCounts.usable}/${expectedCount}, diagnostic: ${rankBandCounts.diagnostic}/${expectedCount}, weak: ${rankBandCounts.weak}/${expectedCount}, missing: ${missingCount}`;
 }
 
 function formatExpected(ids: string[], lookup: CorpusLookup): string {
@@ -202,8 +202,6 @@ function findDistractors(
 
   return result.mergedContentEntities.filter((match) => !expectedIds.has(match._id)).slice(0, 3);
 }
-
-const EVALUATION_NOTES_WEAK_RANK_THRESHOLD = 10;
 
 function hasWeakRequiredContentRanks(summary: PromptReportSummary, weakRankThreshold: number): boolean {
   return summary.requiredContentEntityHits.some((hit) => hit.rank > weakRankThreshold);
@@ -397,7 +395,7 @@ function renderPromptReport(
   lines.push(`Supporting content hits: ${renderHits(supportingHits)}`);
   lines.push(`Source-of-truth hits: ${renderHits(sourceOfTruthHits)}`);
   lines.push(`Missing required content: ${formatList(summary.missingRequiredContentEntityIds)}`);
-  if (shouldSurfaceEvaluationNotes(prompt, summary, EVALUATION_NOTES_WEAK_RANK_THRESHOLD)) {
+  if (shouldSurfaceEvaluationNotes(prompt, summary, DIAGNOSTIC_RANK_THRESHOLD)) {
     lines.push(`Evaluation notes: ${formatList(prompt.evaluationNotes ?? [])}`);
   }
 
