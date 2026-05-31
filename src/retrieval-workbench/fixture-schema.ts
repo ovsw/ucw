@@ -5,6 +5,8 @@ const sanityReferenceSchema = z.object({
   _ref: z.string().min(1),
 });
 
+const evaluationNoteCategorySchema = z.enum(["semanticFailure", "impliedNeedFailure", "fixtureGap"]);
+
 const baseDocumentSchema = z.object({
   _id: z.string().min(1),
   _type: z.string().min(1),
@@ -35,6 +37,7 @@ const parentPromptExpectationSchema = z.object({
   requiredContentEntityIds: z.array(z.string().min(1)).min(1),
   supportingContentEntityIds: z.array(z.string().min(1)).optional(),
   requiredSourceOfTruthIds: z.array(z.string().min(1)).optional(),
+  evaluationNotes: z.array(evaluationNoteCategorySchema).min(1).optional(),
 });
 
 export const retrievalWorkbenchFixtureSchema = z

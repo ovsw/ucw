@@ -734,6 +734,9 @@
       "requiredSourceOfTruthIds": [
         "policy-bullying-response",
         "procedure-homesickness-support"
+      ],
+      "evaluationNotes": [
+        "semanticFailure"
       ]
     },
     {
@@ -754,6 +757,9 @@
       "requiredSourceOfTruthIds": [
         "program-day-camp",
         "policy-registration-cancellation"
+      ],
+      "evaluationNotes": [
+        "impliedNeedFailure"
       ]
     }
   ]

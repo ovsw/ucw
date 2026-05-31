@@ -3,6 +3,8 @@ export type SanityReference = {
   _ref: string;
 };
 
+export type EvaluationNoteCategory = "semanticFailure" | "impliedNeedFailure" | "fixtureGap";
+
 export type ConcernDocument = {
   _id: string;
   _type: "concern";
@@ -29,6 +31,7 @@ export type ParentPromptExpectation = {
   requiredContentEntityIds: string[];
   supportingContentEntityIds?: string[];
   requiredSourceOfTruthIds?: string[];
+  evaluationNotes?: EvaluationNoteCategory[];
 };
 
 export type RetrievalWorkbenchFixture = {

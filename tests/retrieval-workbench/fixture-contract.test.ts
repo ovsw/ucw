@@ -20,6 +20,7 @@ type SeedFixture = {
       requiredContentEntityIds: string[];
       supportingContentEntityIds?: string[];
       requiredSourceOfTruthIds?: string[];
+      evaluationNotes?: Array<"semanticFailure" | "impliedNeedFailure" | "fixtureGap">;
     }
   >;
 };
@@ -182,6 +183,25 @@ test("fixture contract rejects expected Concern ids that point at non-Concern do
   assert.match(validationMessages(result.error).join("\n"), /Expected Concern id is not a Concern document/);
 });
 
+test("fixture contract accepts supported evaluation note categories", async () => {
+  const fixture = cloneFixture(await readSeedFixture());
+  (fixture.goldSet[0] as Record<string, unknown>).evaluationNotes = ["semanticFailure", "fixtureGap"];
+
+  const result = retrievalWorkbenchFixtureSchema.safeParse(fixture);
+
+  assert.equal(result.success, true);
+});
+
+test("fixture contract rejects unsupported evaluation note categories", async () => {
+  const fixture = cloneFixture(await readSeedFixture());
+  (fixture.goldSet[0] as Record<string, unknown>).evaluationNotes = ["semanticFailure", "unsupportedCategory"];
+
+  const result = retrievalWorkbenchFixtureSchema.safeParse(fixture);
+
+  assert.equal(result.success, false);
+  assert.match(validationMessages(result.error).join("\n"), /Invalid enum value/);
+});
+
 test("workbench CLI exits cleanly for a valid fixture", () => {
   const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts"], {
     cwd: process.cwd(),
@@ -240,6 +260,14 @@ test("generated fixture expands the corpus while staying within the contract", a
   assert.equal(concerns.length, 8);
   assert.equal(contentEntities.length, 25);
   assert.equal(generatedFixture.goldSet.length, 12);
+  assert.deepEqual(
+    generatedFixture.goldSet.find((entry) => entry._id === "prompt-bullying-and-homesickness")?.evaluationNotes,
+    ["semanticFailure"],
+  );
+  assert.deepEqual(
+    generatedFixture.goldSet.find((entry) => entry._id === "prompt-day-camp-alternative")?.evaluationNotes,
+    ["impliedNeedFailure"],
+  );
   assert.match(
     generatedFixture.documents.map((document) => document._id).join(" "),
     /policy-bullying-response|program-day-camp|policy-registration-cancellation/,
