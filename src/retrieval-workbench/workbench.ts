@@ -5,7 +5,12 @@ import { readSanityQueryConfig, type SanityConfigEnv, type SanityQueryConfig } f
 import { printFixtureValidationError } from "./fixture-errors.js";
 import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
 import { renderRetrievalWorkbenchReport } from "./report.js";
-import { buildSanityHybridQueryPlan, buildSanityKeywordQueryPlan, createSanityRetrievalStrategyFromResults } from "./sanity-retrieval.js";
+import {
+  buildSanityHybridQueryPlan,
+  buildSanityKeywordQueryPlan,
+  createSanityRetrievalStrategyFromResults,
+  type SanityRetrievalQueryResult,
+} from "./sanity-retrieval.js";
 import { executeSanityRetrievalQueryPlan, verifySanityFixtureParity } from "./sanity-client.js";
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import type { RetrievalStrategy } from "./retrieval-strategy.js";
@@ -25,6 +30,8 @@ export type RetrievalWorkbenchRunResult = {
   summaryLines: string[];
   report: string;
 };
+
+type SanityResultsByPrompt = Map<string, SanityRetrievalQueryResult>;
 
 function formatSummaryLines(fixture: ParsedRetrievalWorkbenchFixture, fixturePath: string): string[] {
   const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
@@ -66,18 +73,18 @@ async function buildSanityComparisonStrategies(
   config: SanityQueryConfig,
   fetchImpl: typeof fetch,
 ): Promise<RetrievalStrategy[]> {
-  const keywordResults = new Map<string, Awaited<ReturnType<typeof executeSanityRetrievalQueryPlan>>>();
-  const hybridResults = new Map<string, Awaited<ReturnType<typeof executeSanityRetrievalQueryPlan>>>();
+  const keywordResults: SanityResultsByPrompt = new Map();
+  const hybridResults: SanityResultsByPrompt = new Map();
 
   await Promise.all(
-    fixture.goldSet.map(async (prompt) => {
+    fixture.goldSet.map(async ({ prompt }) => {
       const [keywordResult, hybridResult] = await Promise.all([
-        executeSanityRetrievalQueryPlan(buildSanityKeywordQueryPlan(prompt.prompt), config, fetchImpl),
-        executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(prompt.prompt), config, fetchImpl),
+        executeSanityRetrievalQueryPlan(buildSanityKeywordQueryPlan(prompt), config, fetchImpl),
+        executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(prompt), config, fetchImpl),
       ]);
 
-      keywordResults.set(prompt.prompt, keywordResult);
-      hybridResults.set(prompt.prompt, hybridResult);
+      keywordResults.set(prompt, keywordResult);
+      hybridResults.set(prompt, hybridResult);
     }),
   );
 

@@ -142,7 +142,7 @@ function mapSearchHitsToContentEntityMatches(
   });
 }
 
-function mapQueryResult(prompt: string, result: SanityRetrievalQueryResult): PromptRetrievalResult {
+export function mapSanityRetrievalQueryResult(prompt: string, result: SanityRetrievalQueryResult): PromptRetrievalResult {
   const directContentEntities = mapSearchHitsToContentEntityMatches(prompt, result.directContentEntities);
   const mergedContentEntities =
     result.mergedContentEntities.length > 0
@@ -157,10 +157,6 @@ function mapQueryResult(prompt: string, result: SanityRetrievalQueryResult): Pro
   };
 }
 
-export function mapSanityRetrievalQueryResult(prompt: string, result: SanityRetrievalQueryResult): PromptRetrievalResult {
-  return mapQueryResult(prompt, result);
-}
-
 function createSanityRetrievalStrategy(
   kind: SanityRetrievalMode,
   label: string,
@@ -171,7 +167,7 @@ function createSanityRetrievalStrategy(
     label,
     evaluatePrompt(prompt: string): PromptRetrievalResult {
       const plan = buildQueryPlan(kind, prompt);
-      return mapQueryResult(prompt, runner(plan));
+      return mapSanityRetrievalQueryResult(prompt, runner(plan));
     },
   };
 }

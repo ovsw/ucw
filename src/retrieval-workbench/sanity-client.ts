@@ -92,7 +92,10 @@ export async function verifySanityFixtureParity(
   return compareSanitySeedParity(expectedDocuments, actualDocuments);
 }
 
-function mapSearchHits(hits: SanitySearchHit[], prompt: string): SanityRetrievalQueryResult["directContentEntities"] {
+function mapSanitySearchHits(
+  hits: SanitySearchHit[],
+  prompt: string,
+): SanityRetrievalQueryResult["directContentEntities"] {
   return hits.map((hit, index) => {
     const rank = index + 1;
     const score = hit._score ?? 0;
@@ -131,7 +134,7 @@ export async function executeSanityRetrievalQueryPlan(
     ),
   ]);
 
-  const mappedDirectContentEntities = mapSearchHits(directContentEntities, plan.prompt);
+  const mappedDirectContentEntities = mapSanitySearchHits(directContentEntities, plan.prompt);
 
   return {
     matchedConcerns,
