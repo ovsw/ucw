@@ -203,8 +203,8 @@ test("fixture contract rejects unsupported evaluation note categories", async ()
   assert.match(validationMessages(result.error).join("\n"), /Invalid enum value/);
 });
 
-test("workbench CLI exits cleanly for a valid fixture", () => {
-  const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts"], {
+test("workbench CLI exits cleanly for a valid fixture in deterministic-only mode", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts", "--deterministic-only"], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
@@ -218,6 +218,26 @@ test("workbench CLI exits cleanly for a valid fixture", () => {
   assert.match(result.stdout, /Direct Content Entity matches/);
   assert.match(result.stdout, /Merged Content Entity ranking/);
   assert.match(result.stdout, /Missing required content/);
+});
+
+test("workbench CLI fails loudly when default comparison has no Sanity config", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      SANITY_PROJECT_ID: "",
+      SANITY_DATASET: "",
+      SANITY_API_VERSION: "",
+      SANITY_READ_TOKEN: "",
+      SANITY_WRITE_TOKEN: "",
+    },
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Retrieval workbench comparison failed/);
+  assert.match(result.stderr, /Missing required Sanity config for query workflow/);
+  assert.doesNotMatch(result.stdout, /Deterministic retrieval workbench report/);
 });
 
 test("workbench CLI exits non-zero and reports validation errors for an invalid fixture", async () => {

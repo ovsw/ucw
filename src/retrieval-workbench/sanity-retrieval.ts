@@ -157,6 +157,10 @@ function mapQueryResult(prompt: string, result: SanityRetrievalQueryResult): Pro
   };
 }
 
+export function mapSanityRetrievalQueryResult(prompt: string, result: SanityRetrievalQueryResult): PromptRetrievalResult {
+  return mapQueryResult(prompt, result);
+}
+
 function createSanityRetrievalStrategy(
   kind: SanityRetrievalMode,
   label: string,
@@ -186,4 +190,24 @@ export function createSanityKeywordRetrievalStrategy(runner: SanityRetrievalQuer
 
 export function createSanityHybridRetrievalStrategy(runner: SanityRetrievalQueryRunner): RetrievalStrategy {
   return createSanityRetrievalStrategy("sanityHybrid", "Sanity Hybrid", runner);
+}
+
+export function createSanityRetrievalStrategyFromResults(
+  kind: SanityRetrievalMode,
+  label: string,
+  resultsByPrompt: Map<string, SanityRetrievalQueryResult>,
+): RetrievalStrategy {
+  return {
+    id: kind,
+    label,
+    evaluatePrompt(prompt: string): PromptRetrievalResult {
+      const result = resultsByPrompt.get(prompt);
+
+      if (!result) {
+        throw new Error(`Missing preloaded Sanity retrieval result for ${label}: ${prompt}`);
+      }
+
+      return mapSanityRetrievalQueryResult(prompt, result);
+    },
+  };
 }
