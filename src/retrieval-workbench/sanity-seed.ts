@@ -43,26 +43,32 @@ export function compareSanitySeedParity(
   const expectedById = new Map(expectedDocuments.map((document) => [document._id, document]));
   const actualById = new Map(actualDocuments.map((document) => [document._id, document]));
 
-  const missingDocumentIds = sortIds(
-    expectedDocuments.map((document) => (actualById.has(document._id) ? "" : document._id)).filter(Boolean),
-  );
-  const extraDocumentIds = sortIds(
-    actualDocuments.map((document) => (expectedById.has(document._id) ? "" : document._id)).filter(Boolean),
-  );
+  const missingDocumentIds: string[] = [];
+  for (const expectedDocument of expectedDocuments) {
+    if (!actualById.has(expectedDocument._id)) {
+      missingDocumentIds.push(expectedDocument._id);
+    }
+  }
 
-  const typeMismatches = sortIds(
-    expectedDocuments
-      .map((document) => {
-        const actual = actualById.get(document._id);
+  const extraDocumentIds: string[] = [];
+  for (const actualDocument of actualDocuments) {
+    if (!expectedById.has(actualDocument._id)) {
+      extraDocumentIds.push(actualDocument._id);
+    }
+  }
 
-        if (!actual || actual._type === document._type) {
-          return "";
-        }
+  const typeMismatchIds: string[] = [];
+  for (const expectedDocument of expectedDocuments) {
+    const actualDocument = actualById.get(expectedDocument._id);
 
-        return `${document._id}`;
-      })
-      .filter(Boolean),
-  ).map((id) => {
+    if (!actualDocument || actualDocument._type === expectedDocument._type) {
+      continue;
+    }
+
+    typeMismatchIds.push(expectedDocument._id);
+  }
+
+  const typeMismatches = sortIds(typeMismatchIds).map((id) => {
     const expected = expectedById.get(id);
     const actual = actualById.get(id);
 
@@ -78,10 +84,11 @@ export function compareSanitySeedParity(
   });
 
   return {
-    missingDocumentIds,
-    extraDocumentIds,
+    missingDocumentIds: sortIds(missingDocumentIds),
+    extraDocumentIds: sortIds(extraDocumentIds),
     typeMismatches,
-    isExactMatch: missingDocumentIds.length === 0 && extraDocumentIds.length === 0 && typeMismatches.length === 0,
+    isExactMatch:
+      missingDocumentIds.length === 0 && extraDocumentIds.length === 0 && typeMismatches.length === 0,
     hasWarnings: extraDocumentIds.length > 0 || typeMismatches.length > 0,
   };
 }
@@ -105,4 +112,3 @@ export async function seedSanityFixture(
     parity,
   };
 }
-
