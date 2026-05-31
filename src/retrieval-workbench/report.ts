@@ -7,7 +7,6 @@ import type {
 } from "./deterministic-retrieval.js";
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import { summarizeFixture } from "./fixture-summary.js";
-import type { EvaluationNoteCategory } from "./types.js";
 import type { ParentPromptExpectation } from "./types.js";
 import type { RetrievalStrategy } from "./retrieval-strategy.js";
 
@@ -63,10 +62,6 @@ function formatRank(rank: number | null): string {
 
 function formatList(values: string[]): string {
   return values.length === 0 ? "none" : values.join(", ");
-}
-
-function formatEvaluationNotes(notes: EvaluationNoteCategory[]): string {
-  return notes.join(", ");
 }
 
 function formatExpected(ids: string[], lookup: CorpusLookup): string {
@@ -177,6 +172,8 @@ function findDistractors(
   return result.mergedContentEntities.filter((match) => !expectedIds.has(match._id)).slice(0, 3);
 }
 
+const EVALUATION_NOTES_WEAK_RANK_THRESHOLD = 10;
+
 function hasWeakRequiredContentRanks(summary: PromptReportSummary, weakRankThreshold: number): boolean {
   return summary.requiredContentEntityHits.some((hit) => hit.rank > weakRankThreshold);
 }
@@ -186,11 +183,14 @@ function shouldSurfaceEvaluationNotes(
   summary: PromptReportSummary,
   weakRankThreshold: number,
 ): boolean {
+  if ((prompt.evaluationNotes?.length ?? 0) === 0) {
+    return false;
+  }
+
   return (
-    (prompt.evaluationNotes?.length ?? 0) > 0 &&
-    (summary.missingExpectedConcernIds.length > 0 ||
-      summary.missingRequiredContentEntityIds.length > 0 ||
-      hasWeakRequiredContentRanks(summary, weakRankThreshold))
+    summary.missingExpectedConcernIds.length > 0 ||
+    summary.missingRequiredContentEntityIds.length > 0 ||
+    hasWeakRequiredContentRanks(summary, weakRankThreshold)
   );
 }
 
@@ -357,8 +357,8 @@ function renderPromptReport(
   lines.push(`Supporting content hits: ${renderHits(supportingHits)}`);
   lines.push(`Source-of-truth hits: ${renderHits(sourceOfTruthHits)}`);
   lines.push(`Missing required content: ${formatList(summary.missingRequiredContentEntityIds)}`);
-  if (shouldSurfaceEvaluationNotes(prompt, summary, 10)) {
-    lines.push(`Evaluation notes: ${formatEvaluationNotes(prompt.evaluationNotes ?? [])}`);
+  if (shouldSurfaceEvaluationNotes(prompt, summary, EVALUATION_NOTES_WEAK_RANK_THRESHOLD)) {
+    lines.push(`Evaluation notes: ${formatList(prompt.evaluationNotes ?? [])}`);
   }
 
   lines.push("Obvious distractors:");

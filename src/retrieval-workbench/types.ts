@@ -3,7 +3,9 @@ export type SanityReference = {
   _ref: string;
 };
 
-export type EvaluationNoteCategory = "semanticFailure" | "impliedNeedFailure" | "fixtureGap";
+export const evaluationNoteCategories = ["semanticFailure", "impliedNeedFailure", "fixtureGap"] as const;
+
+export type EvaluationNoteCategory = (typeof evaluationNoteCategories)[number];
 
 export type ConcernDocument = {
   _id: string;

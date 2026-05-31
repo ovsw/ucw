@@ -8,6 +8,7 @@ import test from "node:test";
 import { ZodError } from "zod";
 import { retrievalWorkbenchFixtureSchema } from "../../src/retrieval-workbench/fixture-schema.js";
 import { loadFixture } from "../../src/retrieval-workbench/load-fixture.js";
+import type { EvaluationNoteCategory } from "../../src/retrieval-workbench/types.js";
 
 type SeedFixture = {
   fixtureVersion: 1;
@@ -20,7 +21,7 @@ type SeedFixture = {
       requiredContentEntityIds: string[];
       supportingContentEntityIds?: string[];
       requiredSourceOfTruthIds?: string[];
-      evaluationNotes?: Array<"semanticFailure" | "impliedNeedFailure" | "fixtureGap">;
+      evaluationNotes?: EvaluationNoteCategory[];
     }
   >;
 };

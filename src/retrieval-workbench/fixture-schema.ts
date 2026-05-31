@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { evaluationNoteCategories } from "./types.js";
 
 const sanityReferenceSchema = z.object({
   _type: z.literal("reference"),
   _ref: z.string().min(1),
 });
 
-const evaluationNoteCategorySchema = z.enum(["semanticFailure", "impliedNeedFailure", "fixtureGap"]);
+const evaluationNoteCategorySchema = z.enum(evaluationNoteCategories);
 
 const baseDocumentSchema = z.object({
   _id: z.string().min(1),
