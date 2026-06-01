@@ -1,6 +1,9 @@
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
+import type { SanityReference } from "./types.js";
 
-export type SanitySeedDocument = ParsedRetrievalWorkbenchFixture["documents"][number];
+export type SanitySeedDocument = ParsedRetrievalWorkbenchFixture["documents"][number] & {
+  relatedConcernTitles?: string;
+};
 
 export type SanitySeedDocumentRef = Pick<SanitySeedDocument, "_id" | "_type">;
 
@@ -28,6 +31,14 @@ export type SanitySeedResult = {
   parity: SanitySeedParityReport;
 };
 
+function buildConcernTitleById(fixture: ParsedRetrievalWorkbenchFixture): Map<string, string> {
+  return new Map(
+    fixture.documents
+      .filter((document) => document._type === "concern")
+      .map((document) => [document._id, document.title]),
+  );
+}
+
 function sortIds(ids: Iterable<string>): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right));
 }
@@ -36,8 +47,30 @@ function isSanitySystemDocumentId(id: string): boolean {
   return id.startsWith("_");
 }
 
+function isContentEntityDocument(
+  document: SanitySeedDocument,
+): document is SanitySeedDocument & { relatedConcerns: SanityReference[] } {
+  return document._type !== "concern" && Array.isArray(document.relatedConcerns);
+}
+
 export function buildSanitySeedDocuments(fixture: ParsedRetrievalWorkbenchFixture): SanitySeedDocument[] {
-  return fixture.documents.map((document) => structuredClone(document));
+  const concernTitleById = buildConcernTitleById(fixture);
+
+  return fixture.documents.map((document) => {
+    const clonedDocument = structuredClone(document);
+
+    if (!isContentEntityDocument(clonedDocument)) {
+      return clonedDocument;
+    }
+
+    return {
+      ...clonedDocument,
+      relatedConcernTitles: clonedDocument.relatedConcerns
+        .map((reference) => concernTitleById.get(reference._ref))
+        .filter((title): title is string => Boolean(title))
+        .join(" "),
+    };
+  });
 }
 
 export function compareSanitySeedParity(

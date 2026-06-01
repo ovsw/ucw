@@ -107,6 +107,8 @@ const SANITY_QUERY_TERM_ALIASES: Record<string, string | string[]> = {
   deposit: ["deposit", "deposits", "payment"],
   deposits: ["deposit", "deposits", "payment"],
   due: ["due", "payment", "schedule"],
+  homesick: ["homesick", "homesickness", "readiness"],
+  homesickness: ["homesickness", "readiness"],
   lake: ["lake", "waterfront", "water"],
   much: ["much", "pricing", "affordability", "budget"],
   nervous: ["nervous", "homesickness", "readiness"],
@@ -149,6 +151,29 @@ export function processSanityQuerySearchTerm(term: string): string | string[] | 
   return processTermWithAliases(term, SANITY_QUERY_TERM_ALIASES);
 }
 
+function hasReadinessTooMuchContext(query: string): boolean {
+  const normalizedQuery = query.toLowerCase();
+
+  return (
+    /\btoo\s+much\b/.test(normalizedQuery) &&
+    /\b(overnight|homesick|homesickness|nervous|ready|readiness|slept away|away from home|first time|separation)\b/.test(
+      normalizedQuery,
+    )
+  );
+}
+
+function processSanityQuerySearchTermForQuery(query: string): (term: string) => string | string[] | null {
+  const muchMeansReadiness = hasReadinessTooMuchContext(query);
+
+  return (term: string) => {
+    if (term.toLowerCase() === "much" && muchMeansReadiness) {
+      return processTermWithAliases("homesickness", SANITY_QUERY_TERM_ALIASES);
+    }
+
+    return processSanityQuerySearchTerm(term);
+  };
+}
+
 function shapeSearchQueryWithProcessor(
   query: string,
   processTerm: (term: string) => string | string[] | null,
@@ -179,5 +204,5 @@ export function shapeSearchQuery(query: string): string {
 }
 
 export function shapeSanitySearchQuery(query: string): string {
-  return shapeSearchQueryWithProcessor(query, processSanityQuerySearchTerm);
+  return shapeSearchQueryWithProcessor(query, processSanityQuerySearchTermForQuery(query));
 }

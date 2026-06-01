@@ -35,7 +35,7 @@ test("sanity hybrid query plan includes keyword and semantic scoring", async () 
   assert.doesNotMatch(plan.contentEntityQuery, /->/);
   assert.match(
     plan.contentEntityQuery,
-    /score\(\s*title match text::query\(\$searchQuery\),\s*contentMap match text::query\(\$searchQuery\),\s*text::semanticSimilarity\(\$searchQuery\)\s*\)/s,
+    /score\(\s*relatedConcernTitles match text::query\(\$searchQuery\),\s*title match text::query\(\$searchQuery\),\s*contentMap match text::query\(\$searchQuery\),\s*text::semanticSimilarity\(\$searchQuery\)\s*\)/s,
   );
 });
 
@@ -50,6 +50,7 @@ test("sanity keyword query plan omits semantic similarity scoring", () => {
   assert.doesNotMatch(plan.contentEntityQuery, /boost\(/);
   assert.doesNotMatch(plan.concernQuery, /->/);
   assert.doesNotMatch(plan.contentEntityQuery, /->/);
+  assert.match(plan.contentEntityQuery, /relatedConcernTitles match text::query\(\$searchQuery\)/);
   assert.match(
     plan.concernQuery,
     /score\(\s*title match text::query\(\$searchQuery\),\s*contentMap match text::query\(\$searchQuery\)\s*\)/s,

@@ -31,6 +31,24 @@ test("seed workflow upserts only fixture documents and preserves their ids", asy
   assert.deepEqual(result.parity.typeMismatches, []);
 });
 
+test("seed workflow denormalizes related Concern titles onto Content Entities", async () => {
+  const fixture = await loadFixture("fixtures/retrieval-workbench/generated.json");
+  const seedDocuments = buildSanitySeedDocuments(fixture);
+
+  assert.equal(
+    seedDocuments.find((document) => document._id === "policy-medical-care")?.relatedConcernTitles,
+    "Allergy and medical safety",
+  );
+  assert.equal(
+    seedDocuments.find((document) => document._id === "procedure-homesickness-support")?.relatedConcernTitles,
+    "Homesickness and child readiness",
+  );
+  assert.equal(
+    seedDocuments.find((document) => document._id === "concern-allergy-medical-safety")?.relatedConcernTitles,
+    undefined,
+  );
+});
+
 test("seed parity comparison reports missing, extra, and type-mismatched Sanity documents", () => {
   const parity = compareSanitySeedParity(
     [

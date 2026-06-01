@@ -9,6 +9,10 @@ const regressionCases = [
     shapedQuery: "peanut allergy carries epipen keep safe safety",
   },
   {
+    promptId: "prompt-first-time-homesick",
+    shapedQuery: "daughter never slept away home gets homesick homesickness readiness overnight",
+  },
+  {
     promptId: "prompt-price-refund",
     shapedQuery:
       "much pricing affordability budget cost tuition payment due schedule deposit deposits happens cancel cancellation refund refunds",
@@ -27,7 +31,7 @@ const regressionCases = [
   },
   {
     promptId: "prompt-day-camp-alternative",
-    shapedQuery: "overnight much pricing affordability budget now day gentler option",
+    shapedQuery: "overnight homesickness readiness now day gentler option",
   },
 ];
 

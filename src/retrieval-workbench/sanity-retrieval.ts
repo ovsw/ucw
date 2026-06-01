@@ -89,7 +89,7 @@ function buildQueryPlan(kind: SanityRetrievalMode, prompt: string): SanityRetrie
     ),
     contentEntityQuery: buildDocumentQuery(
       `_type != ${escapeGroqString("concern")}`,
-      ["title", "contentMap"],
+      ["relatedConcernTitles", "title", "contentMap"],
       includeSemanticSimilarity,
     ),
     contentEntityBridgeQuery: buildContentEntityBridgeQuery(),
