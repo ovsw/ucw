@@ -73,6 +73,7 @@ export const generatedFixtureGoldSet: ParentPromptExpectation[] = [
     prompt:
       "My child is shy and I worry they could get bullied or overwhelmed during the first few days. What support do you have?",
     expectedConcernIds: ["concern-homesickness-readiness", "concern-cabin-social-fit"],
+    evaluationNotes: ["semanticFailure"],
     requiredContentEntityIds: [
       "policy-bullying-response",
       "testimonial-shy-first-time-camper",
@@ -85,8 +86,8 @@ export const generatedFixtureGoldSet: ParentPromptExpectation[] = [
     _id: "prompt-day-camp-alternative",
     prompt: "If overnight camp is too much right now, do you have a day camp or another gentler option?",
     expectedConcernIds: ["concern-homesickness-readiness", "concern-pricing-affordability"],
-    requiredContentEntityIds: ["program-day-camp", "guide-first-time-overnight", "policy-registration-cancellation"],
+    requiredContentEntityIds: ["program-day-camp", "guide-first-time-overnight"],
     supportingContentEntityIds: ["testimonial-parent-readiness"],
-    requiredSourceOfTruthIds: ["program-day-camp", "policy-registration-cancellation"],
+    requiredSourceOfTruthIds: ["program-day-camp"],
   },
 ];

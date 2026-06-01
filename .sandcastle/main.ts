@@ -22,9 +22,9 @@
 //   "scripts": { "sandcastle": "npx tsx .sandcastle/main.ts" }
 
 import * as sandcastle from "@ai-hero/sandcastle";
-import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
-import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import {podman} from "@ai-hero/sandcastle/sandboxes/podman";
+import {execFileSync} from "node:child_process";
+import {mkdirSync} from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -40,12 +40,12 @@ const BLOCKED_LABEL = "sandcastle-blocked";
 const sandcastleLogsDir = ".sandcastle/logs";
 const codexSessionLogDir = `${sandcastleLogsDir}/codex-sessions`;
 
-mkdirSync(codexSessionLogDir, { recursive: true });
+mkdirSync(codexSessionLogDir, {recursive: true});
 
 // Hooks run inside the sandbox before the agent starts each iteration.
 // pnpm install ensures the sandbox always has fresh dependencies.
 const hooks = {
-  sandbox: { onSandboxReady: [{ command: "pnpm install --frozen-lockfile" }] },
+  sandbox: {onSandboxReady: [{command: "pnpm install --frozen-lockfile"}]},
 };
 
 // Copy node_modules from the host into the worktree before each sandbox
@@ -53,7 +53,7 @@ const hooks = {
 // platform-specific binaries and any packages added since the last copy.
 const copyToWorktree = ["node_modules"];
 
-const codexAgent = sandcastle.codex("gpt-5.4-mini", { effort: "medium" });
+const codexAgent = sandcastle.codex("gpt-5.4-mini", {effort: "medium"});
 
 const containerUid = process.getuid?.() ?? 1000;
 const containerGid = process.getgid?.() ?? 1000;
@@ -85,14 +85,19 @@ const sandboxProvider = podman({
 type GitHubIssue = {
   number: number;
   title: string;
-  labels: { name: string }[];
+  labels: {name: string}[];
 };
 
 const run = (command: string, args: string[]) =>
-  execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  execFileSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
 const ensureLabel = (name: string, description: string, color: string) => {
-  const labels = JSON.parse(run("gh", ["label", "list", "--limit", "1000", "--json", "name"])) as {
+  const labels = JSON.parse(
+    run("gh", ["label", "list", "--limit", "1000", "--json", "name"]),
+  ) as {
     name: string;
   }[];
 
@@ -100,7 +105,15 @@ const ensureLabel = (name: string, description: string, color: string) => {
     return;
   }
 
-  run("gh", ["label", "create", name, "--description", description, "--color", color]);
+  run("gh", [
+    "label",
+    "create",
+    name,
+    "--description",
+    description,
+    "--color",
+    color,
+  ]);
 };
 
 const listOpenSandcastleIssues = () =>
@@ -126,7 +139,9 @@ const formatIssueList = (issues: GitHubIssue[]) =>
   issues.map((issue) => `#${issue.number} ${issue.title}`).join("\n");
 
 const assertNoBlockedIssues = () => {
-  const blockedIssues = listOpenSandcastleIssues().filter((issue) => hasLabel(issue, BLOCKED_LABEL));
+  const blockedIssues = listOpenSandcastleIssues().filter((issue) =>
+    hasLabel(issue, BLOCKED_LABEL),
+  );
 
   if (blockedIssues.length) {
     throw new Error(
@@ -138,7 +153,9 @@ const assertNoBlockedIssues = () => {
 };
 
 const listActionableIssues = () =>
-  listOpenSandcastleIssues().filter((issue) => !hasLabel(issue, IMPLEMENTED_LABEL));
+  listOpenSandcastleIssues().filter(
+    (issue) => !hasLabel(issue, IMPLEMENTED_LABEL),
+  );
 
 const assertCleanWorktree = (worktreePath: string) => {
   const status = run("git", ["-C", worktreePath, "status", "--porcelain"]);
@@ -152,7 +169,9 @@ const assertBranchDescendsFrom = (baseBranch: string, branch: string) => {
   try {
     run("git", ["merge-base", "--is-ancestor", baseBranch, branch]);
   } catch {
-    throw new Error(`Branch ${branch} does not descend from expected base ${baseBranch}.`);
+    throw new Error(
+      `Branch ${branch} does not descend from expected base ${baseBranch}.`,
+    );
   }
 };
 
@@ -203,7 +222,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // -----------------------------------------------------------------------
     // Phase 1: Implement
     //
-    // A sonnet agent picks the next open issue, writes the
+    // An AI agent picks the next open issue, writes the
     // implementation (using RGR: Red → Green → Repeat → Refactor), and
     // commits the result.
     //

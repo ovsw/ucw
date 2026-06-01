@@ -8,6 +8,7 @@ import test from "node:test";
 import { ZodError } from "zod";
 import { retrievalWorkbenchFixtureSchema } from "../../src/retrieval-workbench/fixture-schema.js";
 import { loadFixture } from "../../src/retrieval-workbench/load-fixture.js";
+import type { EvaluationNoteCategory } from "../../src/retrieval-workbench/types.js";
 
 type SeedFixture = {
   fixtureVersion: 1;
@@ -20,6 +21,7 @@ type SeedFixture = {
       requiredContentEntityIds: string[];
       supportingContentEntityIds?: string[];
       requiredSourceOfTruthIds?: string[];
+      evaluationNotes?: EvaluationNoteCategory[];
     }
   >;
 };
@@ -182,8 +184,27 @@ test("fixture contract rejects expected Concern ids that point at non-Concern do
   assert.match(validationMessages(result.error).join("\n"), /Expected Concern id is not a Concern document/);
 });
 
-test("workbench CLI exits cleanly for a valid fixture", () => {
-  const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts"], {
+test("fixture contract accepts supported evaluation note categories", async () => {
+  const fixture = cloneFixture(await readSeedFixture());
+  (fixture.goldSet[0] as Record<string, unknown>).evaluationNotes = ["semanticFailure", "fixtureGap"];
+
+  const result = retrievalWorkbenchFixtureSchema.safeParse(fixture);
+
+  assert.equal(result.success, true);
+});
+
+test("fixture contract rejects unsupported evaluation note categories", async () => {
+  const fixture = cloneFixture(await readSeedFixture());
+  (fixture.goldSet[0] as Record<string, unknown>).evaluationNotes = ["semanticFailure", "unsupportedCategory"];
+
+  const result = retrievalWorkbenchFixtureSchema.safeParse(fixture);
+
+  assert.equal(result.success, false);
+  assert.match(validationMessages(result.error).join("\n"), /Invalid enum value/);
+});
+
+test("workbench CLI exits cleanly for a valid fixture in deterministic-only mode", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts", "--deterministic-only"], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
@@ -197,6 +218,46 @@ test("workbench CLI exits cleanly for a valid fixture", () => {
   assert.match(result.stdout, /Direct Content Entity matches/);
   assert.match(result.stdout, /Merged Content Entity ranking/);
   assert.match(result.stdout, /Missing required content/);
+});
+
+test("workbench CLI requires comparison mode for OpenAI Concern Surfacing", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "src/retrieval-workbench/cli.ts",
+      "--deterministic-only",
+      "--concern-surfacer=openai",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /OpenAI Concern Surfacing requires comparison mode/);
+});
+
+test("workbench CLI fails loudly when default comparison has no Sanity config", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      SANITY_PROJECT_ID: "",
+      SANITY_DATASET: "",
+      SANITY_API_VERSION: "",
+      SANITY_READ_TOKEN: "",
+      SANITY_WRITE_TOKEN: "",
+    },
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Retrieval workbench comparison failed/);
+  assert.match(result.stderr, /Missing required Sanity config for query workflow/);
+  assert.doesNotMatch(result.stdout, /Deterministic retrieval workbench report/);
 });
 
 test("workbench CLI exits non-zero and reports validation errors for an invalid fixture", async () => {
@@ -240,6 +301,17 @@ test("generated fixture expands the corpus while staying within the contract", a
   assert.equal(concerns.length, 8);
   assert.equal(contentEntities.length, 25);
   assert.equal(generatedFixture.goldSet.length, 12);
+  assert.deepEqual(
+    generatedFixture.goldSet.find((entry) => entry._id === "prompt-bullying-and-homesickness")?.evaluationNotes,
+    ["semanticFailure"],
+  );
+  const dayCampPrompt = generatedFixture.goldSet.find((entry) => entry._id === "prompt-day-camp-alternative");
+  assert.deepEqual(dayCampPrompt?.evaluationNotes, undefined);
+  assert.deepEqual(dayCampPrompt?.requiredContentEntityIds, [
+    "program-day-camp",
+    "guide-first-time-overnight",
+  ]);
+  assert.deepEqual(dayCampPrompt?.requiredSourceOfTruthIds, ["program-day-camp"]);
   assert.match(
     generatedFixture.documents.map((document) => document._id).join(" "),
     /policy-bullying-response|program-day-camp|policy-registration-cancellation/,

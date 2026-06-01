@@ -1,4 +1,9 @@
-import { createDeterministicWorkbench } from "./deterministic-retrieval.js";
+import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
+import {
+  buildApprovedConcernCatalog,
+  formatMissingConcernCandidateForReport,
+  formatSurfacedConcernForReport,
+} from "./concern-surfacing.js";
 import type {
   FieldMatchReason,
   PromptRetrievalResult,
@@ -7,7 +12,8 @@ import type {
 } from "./deterministic-retrieval.js";
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import { summarizeFixture } from "./fixture-summary.js";
-import type { ContentEntityDocument, ParentPromptExpectation } from "./types.js";
+import type { ParentPromptExpectation } from "./types.js";
+import type { RetrievalStrategy } from "./retrieval-strategy.js";
 
 type Hit = {
   id: string;
@@ -24,15 +30,75 @@ type PromptReportSummary = {
 
 type CorpusLookup = {
   titlesById: Map<string, string>;
-  entitiesById: Map<string, ContentEntityDocument>;
+  concernCatalog: ReturnType<typeof buildApprovedConcernCatalog>;
 };
+
+type StrategyReport = {
+  strategy: RetrievalStrategy;
+  lines: string[];
+  summaries: PromptReportSummary[];
+  requiredRanksByPrompt: Map<string, Map<string, number>>;
+};
+
+type StrategyAggregateSummary = {
+  missingExpectedConcernCount: number;
+  missingRequiredContentCount: number;
+  requiredContentExpectationCount: number;
+  requiredContentHitCount: number;
+  topFiveRequiredContentHitCount: number;
+  topTenRequiredContentHitCount: number;
+  averageRequiredContentRank: number | null;
+  improvementCount: number | null;
+  regressionCount: number | null;
+  tieCount: number | null;
+};
+
+type StrategySummaryContext = {
+  baselineReport: StrategyReport | null;
+  comparisonStrategy: RetrievalStrategy | null;
+};
+
+type RankUsefulness = "usable" | "diagnostic" | "weak";
+
+const USABLE_RANK_THRESHOLD = 5;
+const DIAGNOSTIC_RANK_THRESHOLD = 10;
 
 function formatScore(score: number): string {
   return score.toFixed(2);
 }
 
+function formatRank(rank: number | null): string {
+  return rank === null ? "n/a" : rank.toFixed(2);
+}
+
+function classifyRank(rank: number): RankUsefulness {
+  if (rank <= USABLE_RANK_THRESHOLD) {
+    return "usable";
+  }
+
+  if (rank <= DIAGNOSTIC_RANK_THRESHOLD) {
+    return "diagnostic";
+  }
+
+  return "weak";
+}
+
 function formatList(values: string[]): string {
   return values.length === 0 ? "none" : values.join(", ");
+}
+
+function formatRankBandSummary(hits: Hit[], expectedCount: number, missingCount: number): string {
+  const rankBandCounts: Record<RankUsefulness, number> = {
+    usable: 0,
+    diagnostic: 0,
+    weak: 0,
+  };
+
+  for (const hit of hits) {
+    rankBandCounts[classifyRank(hit.rank)] += 1;
+  }
+
+  return `usable: ${rankBandCounts.usable}/${expectedCount}, diagnostic: ${rankBandCounts.diagnostic}/${expectedCount}, weak: ${rankBandCounts.weak}/${expectedCount}, missing: ${missingCount}`;
 }
 
 function formatExpected(ids: string[], lookup: CorpusLookup): string {
@@ -41,16 +107,12 @@ function formatExpected(ids: string[], lookup: CorpusLookup): string {
 
 function buildLookup(fixture: ParsedRetrievalWorkbenchFixture): CorpusLookup {
   const titlesById = new Map<string, string>();
-  const entitiesById = new Map<string, ContentEntityDocument>();
 
   for (const document of fixture.documents) {
     titlesById.set(document._id, document.title);
-    if (document._type !== "concern") {
-      entitiesById.set(document._id, document as ContentEntityDocument);
-    }
   }
 
-  return { titlesById, entitiesById };
+  return { titlesById, concernCatalog: buildApprovedConcernCatalog(fixture) };
 }
 
 function findHits(ids: string[], matches: Array<{ _id: string; rank: number; title: string }>): Hit[] {
@@ -131,7 +193,57 @@ function renderHits(hits: Hit[]): string {
     return "none";
   }
 
-  return hits.map((hit) => `${hit.title} [${hit.id}] at #${hit.rank}`).join("; ");
+  return hits.map((hit) => `${hit.title} [${hit.id}] at #${hit.rank} (${classifyRank(hit.rank)})`).join("; ");
+}
+
+function renderRetrievalPlan(result: PromptRetrievalResult): string[] {
+  if (!result.retrievalPlan) {
+    return [];
+  }
+
+  const lines = ["Retrieval plan:"];
+
+  for (const need of result.retrievalPlan.needs) {
+    const queries = result.retrievalPlan.queries
+      .filter((query) => query.needId === need.id)
+      .map((query) => query.searchText);
+
+    lines.push(`- ${need.kind}: ${need.description}; queries: ${formatList(queries)}`);
+  }
+
+  return lines;
+}
+
+function renderConcernSurfacing(result: PromptRetrievalResult, lookup: CorpusLookup): string[] {
+  if (!result.concernSurfacing) {
+    return [];
+  }
+
+  const lines = ["Concern surfacing:"];
+
+  lines.push("Surfaced approved concerns:");
+  if (result.concernSurfacing.surfacedConcerns.length === 0) {
+    lines.push("- none");
+  } else {
+    lines.push(
+      ...result.concernSurfacing.surfacedConcerns.map((concern) =>
+        `- ${formatSurfacedConcernForReport(concern, lookup.concernCatalog)}`,
+      ),
+    );
+  }
+
+  lines.push("Missing Concern candidates:");
+  if (result.concernSurfacing.missingConcernCandidates.length === 0) {
+    lines.push("- none");
+  } else {
+    lines.push(
+      ...result.concernSurfacing.missingConcernCandidates.map((candidate) =>
+        `- ${formatMissingConcernCandidateForReport(candidate)}`,
+      ),
+    );
+  }
+
+  return lines;
 }
 
 function findDistractors(
@@ -147,6 +259,26 @@ function findDistractors(
   return result.mergedContentEntities.filter((match) => !expectedIds.has(match._id)).slice(0, 3);
 }
 
+function hasWeakRequiredContentRanks(summary: PromptReportSummary, weakRankThreshold: number): boolean {
+  return summary.requiredContentEntityHits.some((hit) => hit.rank > weakRankThreshold);
+}
+
+function shouldSurfaceEvaluationNotes(
+  prompt: ParentPromptExpectation,
+  summary: PromptReportSummary,
+  weakRankThreshold: number,
+): boolean {
+  if ((prompt.evaluationNotes?.length ?? 0) === 0) {
+    return false;
+  }
+
+  return (
+    summary.missingExpectedConcernIds.length > 0 ||
+    summary.missingRequiredContentEntityIds.length > 0 ||
+    hasWeakRequiredContentRanks(summary, weakRankThreshold)
+  );
+}
+
 function summarizePrompt(
   prompt: ParentPromptExpectation,
   result: PromptRetrievalResult,
@@ -157,6 +289,121 @@ function summarizePrompt(
     missingRequiredContentEntityIds: findMissing(prompt.requiredContentEntityIds, result.mergedContentEntities),
     requiredContentEntityHits: findHits(prompt.requiredContentEntityIds, result.mergedContentEntities),
   };
+}
+
+function buildStrategyAggregateSummary(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  strategyReport: StrategyReport,
+  baselineReport: StrategyReport | null,
+): StrategyAggregateSummary {
+  const missingExpectedConcernCount = strategyReport.summaries.reduce(
+    (total, summary) => total + summary.missingExpectedConcernIds.length,
+    0,
+  );
+  const missingRequiredContentCount = strategyReport.summaries.reduce(
+    (total, summary) => total + summary.missingRequiredContentEntityIds.length,
+    0,
+  );
+  const requiredContentExpectationCount = fixture.goldSet.reduce(
+    (total, prompt) => total + prompt.requiredContentEntityIds.length,
+    0,
+  );
+  const requiredContentHits = strategyReport.summaries.flatMap((summary) => summary.requiredContentEntityHits);
+  const topFiveRequiredContentHitCount = requiredContentHits.filter((hit) => hit.rank <= 5).length;
+  const topTenRequiredContentHitCount = requiredContentHits.filter((hit) => hit.rank <= 10).length;
+  const averageRequiredContentRank =
+    requiredContentHits.length === 0
+      ? null
+      : requiredContentHits.reduce((total, hit) => total + hit.rank, 0) / requiredContentHits.length;
+  const requiredContentHitCount = requiredContentHits.length;
+
+  if (!baselineReport || baselineReport.strategy.id === strategyReport.strategy.id) {
+    return {
+      missingExpectedConcernCount,
+      missingRequiredContentCount,
+      requiredContentExpectationCount,
+      requiredContentHitCount,
+      topFiveRequiredContentHitCount,
+      topTenRequiredContentHitCount,
+      averageRequiredContentRank,
+      improvementCount: null,
+      regressionCount: null,
+      tieCount: null,
+    };
+  }
+
+  let improvementCount = 0;
+  let regressionCount = 0;
+  let tieCount = 0;
+
+  for (const prompt of fixture.goldSet) {
+    const baselineRanks = baselineReport.requiredRanksByPrompt.get(prompt._id) ?? new Map<string, number>();
+    const currentRanks = strategyReport.requiredRanksByPrompt.get(prompt._id) ?? new Map<string, number>();
+
+    for (const requiredContentEntityId of prompt.requiredContentEntityIds) {
+      const baselineRank = baselineRanks.get(requiredContentEntityId);
+      const currentRank = currentRanks.get(requiredContentEntityId);
+
+      if (baselineRank === undefined || currentRank === undefined) {
+        if (baselineRank === undefined && currentRank === undefined) {
+          tieCount += 1;
+        } else if (baselineRank === undefined) {
+          improvementCount += 1;
+        } else {
+          regressionCount += 1;
+        }
+
+        continue;
+      }
+
+      if (currentRank < baselineRank) {
+        improvementCount += 1;
+      } else if (currentRank > baselineRank) {
+        regressionCount += 1;
+      } else {
+        tieCount += 1;
+      }
+    }
+  }
+
+  return {
+    missingExpectedConcernCount,
+    missingRequiredContentCount,
+    requiredContentExpectationCount,
+    requiredContentHitCount,
+    topFiveRequiredContentHitCount,
+    topTenRequiredContentHitCount,
+    averageRequiredContentRank,
+    improvementCount,
+    regressionCount,
+    tieCount,
+  };
+}
+
+function renderStrategySummaryLine(
+  strategy: RetrievalStrategy,
+  aggregate: StrategyAggregateSummary,
+  comparisonStrategy: RetrievalStrategy | null,
+): string {
+  const summaryParts = [
+    `missing expected concerns: ${aggregate.missingExpectedConcernCount}`,
+    `missing required content: ${aggregate.missingRequiredContentCount}`,
+    `top 5 required content hits: ${aggregate.topFiveRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
+    `top 10 required content hits: ${aggregate.topTenRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
+    `weak required content hits: ${aggregate.requiredContentHitCount - aggregate.topTenRequiredContentHitCount}/${aggregate.requiredContentExpectationCount}`,
+    `average required rank: ${formatRank(aggregate.averageRequiredContentRank)}`,
+  ];
+
+  if (comparisonStrategy && comparisonStrategy.id !== strategy.id) {
+    summaryParts.push(`improvements: ${aggregate.improvementCount ?? 0}`);
+    summaryParts.push(`regressions: ${aggregate.regressionCount ?? 0}`);
+    summaryParts.push(`ties: ${aggregate.tieCount ?? 0}`);
+  }
+
+  const comparisonLabel =
+    comparisonStrategy && comparisonStrategy.id !== strategy.id ? ` vs ${comparisonStrategy.label}` : " (baseline)";
+
+  return `- ${strategy.label}${comparisonLabel}: ${summaryParts.join(", ")}`;
 }
 
 function renderPromptReport(
@@ -173,6 +420,8 @@ function renderPromptReport(
 
   lines.push(`## ${prompt._id}`);
   lines.push(`Parent Prompt: ${prompt.prompt}`);
+  lines.push(...renderRetrievalPlan(result));
+  lines.push(...renderConcernSurfacing(result, lookup));
   lines.push(`Expected concerns: ${formatExpected(prompt.expectedConcernIds, lookup)}`);
   lines.push(`Expected required content: ${formatExpected(prompt.requiredContentEntityIds, lookup)}`);
   if (prompt.supportingContentEntityIds?.length) {
@@ -184,6 +433,7 @@ function renderPromptReport(
 
   lines.push("Matched concerns:");
   lines.push(...renderConcernMatches(result.matchedConcerns));
+  lines.push(`Concern status: ${formatRankBandSummary(expectedConcernHits, prompt.expectedConcernIds.length, summary.missingExpectedConcernIds.length)}`);
   lines.push(`Concern hits: ${renderHits(expectedConcernHits)}`);
   lines.push(`Missing expected concerns: ${formatList(summary.missingExpectedConcernIds)}`);
 
@@ -192,10 +442,20 @@ function renderPromptReport(
 
   lines.push("Merged Content Entity ranking:");
   lines.push(...renderEntityMatches(result.mergedContentEntities, 8));
+  lines.push(
+    `Required content status: ${formatRankBandSummary(
+      summary.requiredContentEntityHits,
+      prompt.requiredContentEntityIds.length,
+      summary.missingRequiredContentEntityIds.length,
+    )}`,
+  );
   lines.push(`Required content hits: ${renderHits(summary.requiredContentEntityHits)}`);
   lines.push(`Supporting content hits: ${renderHits(supportingHits)}`);
   lines.push(`Source-of-truth hits: ${renderHits(sourceOfTruthHits)}`);
   lines.push(`Missing required content: ${formatList(summary.missingRequiredContentEntityIds)}`);
+  if (shouldSurfaceEvaluationNotes(prompt, summary, DIAGNOSTIC_RANK_THRESHOLD)) {
+    lines.push(`Evaluation notes: ${formatList(prompt.evaluationNotes ?? [])}`);
+  }
 
   lines.push("Obvious distractors:");
   lines.push(...renderEntityMatches(distractors, 3));
@@ -204,48 +464,68 @@ function renderPromptReport(
   return { lines, summary };
 }
 
-export function renderRetrievalWorkbenchReport(fixture: ParsedRetrievalWorkbenchFixture): string {
-  const lookup = buildLookup(fixture);
-  const workbench = createDeterministicWorkbench(fixture);
-  const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
+function renderStrategyReport(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  lookup: CorpusLookup,
+  strategy: RetrievalStrategy,
+): StrategyReport {
   const lines: string[] = [];
   const summaries: PromptReportSummary[] = [];
+  const requiredRanksByPrompt = new Map<string, Map<string, number>>();
+  lines.push(`## Strategy: ${strategy.label}`);
 
-  lines.push("Deterministic retrieval workbench report");
+  for (const prompt of fixture.goldSet) {
+    const promptReport = renderPromptReport(prompt, strategy.evaluatePrompt(prompt.prompt), lookup);
+    lines.push(...promptReport.lines);
+    summaries.push(promptReport.summary);
+    requiredRanksByPrompt.set(
+      prompt._id,
+      new Map(promptReport.summary.requiredContentEntityHits.map((hit) => [hit.id, hit.rank])),
+    );
+  }
+
+  return { strategy, lines, summaries, requiredRanksByPrompt };
+}
+
+function buildStrategySummaryContext(strategyReports: StrategyReport[]): StrategySummaryContext {
+  const baselineReport = strategyReports.find((strategyReport) => strategyReport.strategy.id === "deterministic") ?? null;
+  const comparisonStrategy = baselineReport?.strategy ?? strategyReports[0]?.strategy ?? null;
+
+  return { baselineReport, comparisonStrategy };
+}
+
+export function renderRetrievalWorkbenchReport(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  strategies: RetrievalStrategy[] = [createDeterministicRetrievalStrategy(fixture)],
+): string {
+  const lookup = buildLookup(fixture);
+  const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
+  const lines: string[] = [];
+  const strategyReports = strategies.map((strategy) => renderStrategyReport(fixture, lookup, strategy));
+  const { baselineReport, comparisonStrategy } = buildStrategySummaryContext(strategyReports);
+  const strategySummaries = strategyReports.map((strategyReport) => ({
+    strategy: strategyReport.strategy,
+    aggregate: buildStrategyAggregateSummary(fixture, strategyReport, baselineReport),
+  }));
+  const reportTitle =
+    strategies.length === 1 ? "Deterministic retrieval workbench report" : "Retrieval strategy comparison report";
+
+  lines.push(reportTitle);
   lines.push(`Fixture description: ${fixture.description}`);
   lines.push(
     `Corpus: ${concernCount} concerns, ${nonConcernCount} non-Concern Content Entities, ${fixture.goldSet.length} Parent Prompts`,
   );
   lines.push(`Content Entity types: ${contentEntityTypes.join(", ")}`);
   lines.push("");
-
-  for (const prompt of fixture.goldSet) {
-    const promptReport = renderPromptReport(prompt, workbench.evaluatePrompt(prompt.prompt), lookup);
-    lines.push(...promptReport.lines);
-    summaries.push(promptReport.summary);
+  lines.push("Strategy summary:");
+  for (const { strategy, aggregate } of strategySummaries) {
+    lines.push(renderStrategySummaryLine(strategy, aggregate, comparisonStrategy));
   }
+  lines.push("");
 
-  const missingConcernCount = summaries.reduce(
-    (total, summary) => total + summary.missingExpectedConcernIds.length,
-    0,
-  );
-  const missingRequiredContentCount = summaries.reduce(
-    (total, summary) => total + summary.missingRequiredContentEntityIds.length,
-    0,
-  );
-  const requiredContentHitCount = summaries.reduce(
-    (total, summary) => total + summary.requiredContentEntityHits.length,
-    0,
-  );
-  const requiredContentExpectationCount = fixture.goldSet.reduce(
-    (total, prompt) => total + prompt.requiredContentEntityIds.length,
-    0,
-  );
-
-  lines.unshift(
-    `Summary: ${missingConcernCount} missing expected concerns, ${missingRequiredContentCount} missing required content entities, ${requiredContentHitCount}/${requiredContentExpectationCount} required content hits`,
-    "",
-  );
+  for (const strategyReport of strategyReports) {
+    lines.push(...strategyReport.lines);
+  }
 
   return lines.join("\n");
 }

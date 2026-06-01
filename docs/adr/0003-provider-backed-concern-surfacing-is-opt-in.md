@@ -1,0 +1,3 @@
+# Provider-backed Concern Surfacing is opt-in
+
+The retrieval workbench will keep deterministic and prototype planning as the default path, while provider-backed **Concern Surfacing** is enabled only by an explicit option. This preserves stable, no-cost regression runs and makes external model usage intentional; when OpenAI-backed **Concern Surfacing** is selected, required provider configuration such as `OPENAI_API_KEY` must be validated at startup instead of falling back to a silent non-AI path. Provider-backed **Concern Surfacing** may classify approved **Concerns** and report missing **Concern** candidates, but it must not bypass **Concern** relationships by selecting or direct-searching **Content Entities**.

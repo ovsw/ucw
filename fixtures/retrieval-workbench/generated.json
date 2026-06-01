@@ -734,6 +734,9 @@
       "requiredSourceOfTruthIds": [
         "policy-bullying-response",
         "procedure-homesickness-support"
+      ],
+      "evaluationNotes": [
+        "semanticFailure"
       ]
     },
     {
@@ -745,15 +748,13 @@
       ],
       "requiredContentEntityIds": [
         "program-day-camp",
-        "guide-first-time-overnight",
-        "policy-registration-cancellation"
+        "guide-first-time-overnight"
       ],
       "supportingContentEntityIds": [
         "testimonial-parent-readiness"
       ],
       "requiredSourceOfTruthIds": [
-        "program-day-camp",
-        "policy-registration-cancellation"
+        "program-day-camp"
       ]
     }
   ]

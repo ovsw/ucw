@@ -38,6 +38,10 @@ _Avoid_: Preference, filter
 A worry, expressed or implied by a **Prompt**, that can block **Decision Confidence** until it is answered honestly.
 _Avoid_: Objection, FAQ
 
+**Concern Surfacing**:
+The act of identifying existing **Concerns** and possible missing **Concerns** suggested by the meaning of a **Prompt**.
+_Avoid_: Intent detection, query expansion, content selection
+
 **Implied Need**:
 An unstated issue that matters to a **Visitor**'s situation because of what their **Prompt** logically suggests.
 _Avoid_: Hidden intent, inferred keyword, semantic match
@@ -61,6 +65,14 @@ _Avoid_: Answer Assembly, RAG pipeline, chatbot flow, generation process
 **Retrieval Strategy**:
 A method used by the **Answer Assembly Process** to find potentially relevant **Concerns** and **Content Entities** for a **Prompt**.
 _Avoid_: Search engine, vector database, Sanity retrieval, RAG retriever
+
+**Retrieval Planner**:
+An AI-assisted part of the **Answer Assembly Process** that turns a **Prompt** into a **Retrieval Plan** by naming stated needs, **Implied Needs**, and the questions retrieval should answer.
+_Avoid_: Query expansion, intent classifier, prompt rewrite
+
+**Retrieval Plan**:
+A structured interpretation of a **Prompt** that guides one or more **Retrieval Strategies** before an **Answer Composition** is created.
+_Avoid_: Search terms, generated answer, chain of thought
 
 **Conversational Framing**:
 AI-authored connective prose in an **Assembled Answer** that interprets the **Prompt**, explains how selected **Sources of Truth** apply, handles uncertainty, and makes the answer feel like a guided exchange rather than a mute component layout.
@@ -153,6 +165,7 @@ _Avoid_: Session, GuideSite Session
 - A **GuideSite** helps a **Visitor** reach **Decision Confidence** whether the final decision is yes or no.
 - A **GuideSite** adapts to the **Visitor**'s **Prompt**, **Constraints**, and **Concerns**.
 - **Decision Confidence** requires the **Visitor**'s major **Constraints** and **Concerns** to be addressed.
+- **Concern Surfacing** identifies **Concerns** from a **Prompt** before the system finds related **Content Entities**.
 - A **Prompt** can suggest an **Implied Need** even when the **Visitor** does not name it directly.
 - An **Implied Need** can reveal additional **Concerns** or **Sources of Truth** needed for an **Assembled Answer**.
 - A **Suggested Prompt** becomes a **Prompt** when the **Visitor** chooses it.
@@ -165,6 +178,8 @@ _Avoid_: Session, GuideSite Session
 - A **GuideSite** presents an **Answer Presentation** rather than a chat message or static page.
 - The **Answer Assembly Process** turns a **Prompt** into an **Answer Composition**.
 - The **Answer Assembly Process** uses one or more **Retrieval Strategies** to find relevant **Concerns** and **Content Entities**.
+- The **Answer Assembly Process** can use a **Retrieval Planner** to create a **Retrieval Plan** before running **Retrieval Strategies**.
+- A **Retrieval Plan** can include **Implied Needs** that are not directly named in the **Prompt**.
 - An **Assembled Answer** is grounded in **Content Entities**.
 - An **Answer Composition** selects **Content Entities**, **Entity Fields**, **Answer Components**, and **Conversational Framing**.
 - A **Content Entity** can include relevance metadata such as related **Concerns** and a **Content Map**.
@@ -178,6 +193,7 @@ _Avoid_: Session, GuideSite Session
 - A **Claim** should be backed by **Sources of Truth**.
 - A **Concern** may be represented as a **Content Entity** to connect **Prompts** to related **Content Entities**.
 - A **Concern** is a primary relevance signal in the **Answer Assembly Process**.
+- A missing **Concern** suggested by a **Prompt** should be treated as an editorial gap, not as a reason to bypass **Concern** relationships when finding **Content Entities**.
 - A sensitive **Concern** should be addressed with concrete **Sources of Truth** such as policies, protocols, checklists, standards, and procedures rather than unsupported reassurance.
 - **Ultimate Camp Website** uses camp-specific **Content Entities**; terms named here are examples, not an exhaustive schema catalog.
 - **Content Entities**, **Entity Fields**, **Narrative Content**, **Addressable Blocks**, and **Claims** can be **Sources of Truth**.

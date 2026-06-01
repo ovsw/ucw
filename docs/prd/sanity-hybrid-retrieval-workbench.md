@@ -119,6 +119,8 @@ The comparison report should focus on rank and top-k usefulness, not raw search 
 - Conversational Framing implementation is deferred to a later stage.
 - Sanity setup notes should mention using coupon `LWJ` for the extended trial required for embeddings.
 - The setup note should include `npm create sanity@latest -- --coupon=lwj`.
+- Sanity MCP is not currently installed and is not required by the prototype runtime.
+- If Sanity MCP is available in an agent environment, agents may use it for Sanity documentation and investigation, but prototype code should use the normal Sanity CLI/client/GROQ APIs.
 - Prefer scripts and workbench integration over scaffolding a Sanity Studio.
 - Add a Sanity Studio only if it is necessary for enabling, managing, or inspecting the prototype dataset.
 - If Sanity Studio is added, clearly mark it as prototype infrastructure.
@@ -170,4 +172,17 @@ This PRD follows the deterministic-first prototype ADR: the workbench should sup
 
 This PRD also preserves the controlled answer assembly direction: LLM memory and model knowledge are not Sources of Truth. Sanity retrieval can help find relevant approved source material, but answer generation and AI planning remain separate later stages.
 
+Sanity MCP is helpful for coding agents when researching Sanity documentation or debugging Sanity-specific behavior, but it is not installed at the moment and must not become a dependency of the workbench. The prototype should be runnable through ordinary Sanity tooling and APIs.
+
 The practical question this prototype should answer is: does Sanity hybrid semantic retrieval improve the ranking of relevant Concerns and Content Entities enough to become the likely production retrieval backend, while leaving reasoning-dependent Implied Needs for a later AI Retrieval Planner?
+
+## Sanity Setup Notes
+
+- Use the Sanity `LWJ` coupon for the prototype trial setup.
+- Create the initial Sanity project with `npm create sanity@latest -- --coupon=lwj`.
+- Query workflows require `SANITY_PROJECT_ID`, `SANITY_DATASET`, and `SANITY_API_VERSION`.
+- Seed workflows additionally require `SANITY_WRITE_TOKEN`.
+- `SANITY_READ_TOKEN` is optional and should only be used when the dataset requires authenticated reads.
+- Do not add dummy or placeholder fallbacks for any required Sanity value.
+- Sanity MCP is not currently installed in this repo and is optional agent tooling only.
+- Prototype runtime code must use the normal Sanity CLI, client, and GROQ APIs rather than MCP.

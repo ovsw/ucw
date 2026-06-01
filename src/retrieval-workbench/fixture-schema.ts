@@ -1,9 +1,12 @@
 import { z } from "zod";
+import { evaluationNoteCategories } from "./types.js";
 
 const sanityReferenceSchema = z.object({
   _type: z.literal("reference"),
   _ref: z.string().min(1),
 });
+
+const evaluationNoteCategorySchema = z.enum(evaluationNoteCategories);
 
 const baseDocumentSchema = z.object({
   _id: z.string().min(1),
@@ -35,6 +38,7 @@ const parentPromptExpectationSchema = z.object({
   requiredContentEntityIds: z.array(z.string().min(1)).min(1),
   supportingContentEntityIds: z.array(z.string().min(1)).optional(),
   requiredSourceOfTruthIds: z.array(z.string().min(1)).optional(),
+  evaluationNotes: z.array(evaluationNoteCategorySchema).min(1).optional(),
 });
 
 export const retrievalWorkbenchFixtureSchema = z
