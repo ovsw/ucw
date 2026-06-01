@@ -3,6 +3,8 @@ import { loadFixture } from "./load-fixture.js";
 import { summarizeFixture } from "./fixture-summary.js";
 import { readSanityQueryConfig, type SanityConfigEnv, type SanityQueryConfig } from "./sanity-config.js";
 import { printFixtureValidationError } from "./fixture-errors.js";
+import { createPlannedRetrievalStrategy } from "./planned-retrieval-strategy.js";
+import { createPrototypeRetrievalPlanner } from "./retrieval-planner.js";
 import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
 import { renderRetrievalWorkbenchReport } from "./report.js";
 import {
@@ -73,6 +75,7 @@ async function buildSanityComparisonStrategies(
   config: SanityQueryConfig,
   fetchImpl: typeof fetch,
 ): Promise<RetrievalStrategy[]> {
+  const retrievalPlanner = createPrototypeRetrievalPlanner();
   const keywordResults: SanityResultsByPrompt = new Map();
   const hybridResults: SanityResultsByPrompt = new Map();
 
@@ -88,10 +91,35 @@ async function buildSanityComparisonStrategies(
     }),
   );
 
+  const plannedHybridQueries = new Set<string>();
+  for (const { prompt } of fixture.goldSet) {
+    for (const query of retrievalPlanner.planPrompt(prompt).queries) {
+      plannedHybridQueries.add(query.searchText);
+    }
+  }
+
+  await Promise.all(
+    [...plannedHybridQueries]
+      .filter((searchText) => !hybridResults.has(searchText))
+      .map(async (searchText) => {
+        hybridResults.set(
+          searchText,
+          await executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(searchText), config, fetchImpl),
+        );
+      }),
+  );
+
+  const sanityHybridStrategy = createSanityRetrievalStrategyFromResults(
+    "sanityHybrid",
+    "Sanity Hybrid",
+    hybridResults,
+  );
+
   return [
     createDeterministicRetrievalStrategy(fixture),
     createSanityRetrievalStrategyFromResults("sanityKeyword", "Sanity Keyword", keywordResults),
-    createSanityRetrievalStrategyFromResults("sanityHybrid", "Sanity Hybrid", hybridResults),
+    sanityHybridStrategy,
+    createPlannedRetrievalStrategy(sanityHybridStrategy, retrievalPlanner),
   ];
 }
 

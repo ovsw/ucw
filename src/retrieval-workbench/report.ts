@@ -190,6 +190,24 @@ function renderHits(hits: Hit[]): string {
   return hits.map((hit) => `${hit.title} [${hit.id}] at #${hit.rank} (${classifyRank(hit.rank)})`).join("; ");
 }
 
+function renderRetrievalPlan(result: PromptRetrievalResult): string[] {
+  if (!result.retrievalPlan) {
+    return [];
+  }
+
+  const lines = ["Retrieval plan:"];
+
+  for (const need of result.retrievalPlan.needs) {
+    const queries = result.retrievalPlan.queries
+      .filter((query) => query.needId === need.id)
+      .map((query) => query.searchText);
+
+    lines.push(`- ${need.kind}: ${need.description}; queries: ${formatList(queries)}`);
+  }
+
+  return lines;
+}
+
 function findDistractors(
   prompt: ParentPromptExpectation,
   result: PromptRetrievalResult,
@@ -364,6 +382,7 @@ function renderPromptReport(
 
   lines.push(`## ${prompt._id}`);
   lines.push(`Parent Prompt: ${prompt.prompt}`);
+  lines.push(...renderRetrievalPlan(result));
   lines.push(`Expected concerns: ${formatExpected(prompt.expectedConcernIds, lookup)}`);
   lines.push(`Expected required content: ${formatExpected(prompt.requiredContentEntityIds, lookup)}`);
   if (prompt.supportingContentEntityIds?.length) {

@@ -57,6 +57,17 @@ Sanity Keyword: missing expected concerns: 0, missing required content: 1, top 5
 Sanity Hybrid: missing expected concerns: 0, missing required content: 0, top 5 required content hits: 26/27, top 10 required content hits: 26/27, weak required content hits: 1/27, average required rank: 2.59, improvements: 5, regressions: 4, ties: 18
 ```
 
+On June 1, 2026, the comparison added a prototype Retrieval Planner strategy. The planner creates a structured Retrieval Plan with the stated prompt and any known Implied Need searches, then runs Sanity Hybrid retrieval for each planned query and merges rankings with reciprocal-rank fusion. The first planner slice adds the adjacent registration, cancellation, refund, and plan-change policy need for gentler day-camp alternative prompts.
+
+The integrated comparison summary with the planner strategy was:
+
+```text
+Deterministic: missing expected concerns: 0, missing required content: 0, top 5 required content hits: 25/27, top 10 required content hits: 26/27, weak required content hits: 1/27, average required rank: 2.78
+Sanity Keyword: missing expected concerns: 0, missing required content: 1, top 5 required content hits: 26/27, top 10 required content hits: 26/27, weak required content hits: 0/27, average required rank: 2.15, improvements: 5, regressions: 6, ties: 16
+Sanity Hybrid: missing expected concerns: 0, missing required content: 0, top 5 required content hits: 26/27, top 10 required content hits: 26/27, weak required content hits: 1/27, average required rank: 2.59, improvements: 5, regressions: 4, ties: 18
+Sanity Hybrid + Planner: missing expected concerns: 0, missing required content: 0, top 5 required content hits: 27/27, top 10 required content hits: 27/27, weak required content hits: 0/27, average required rank: 2.41, improvements: 5, regressions: 7, ties: 15
+```
+
 ## Baseline
 
 The deterministic baseline uses `src/retrieval-workbench/deterministic-retrieval.ts`. It builds separate MiniSearch indexes for Concern documents and Content Entities, then merges direct Content Entity matches with Concern-expansion matches through `relatedConcerns`.
@@ -79,10 +90,10 @@ Deterministic remains the local baseline for comparison. It found every required
 
 `prompt-first-time-homesick` is no longer a Sanity ranking gap. Context-aware "too much" shaping prevents the prompt from expanding toward pricing vocabulary, and `relatedConcernTitles` gives direct Sanity scoring the "Homesickness and child readiness" vocabulary needed to place `procedure-homesickness-support` in the usable band.
 
-`prompt-day-camp-alternative` remains an Implied Need case. The prompt asks for a gentler alternative to overnight camp, not cancellation, refunds, registration, or plan changes. `sanityKeyword` does not recover `policy-registration-cancellation`, and `sanityHybrid` surfaces it at #14. Forcing it into the usable band would require planner-like terms such as registration, cancellation, refund, or plan changes, so this should remain outside raw retrieval unless the benchmark expectation changes.
+`prompt-day-camp-alternative` remains an Implied Need case for raw retrieval. The prompt asks for a gentler alternative to overnight camp, not cancellation, refunds, registration, or plan changes. `sanityKeyword` does not recover `policy-registration-cancellation`, and `sanityHybrid` surfaces it at #14. The prototype planner adds the adjacent policy need explicitly and lifts `policy-registration-cancellation` to #3 in the `sanityHybridPlanned` result.
 
 ## Decision
 
-Keep the MiniSearch deterministic baseline as the retrieval workbench baseline for now. Sanity Hybrid now has the better Top 5 count and average required rank on the generated corpus, but deterministic remains the stable local comparator with field-level reasons and no external service dependency.
+Keep the MiniSearch deterministic baseline as the retrieval workbench baseline for now. Sanity Hybrid still has the better raw Top 5 count and average required rank on the generated corpus, but deterministic remains the stable local comparator with field-level reasons and no external service dependency.
 
-Use the fixed integrated command as the comparison harness for the next slice. The true Sanity Top 5 ranking gaps are closed without adding AI Retrieval Planner, Conversational Framing, browser UI, production Sanity schemas, or answer composition. The next useful work is deciding whether `prompt-day-camp-alternative` should stay an implied-need benchmark case or move into a planner/enrichment layer that explicitly adds adjacent registration and cancellation policy terms.
+Use the fixed integrated command as the comparison harness for the next slice. Raw Sanity Hybrid retrieval closes the true semantic Top 5 ranking gaps, and Sanity Hybrid + Planner closes the known Implied Need gap without adding Conversational Framing, browser UI, production Sanity schemas, or answer composition.

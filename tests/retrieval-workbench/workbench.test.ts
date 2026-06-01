@@ -12,11 +12,12 @@ function createJsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-test("default comparison renders deterministic, Sanity keyword, and Sanity hybrid strategies", async () => {
-  const fixture = await loadFixture("fixtures/retrieval-workbench/seed.json");
+test("default comparison renders deterministic, Sanity keyword, Sanity hybrid, and planned hybrid strategies", async () => {
+  const fixture = await loadFixture("fixtures/retrieval-workbench/generated.json");
   const seenQueries: string[] = [];
+  const seenSearchQueries: string[] = [];
   const report = await runRetrievalWorkbench({
-    fixturePath: "fixtures/retrieval-workbench/seed.json",
+    fixturePath: "fixtures/retrieval-workbench/generated.json",
     env: {
       SANITY_PROJECT_ID: "project-123",
       SANITY_DATASET: "prototype",
@@ -24,10 +25,13 @@ test("default comparison renders deterministic, Sanity keyword, and Sanity hybri
       SANITY_READ_TOKEN: "read-token",
     },
     fetchImpl: async (_input, init) => {
-      const body = JSON.parse(String(init?.body ?? "{}")) as { query?: string };
+      const body = JSON.parse(String(init?.body ?? "{}")) as { query?: string; params?: { searchQuery?: string } };
       const query = body.query ?? "";
 
       seenQueries.push(query);
+      if (body.params?.searchQuery) {
+        seenSearchQueries.push(body.params.searchQuery);
+      }
 
       if (query.includes('order(_id asc)')) {
         return createJsonResponse({
@@ -52,9 +56,15 @@ test("default comparison renders deterministic, Sanity keyword, and Sanity hybri
   assert.match(report.report, /Strategy: Deterministic/);
   assert.match(report.report, /Strategy: Sanity Keyword/);
   assert.match(report.report, /Strategy: Sanity Hybrid/);
+  assert.match(report.report, /Strategy: Sanity Hybrid \+ Planner/);
   assert.ok(seenQueries.some((query) => query.includes('text::semanticSimilarity($searchQuery)')));
   assert.ok(seenQueries.some((query) => query.includes('order(_id asc)')));
   assert.ok(seenQueries.some((query) => query.includes('!(_id in path("_.*"))')));
+  assert.ok(
+    seenSearchQueries.some(
+      (query) => query.includes("registration cancellation refund") && query.includes("plan change"),
+    ),
+  );
 });
 
 test("default comparison stops before retrieval when Sanity fixture parity is missing", async () => {
