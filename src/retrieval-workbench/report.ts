@@ -1,4 +1,9 @@
 import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
+import {
+  buildApprovedConcernCatalog,
+  formatMissingConcernCandidateForReport,
+  formatSurfacedConcernForReport,
+} from "./concern-surfacing.js";
 import type {
   FieldMatchReason,
   PromptRetrievalResult,
@@ -25,6 +30,7 @@ type PromptReportSummary = {
 
 type CorpusLookup = {
   titlesById: Map<string, string>;
+  concernCatalog: ReturnType<typeof buildApprovedConcernCatalog>;
 };
 
 type StrategyReport = {
@@ -106,7 +112,7 @@ function buildLookup(fixture: ParsedRetrievalWorkbenchFixture): CorpusLookup {
     titlesById.set(document._id, document.title);
   }
 
-  return { titlesById };
+  return { titlesById, concernCatalog: buildApprovedConcernCatalog(fixture) };
 }
 
 function findHits(ids: string[], matches: Array<{ _id: string; rank: number; title: string }>): Hit[] {
@@ -203,6 +209,38 @@ function renderRetrievalPlan(result: PromptRetrievalResult): string[] {
       .map((query) => query.searchText);
 
     lines.push(`- ${need.kind}: ${need.description}; queries: ${formatList(queries)}`);
+  }
+
+  return lines;
+}
+
+function renderConcernSurfacing(result: PromptRetrievalResult, lookup: CorpusLookup): string[] {
+  if (!result.concernSurfacing) {
+    return [];
+  }
+
+  const lines = ["Concern surfacing:"];
+
+  lines.push("Surfaced approved concerns:");
+  if (result.concernSurfacing.surfacedConcerns.length === 0) {
+    lines.push("- none");
+  } else {
+    lines.push(
+      ...result.concernSurfacing.surfacedConcerns.map((concern) =>
+        `- ${formatSurfacedConcernForReport(concern, lookup.concernCatalog)}`,
+      ),
+    );
+  }
+
+  lines.push("Missing Concern candidates:");
+  if (result.concernSurfacing.missingConcernCandidates.length === 0) {
+    lines.push("- none");
+  } else {
+    lines.push(
+      ...result.concernSurfacing.missingConcernCandidates.map((candidate) =>
+        `- ${formatMissingConcernCandidateForReport(candidate)}`,
+      ),
+    );
   }
 
   return lines;
@@ -383,6 +421,7 @@ function renderPromptReport(
   lines.push(`## ${prompt._id}`);
   lines.push(`Parent Prompt: ${prompt.prompt}`);
   lines.push(...renderRetrievalPlan(result));
+  lines.push(...renderConcernSurfacing(result, lookup));
   lines.push(`Expected concerns: ${formatExpected(prompt.expectedConcernIds, lookup)}`);
   lines.push(`Expected required content: ${formatExpected(prompt.requiredContentEntityIds, lookup)}`);
   if (prompt.supportingContentEntityIds?.length) {

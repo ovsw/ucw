@@ -220,6 +220,26 @@ test("workbench CLI exits cleanly for a valid fixture in deterministic-only mode
   assert.match(result.stdout, /Missing required content/);
 });
 
+test("workbench CLI requires comparison mode for OpenAI Concern Surfacing", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "src/retrieval-workbench/cli.ts",
+      "--deterministic-only",
+      "--concern-surfacer=openai",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /OpenAI Concern Surfacing requires comparison mode/);
+});
+
 test("workbench CLI fails loudly when default comparison has no Sanity config", () => {
   const result = spawnSync(process.execPath, ["--import", "tsx", "src/retrieval-workbench/cli.ts"], {
     cwd: process.cwd(),

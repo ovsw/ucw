@@ -38,6 +38,10 @@ _Avoid_: Preference, filter
 A worry, expressed or implied by a **Prompt**, that can block **Decision Confidence** until it is answered honestly.
 _Avoid_: Objection, FAQ
 
+**Concern Surfacing**:
+The act of identifying existing **Concerns** and possible missing **Concerns** suggested by the meaning of a **Prompt**.
+_Avoid_: Intent detection, query expansion, content selection
+
 **Implied Need**:
 An unstated issue that matters to a **Visitor**'s situation because of what their **Prompt** logically suggests.
 _Avoid_: Hidden intent, inferred keyword, semantic match
@@ -161,6 +165,7 @@ _Avoid_: Session, GuideSite Session
 - A **GuideSite** helps a **Visitor** reach **Decision Confidence** whether the final decision is yes or no.
 - A **GuideSite** adapts to the **Visitor**'s **Prompt**, **Constraints**, and **Concerns**.
 - **Decision Confidence** requires the **Visitor**'s major **Constraints** and **Concerns** to be addressed.
+- **Concern Surfacing** identifies **Concerns** from a **Prompt** before the system finds related **Content Entities**.
 - A **Prompt** can suggest an **Implied Need** even when the **Visitor** does not name it directly.
 - An **Implied Need** can reveal additional **Concerns** or **Sources of Truth** needed for an **Assembled Answer**.
 - A **Suggested Prompt** becomes a **Prompt** when the **Visitor** chooses it.
@@ -188,6 +193,7 @@ _Avoid_: Session, GuideSite Session
 - A **Claim** should be backed by **Sources of Truth**.
 - A **Concern** may be represented as a **Content Entity** to connect **Prompts** to related **Content Entities**.
 - A **Concern** is a primary relevance signal in the **Answer Assembly Process**.
+- A missing **Concern** suggested by a **Prompt** should be treated as an editorial gap, not as a reason to bypass **Concern** relationships when finding **Content Entities**.
 - A sensitive **Concern** should be addressed with concrete **Sources of Truth** such as policies, protocols, checklists, standards, and procedures rather than unsupported reassurance.
 - **Ultimate Camp Website** uses camp-specific **Content Entities**; terms named here are examples, not an exhaustive schema catalog.
 - **Content Entities**, **Entity Fields**, **Narrative Content**, **Addressable Blocks**, and **Claims** can be **Sources of Truth**.

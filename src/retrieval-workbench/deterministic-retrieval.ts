@@ -2,6 +2,7 @@ import MiniSearch from "minisearch";
 import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import { processIndexedSearchTerm, processQuerySearchTerm } from "./search-query-shaping.js";
 import type { RetrievalPlan } from "./retrieval-planner.js";
+import type { ConcernSurfacingResult } from "./concern-surfacing-types.js";
 import type { ConcernDocument, ContentEntityDocument, ParentPromptExpectation } from "./types.js";
 
 type SearchMatch = Record<string, string[]>;
@@ -66,6 +67,7 @@ export type RankedContentEntityMatch = {
 export type PromptRetrievalResult = {
   prompt: string;
   retrievalPlan?: RetrievalPlan;
+  concernSurfacing?: ConcernSurfacingResult;
   matchedConcerns: RankedConcernMatch[];
   directContentEntities: RankedContentEntityMatch[];
   mergedContentEntities: RankedContentEntityMatch[];
