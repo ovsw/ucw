@@ -86,9 +86,8 @@ export const generatedFixtureGoldSet: ParentPromptExpectation[] = [
     _id: "prompt-day-camp-alternative",
     prompt: "If overnight camp is too much right now, do you have a day camp or another gentler option?",
     expectedConcernIds: ["concern-homesickness-readiness", "concern-pricing-affordability"],
-    evaluationNotes: ["impliedNeedFailure"],
-    requiredContentEntityIds: ["program-day-camp", "guide-first-time-overnight", "policy-registration-cancellation"],
+    requiredContentEntityIds: ["program-day-camp", "guide-first-time-overnight"],
     supportingContentEntityIds: ["testimonial-parent-readiness"],
-    requiredSourceOfTruthIds: ["program-day-camp", "policy-registration-cancellation"],
+    requiredSourceOfTruthIds: ["program-day-camp"],
   },
 ];

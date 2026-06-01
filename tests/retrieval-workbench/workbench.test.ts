@@ -181,7 +181,10 @@ test("OpenAI Concern Surfacing adds a comparison strategy and report-only missin
   );
   assert.match(report.report, /Missing Concern candidates:/);
   assert.match(report.report, /Day-camp transition fit: The catalog has readiness and pricing/);
-  assert.match(report.report, /Registration and cancellation policy \[policy-registration-cancellation\]/);
+  assert.doesNotMatch(
+    report.report,
+    /prompt-day-camp-alternative[\s\S]*Required content hits:[^\n]*Registration and cancellation policy/,
+  );
 });
 
 test("default comparison stops before retrieval when Sanity fixture parity is missing", async () => {

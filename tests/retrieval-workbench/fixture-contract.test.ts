@@ -305,10 +305,13 @@ test("generated fixture expands the corpus while staying within the contract", a
     generatedFixture.goldSet.find((entry) => entry._id === "prompt-bullying-and-homesickness")?.evaluationNotes,
     ["semanticFailure"],
   );
-  assert.deepEqual(
-    generatedFixture.goldSet.find((entry) => entry._id === "prompt-day-camp-alternative")?.evaluationNotes,
-    ["impliedNeedFailure"],
-  );
+  const dayCampPrompt = generatedFixture.goldSet.find((entry) => entry._id === "prompt-day-camp-alternative");
+  assert.deepEqual(dayCampPrompt?.evaluationNotes, undefined);
+  assert.deepEqual(dayCampPrompt?.requiredContentEntityIds, [
+    "program-day-camp",
+    "guide-first-time-overnight",
+  ]);
+  assert.deepEqual(dayCampPrompt?.requiredSourceOfTruthIds, ["program-day-camp"]);
   assert.match(
     generatedFixture.documents.map((document) => document._id).join(" "),
     /policy-bullying-response|program-day-camp|policy-registration-cancellation/,

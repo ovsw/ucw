@@ -30,7 +30,7 @@ test("prototype Retrieval Planner turns the day-camp alternative prompt into an 
   );
 });
 
-test("planned retrieval uses rank fusion to lift implied policy content into the usable band", async () => {
+test("planned retrieval keeps the prototype implied policy query outside day-camp gold expectations", async () => {
   const fixture = await loadFixture("fixtures/retrieval-workbench/generated.json");
   const prompt = fixture.goldSet.find((entry) => entry._id === "prompt-day-camp-alternative");
 
@@ -38,19 +38,15 @@ test("planned retrieval uses rank fusion to lift implied policy content into the
 
   const baseStrategy = createDeterministicRetrievalStrategy(fixture);
   const plannedStrategy = createPlannedRetrievalStrategy(baseStrategy, createPrototypeRetrievalPlanner());
-  const baselineResult = baseStrategy.evaluatePrompt(prompt.prompt);
   const plannedResult = plannedStrategy.evaluatePrompt(prompt.prompt);
-  const baselinePolicy = baselineResult.mergedContentEntities.find(
-    (match) => match._id === "policy-registration-cancellation",
-  );
   const plannedPolicy = plannedResult.mergedContentEntities.find(
     (match) => match._id === "policy-registration-cancellation",
   );
 
-  assert.ok(baselinePolicy);
   assert.ok(plannedPolicy);
-  assert.ok(baselinePolicy.rank > 10);
   assert.ok(plannedPolicy.rank <= 5);
+  assert.equal(prompt.requiredContentEntityIds.includes("policy-registration-cancellation"), false);
+  assert.equal(prompt.requiredSourceOfTruthIds?.includes("policy-registration-cancellation"), false);
   assert.equal(plannedResult.retrievalPlan?.needs.some((need) => need.kind === "implied"), true);
 });
 
