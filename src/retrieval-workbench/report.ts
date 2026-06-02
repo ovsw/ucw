@@ -14,6 +14,8 @@ import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
 import { summarizeFixture } from "./fixture-summary.js";
 import type { ParentPromptExpectation } from "./types.js";
 import type { RetrievalStrategy } from "./retrieval-strategy.js";
+import type { AnswerCompositionCoverageFailure, AnswerCompositionResult } from "./answer-composition.js";
+import type { AnswerSourceSnippet } from "./answer-source-material.js";
 
 type Hit = {
   id: string;
@@ -56,6 +58,13 @@ type StrategyAggregateSummary = {
 type StrategySummaryContext = {
   baselineReport: StrategyReport | null;
   comparisonStrategy: RetrievalStrategy | null;
+};
+
+type ConcernSurfacingImpact = {
+  changedTopSourcePromptIds: string[];
+  requiredRankImprovements: number;
+  requiredRankRegressions: number;
+  requiredRankTies: number;
 };
 
 type RankUsefulness = "usable" | "diagnostic" | "weak";
@@ -406,6 +415,112 @@ function renderStrategySummaryLine(
   return `- ${strategy.label}${comparisonLabel}: ${summaryParts.join(", ")}`;
 }
 
+function topSourceIds(strategy: RetrievalStrategy, prompt: ParentPromptExpectation, topK: number): string[] {
+  return strategy
+    .evaluatePrompt(prompt.prompt)
+    .mergedContentEntities.slice(0, topK)
+    .map((match) => match._id);
+}
+
+function sameSourceIds(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function buildConcernSurfacingImpact(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  baseReport: StrategyReport,
+  concernSurfacingReport: StrategyReport,
+): ConcernSurfacingImpact {
+  const changedTopSourcePromptIds: string[] = [];
+  let requiredRankImprovements = 0;
+  let requiredRankRegressions = 0;
+  let requiredRankTies = 0;
+
+  for (const prompt of fixture.goldSet) {
+    const baseTopSourceIds = topSourceIds(baseReport.strategy, prompt, USABLE_RANK_THRESHOLD);
+    const concernSurfacingTopSourceIds = topSourceIds(
+      concernSurfacingReport.strategy,
+      prompt,
+      USABLE_RANK_THRESHOLD,
+    );
+
+    if (!sameSourceIds(baseTopSourceIds, concernSurfacingTopSourceIds)) {
+      changedTopSourcePromptIds.push(prompt._id);
+    }
+
+    const baseRanks = baseReport.requiredRanksByPrompt.get(prompt._id) ?? new Map<string, number>();
+    const concernSurfacingRanks = concernSurfacingReport.requiredRanksByPrompt.get(prompt._id) ?? new Map<string, number>();
+
+    for (const requiredContentEntityId of prompt.requiredContentEntityIds) {
+      const baseRank = baseRanks.get(requiredContentEntityId);
+      const concernSurfacingRank = concernSurfacingRanks.get(requiredContentEntityId);
+
+      if (baseRank === undefined || concernSurfacingRank === undefined) {
+        if (baseRank === undefined && concernSurfacingRank === undefined) {
+          requiredRankTies += 1;
+        } else if (baseRank === undefined) {
+          requiredRankImprovements += 1;
+        } else {
+          requiredRankRegressions += 1;
+        }
+
+        continue;
+      }
+
+      if (concernSurfacingRank < baseRank) {
+        requiredRankImprovements += 1;
+      } else if (concernSurfacingRank > baseRank) {
+        requiredRankRegressions += 1;
+      } else {
+        requiredRankTies += 1;
+      }
+    }
+  }
+
+  return {
+    changedTopSourcePromptIds,
+    requiredRankImprovements,
+    requiredRankRegressions,
+    requiredRankTies,
+  };
+}
+
+function renderConcernSurfacingSourceSelectionImpact(
+  fixture: ParsedRetrievalWorkbenchFixture,
+  strategyReports: StrategyReport[],
+): string[] {
+  const baseReport = strategyReports.find((strategyReport) => strategyReport.strategy.id === "sanityHybrid");
+  const concernSurfacingReport = strategyReports.find(
+    (strategyReport) => strategyReport.strategy.id === "sanityHybridOpenAIConcernSurfacing",
+  );
+
+  if (!baseReport || !concernSurfacingReport) {
+    return [];
+  }
+
+  const impact = buildConcernSurfacingImpact(fixture, baseReport, concernSurfacingReport);
+  const lines = ["Concern Surfacing source-selection impact:"];
+
+  lines.push(
+    `- ${concernSurfacingReport.strategy.label} vs ${baseReport.strategy.label} (top ${USABLE_RANK_THRESHOLD}): changed prompt source sets: ${impact.changedTopSourcePromptIds.length}/${fixture.goldSet.length}, required rank improvements: ${impact.requiredRankImprovements}, regressions: ${impact.requiredRankRegressions}, ties: ${impact.requiredRankTies}`,
+  );
+  lines.push(`- Prompts with changed top ${USABLE_RANK_THRESHOLD} sources: ${formatList(impact.changedTopSourcePromptIds)}`);
+
+  if (impact.changedTopSourcePromptIds.length === 0 && impact.requiredRankImprovements === 0) {
+    lines.push(
+      "- No source-selection improvement observed; treat OpenAI Concern Surfacing as diagnostic until evaluation fixtures show source-selection gains.",
+    );
+  }
+
+  lines.push("");
+
+  return lines;
+}
+
 function renderPromptReport(
   prompt: ParentPromptExpectation,
   result: PromptRetrievalResult,
@@ -487,6 +602,161 @@ function renderStrategyReport(
   return { strategy, lines, summaries, requiredRanksByPrompt };
 }
 
+function formatCoverageFailure(failure: AnswerCompositionCoverageFailure, topK: number): string {
+  const label =
+    failure.kind === "requiredContent"
+      ? "Missing required Content Entities"
+      : "Missing required source-of-truth Content Entities";
+
+  return `${label} in top ${topK}: ${formatList(failure.missingIds)}`;
+}
+
+function buildAnswerSnippetLookup(result: AnswerCompositionResult): Map<string, AnswerSourceSnippet> {
+  return new Map(result.sourceMaterials.flatMap((material) => material.snippets.map((snippet) => [snippet.snippetId, snippet])));
+}
+
+function renderSelectedAnswerSourceMaterials(result: AnswerCompositionResult): string[] {
+  if (result.sourceMaterials.length === 0) {
+    return ["- none"];
+  }
+
+  return result.sourceMaterials.map((material) => {
+    const snippetIds = material.snippets.map((snippet) => snippet.snippetId);
+
+    return `- #${material.rank} ${material.title} [${material.sourceId}] snippets: ${formatList(snippetIds)}`;
+  });
+}
+
+function renderCitedAnswerSourceSnippets(result: AnswerCompositionResult): string[] {
+  if (result.citedSources.length === 0) {
+    return ["- none"];
+  }
+
+  const snippetsById = buildAnswerSnippetLookup(result);
+
+  return result.citedSources.map((citation) => {
+    const snippet = snippetsById.get(citation.snippetId);
+    const snippetText = snippet ? `${snippet.field}: ${snippet.text}` : "missing snippet";
+
+    return `- ${citation.sourceId}#${citation.snippetId} (${formatList(citation.claimIds)}): ${snippetText}`;
+  });
+}
+
+function renderClaimCoverage(result: AnswerCompositionResult): string[] {
+  if (result.claims.length === 0) {
+    return ["- none"];
+  }
+
+  return result.claims.map((claim) => {
+    const evidence = claim.evidence.map((reference) => `${reference.sourceId}#${reference.snippetId}`);
+
+    return `- ${claim.claimId}: ${claim.text}; evidence: ${formatList(evidence)}`;
+  });
+}
+
+function renderUnsupportedClaims(result: AnswerCompositionResult): string[] {
+  if (result.diagnostics.unsupportedClaims.length === 0) {
+    return ["- none"];
+  }
+
+  return result.diagnostics.unsupportedClaims.map((claim) => `- ${claim.text}: ${claim.reason}`);
+}
+
+function renderMissingSourceOfTruthDiagnostics(result: AnswerCompositionResult): string[] {
+  if (result.diagnostics.missingSourceOfTruth.length === 0) {
+    return ["- none"];
+  }
+
+  return result.diagnostics.missingSourceOfTruth.map((diagnostic) => `- ${diagnostic}`);
+}
+
+function renderCitationValidationDiagnostics(result: AnswerCompositionResult): string[] {
+  if (result.diagnostics.citationFailures.length === 0) {
+    return ["- none"];
+  }
+
+  return result.diagnostics.citationFailures.map((diagnostic) => `- ${diagnostic}`);
+}
+
+function renderFollowUpQuestions(result: AnswerCompositionResult): string[] {
+  if (result.diagnostics.followUpQuestions.length === 0) {
+    return ["- none"];
+  }
+
+  return result.diagnostics.followUpQuestions.map((question) => `- ${question}`);
+}
+
+function renderUnsafeCompositionReasons(result: AnswerCompositionResult): string[] {
+  const reasons = result.diagnostics.coverageFailures.map((failure) => `- ${formatCoverageFailure(failure, result.topK)}`);
+
+  if (result.diagnostics.coverageFailures.length === 0) {
+    reasons.push(
+      ...result.diagnostics.missingSourceOfTruth.map(
+        (diagnostic) => `- Provider reported missing source-of-truth: ${diagnostic}`,
+      ),
+    );
+  }
+
+  reasons.push(...result.diagnostics.citationFailures.map((diagnostic) => `- Citation validation: ${diagnostic}`));
+
+  return reasons.length > 0 ? reasons : ["- none"];
+}
+
+function renderAnswerCompositionResult(result: AnswerCompositionResult): string[] {
+  const lines: string[] = [];
+
+  lines.push(`## Answer Composer: ${result.promptId}`);
+  lines.push(`Parent Prompt: ${result.parentPrompt}`);
+  lines.push(`Source strategy: ${result.sourceStrategy.label} [${result.sourceStrategy.id}]`);
+  lines.push(`Top-k source materials: ${result.topK}`);
+  lines.push(`Composition status: ${result.status}`);
+
+  if (result.status === "unsafe") {
+    lines.push("Unsafe composition reasons:");
+    lines.push(...renderUnsafeCompositionReasons(result));
+    const draftDisposition =
+      result.diagnostics.coverageFailures.length > 0
+        ? "Draft: none (provider call skipped)"
+        : "Draft: none (provider output withheld)";
+    lines.push(draftDisposition);
+  } else {
+    lines.push("Draft:");
+    lines.push(result.draft ?? "none");
+  }
+
+  lines.push("Selected source materials:");
+  lines.push(...renderSelectedAnswerSourceMaterials(result));
+  lines.push("Cited source snippets:");
+  lines.push(...renderCitedAnswerSourceSnippets(result));
+  lines.push("Citation validation diagnostics:");
+  lines.push(...renderCitationValidationDiagnostics(result));
+  lines.push("Claim coverage:");
+  lines.push(...renderClaimCoverage(result));
+  lines.push("Unsupported claims:");
+  lines.push(...renderUnsupportedClaims(result));
+  lines.push("Missing source-of-truth diagnostics:");
+  lines.push(...renderMissingSourceOfTruthDiagnostics(result));
+  lines.push("Follow-up questions:");
+  lines.push(...renderFollowUpQuestions(result));
+  lines.push("");
+
+  return lines;
+}
+
+function renderAnswerCompositionReport(results: AnswerCompositionResult[]): string[] {
+  if (results.length === 0) {
+    return [];
+  }
+
+  const lines = ["Answer Composer Harness (report-only)", ""];
+
+  for (const result of results) {
+    lines.push(...renderAnswerCompositionResult(result));
+  }
+
+  return lines;
+}
+
 function buildStrategySummaryContext(strategyReports: StrategyReport[]): StrategySummaryContext {
   const baselineReport = strategyReports.find((strategyReport) => strategyReport.strategy.id === "deterministic") ?? null;
   const comparisonStrategy = baselineReport?.strategy ?? strategyReports[0]?.strategy ?? null;
@@ -497,6 +767,7 @@ function buildStrategySummaryContext(strategyReports: StrategyReport[]): Strateg
 export function renderRetrievalWorkbenchReport(
   fixture: ParsedRetrievalWorkbenchFixture,
   strategies: RetrievalStrategy[] = [createDeterministicRetrievalStrategy(fixture)],
+  answerCompositionResults: AnswerCompositionResult[] = [],
 ): string {
   const lookup = buildLookup(fixture);
   const { concernCount, nonConcernCount, contentEntityTypes } = summarizeFixture(fixture);
@@ -522,6 +793,9 @@ export function renderRetrievalWorkbenchReport(
     lines.push(renderStrategySummaryLine(strategy, aggregate, comparisonStrategy));
   }
   lines.push("");
+  lines.push(...renderConcernSurfacingSourceSelectionImpact(fixture, strategyReports));
+
+  lines.push(...renderAnswerCompositionReport(answerCompositionResults));
 
   for (const strategyReport of strategyReports) {
     lines.push(...strategyReport.lines);

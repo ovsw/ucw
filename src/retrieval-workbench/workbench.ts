@@ -9,6 +9,17 @@ import {
   readOpenAIConcernSurfacerConfig,
   type OpenAIConcernSurfacerEnv,
 } from "./openai-concern-surfacer.js";
+import { DEFAULT_ANSWER_COMPOSER_TOP_K, validateAnswerComposerTopK } from "./answer-source-material.js";
+import {
+  composeAnswerForPrompt,
+  type AnswerCompositionResult,
+  type RetrievalWorkbenchAnswerComposer,
+} from "./answer-composition.js";
+import {
+  createOpenAIAnswerComposer,
+  readOpenAIAnswerComposerConfig,
+  type OpenAIAnswerComposerEnv,
+} from "./openai-answer-composer.js";
 import { printFixtureValidationError } from "./fixture-errors.js";
 import { createPlannedRetrievalStrategy } from "./planned-retrieval-strategy.js";
 import { createPrototypeRetrievalPlanner } from "./retrieval-planner.js";
@@ -27,12 +38,14 @@ import type { RetrievalStrategy } from "./retrieval-strategy.js";
 
 export type RetrievalWorkbenchRunMode = "deterministic-only" | "comparison";
 export type RetrievalWorkbenchConcernSurfacer = "none" | "openai";
-export type RetrievalWorkbenchEnv = SanityConfigEnv & OpenAIConcernSurfacerEnv;
+export type RetrievalWorkbenchEnv = SanityConfigEnv & OpenAIConcernSurfacerEnv & OpenAIAnswerComposerEnv;
 
 export type RetrievalWorkbenchRunOptions = {
   fixturePath?: string;
   deterministicOnly?: boolean;
   concernSurfacer?: RetrievalWorkbenchConcernSurfacer;
+  answerComposer?: RetrievalWorkbenchAnswerComposer;
+  answerComposerTopK?: number;
   env?: RetrievalWorkbenchEnv;
   fetchImpl?: typeof fetch;
 };
@@ -42,6 +55,7 @@ export type RetrievalWorkbenchRunResult = {
   mode: RetrievalWorkbenchRunMode;
   summaryLines: string[];
   report: string;
+  answerCompositionResults?: AnswerCompositionResult[];
 };
 
 type SanityResultsByPrompt = Map<string, SanityRetrievalQueryResult>;
@@ -156,6 +170,21 @@ async function buildSanityComparisonStrategies(
   return strategies;
 }
 
+function selectAnswerComposerSourceStrategy(
+  strategies: RetrievalStrategy[],
+  concernSurfacerSelection: RetrievalWorkbenchConcernSurfacer,
+): RetrievalStrategy {
+  const strategyId =
+    concernSurfacerSelection === "openai" ? "sanityHybridOpenAIConcernSurfacing" : "sanityHybrid";
+  const strategy = strategies.find((candidate) => candidate.id === strategyId);
+
+  if (!strategy) {
+    throw new Error(`Answer Composer source strategy was not available: ${strategyId}`);
+  }
+
+  return strategy;
+}
+
 export async function runRetrievalWorkbench(
   options: RetrievalWorkbenchRunOptions = {},
 ): Promise<RetrievalWorkbenchRunResult> {
@@ -164,10 +193,15 @@ export async function runRetrievalWorkbench(
   const summaryLines = formatSummaryLines(fixture, fixturePath);
   const fetchImpl = options.fetchImpl ?? fetch;
   const concernSurfacerSelection = options.concernSurfacer ?? "none";
+  const answerComposerSelection = options.answerComposer ?? "none";
 
   if (options.deterministicOnly) {
     if (concernSurfacerSelection === "openai") {
       throw new Error("OpenAI Concern Surfacing requires comparison mode; remove --deterministic-only.");
+    }
+
+    if (answerComposerSelection === "openai") {
+      throw new Error("OpenAI Answer Composer requires comparison mode; remove --deterministic-only.");
     }
 
     return {
@@ -182,6 +216,14 @@ export async function runRetrievalWorkbench(
     concernSurfacerSelection === "openai"
       ? createOpenAIConcernSurfacer(readOpenAIConcernSurfacerConfig(options.env), fetchImpl)
       : undefined;
+  const answerComposer =
+    answerComposerSelection === "openai"
+      ? createOpenAIAnswerComposer(readOpenAIAnswerComposerConfig(options.env), fetchImpl)
+      : undefined;
+  const answerComposerTopK =
+    answerComposerSelection === "openai"
+      ? validateAnswerComposerTopK(options.answerComposerTopK ?? DEFAULT_ANSWER_COMPOSER_TOP_K)
+      : undefined;
   const config = readSanityQueryConfig(options.env);
   const parity = await verifySanityFixtureParity(fixture, config, fetchImpl);
 
@@ -190,12 +232,32 @@ export async function runRetrievalWorkbench(
   }
 
   const strategies = await buildSanityComparisonStrategies(fixture, config, fetchImpl, concernSurfacer);
+  const answerCompositionResults = answerComposer
+    ? await Promise.all(
+        fixture.goldSet.map((prompt) => {
+          const strategy = selectAnswerComposerSourceStrategy(strategies, concernSurfacerSelection);
+
+          return composeAnswerForPrompt({
+            fixture,
+            prompt,
+            retrievalResult: strategy.evaluatePrompt(prompt.prompt),
+            sourceStrategy: {
+              id: strategy.id,
+              label: strategy.label,
+            },
+            topK: answerComposerTopK,
+            composer: answerComposer,
+          });
+        }),
+      )
+    : undefined;
 
   return {
     fixturePath,
     mode: "comparison",
     summaryLines,
-    report: renderRetrievalWorkbenchReport(fixture, strategies),
+    report: renderRetrievalWorkbenchReport(fixture, strategies, answerCompositionResults),
+    answerCompositionResults,
   };
 }
 
