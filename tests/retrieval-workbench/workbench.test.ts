@@ -97,6 +97,50 @@ test("OpenAI Concern Surfacing is opt-in and validates OpenAI config before retr
   assert.equal(requestCount, 0);
 });
 
+test("OpenAI Answer Composer is opt-in, comparison-only, and validates OpenAI config before retrieval", async () => {
+  let requestCount = 0;
+
+  await assert.rejects(
+    async () =>
+      runRetrievalWorkbench({
+        fixturePath: "fixtures/retrieval-workbench/generated.json",
+        deterministicOnly: true,
+        answerComposer: "openai",
+        env: {
+          SANITY_PROJECT_ID: "project-123",
+          SANITY_DATASET: "prototype",
+          SANITY_API_VERSION: "2025-05-01",
+          OPENAI_API_KEY: "openai-key",
+        },
+        fetchImpl: async () => {
+          requestCount += 1;
+          throw new Error("retrieval should not run in deterministic-only mode");
+        },
+      }),
+    /OpenAI Answer Composer requires comparison mode/,
+  );
+
+  await assert.rejects(
+    async () =>
+      runRetrievalWorkbench({
+        fixturePath: "fixtures/retrieval-workbench/generated.json",
+        answerComposer: "openai",
+        env: {
+          SANITY_PROJECT_ID: "project-123",
+          SANITY_DATASET: "prototype",
+          SANITY_API_VERSION: "2025-05-01",
+        },
+        fetchImpl: async () => {
+          requestCount += 1;
+          throw new Error("retrieval should not run without OpenAI config");
+        },
+      }),
+    /Missing required OpenAI config for Answer Composer: OPENAI_API_KEY/,
+  );
+
+  assert.equal(requestCount, 0);
+});
+
 test("OpenAI Concern Surfacing adds a comparison strategy and report-only missing Concern diagnostics", async () => {
   const fixture = await loadFixture("fixtures/retrieval-workbench/generated.json");
   let openAIRequestCount = 0;
@@ -185,6 +229,138 @@ test("OpenAI Concern Surfacing adds a comparison strategy and report-only missin
     report.report,
     /prompt-day-camp-alternative[\s\S]*Required content hits:[^\n]*Registration and cancellation policy/,
   );
+});
+
+test("OpenAI Answer Composer runs after Sanity Hybrid retrieval and renders report-only drafts", async () => {
+  const fixture = await loadFixture("fixtures/retrieval-workbench/generated.json");
+  let answerComposerRequestCount = 0;
+  const report = await runRetrievalWorkbench({
+    fixturePath: "fixtures/retrieval-workbench/generated.json",
+    answerComposer: "openai",
+    answerComposerTopK: 25,
+    env: {
+      SANITY_PROJECT_ID: "project-123",
+      SANITY_DATASET: "prototype",
+      SANITY_API_VERSION: "2025-05-01",
+      SANITY_READ_TOKEN: "read-token",
+      OPENAI_API_KEY: "openai-key",
+    },
+    fetchImpl: async (input, init) => {
+      if (String(input).includes("api.openai.com")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          input?: Array<{ role: string; content: string }>;
+          text?: { format?: { name?: string } };
+        };
+        assert.equal(body.text?.format?.name, "answer_composition_result");
+        const userPayload = JSON.parse(body.input?.[1]?.content ?? "{}") as {
+          promptId?: string;
+          sourceStrategy?: { id?: string };
+          sourceMaterials?: Array<{
+            sourceId: string;
+            snippets: Array<{ sourceId: string; snippetId: string }>;
+          }>;
+        };
+        const firstSource = userPayload.sourceMaterials?.[0];
+        const firstSnippet = firstSource?.snippets[0];
+
+        assert.ok(firstSource);
+        assert.ok(firstSnippet);
+        assert.equal(userPayload.sourceStrategy?.id, "sanityHybrid");
+        answerComposerRequestCount += 1;
+
+        return createJsonResponse({
+          output_text: JSON.stringify({
+            status: "composed",
+            draft: `Draft for ${userPayload.promptId}`,
+            citedSources: [
+              {
+                sourceId: firstSource.sourceId,
+                snippetId: firstSnippet.snippetId,
+                claimIds: ["claim-1"],
+              },
+            ],
+            claims: [
+              {
+                claimId: "claim-1",
+                text: "The draft uses the selected source material.",
+                evidence: [
+                  {
+                    sourceId: firstSnippet.sourceId,
+                    snippetId: firstSnippet.snippetId,
+                  },
+                ],
+              },
+            ],
+            diagnostics: {
+              unsupportedClaims: [],
+              missingSourceOfTruth: [],
+              followUpQuestions: [],
+            },
+          }),
+        });
+      }
+
+      const body = JSON.parse(String(init?.body ?? "{}")) as { query?: string };
+      const query = body.query ?? "";
+
+      if (query.includes('order(_id asc)')) {
+        return createJsonResponse({
+          result: [
+            ...fixture.documents.map((document) => ({
+              _id: document._id,
+              _type: document._type,
+            })),
+            { _id: "_.groups.public", _type: "system.group" },
+            { _id: "_.retention._maximum_project", _type: "system.retention" },
+          ],
+        });
+      }
+
+      if (query.includes('_type == "concern"')) {
+        return createJsonResponse({
+          result: fixture.documents
+            .filter((document) => document._type === "concern")
+            .map((document, index) => ({
+              _id: document._id,
+              _type: document._type,
+              title: document.title,
+              _score: 100 - index,
+            })),
+        });
+      }
+
+      if (query.includes('_type != "concern"')) {
+        return createJsonResponse({
+          result: fixture.documents
+            .filter((document) => document._type !== "concern")
+            .map((document, index) => ({
+              _id: document._id,
+              _type: document._type,
+              title: document.title,
+              _score: 100 - index,
+            })),
+        });
+      }
+
+      return createJsonResponse({
+        result: fixture.documents
+          .filter((document) => document._type !== "concern")
+          .map((document) => ({
+            _id: document._id,
+            _type: document._type,
+            title: document.title,
+            relatedConcernIds: "relatedConcerns" in document ? (document.relatedConcerns ?? []).map((ref) => ref._ref) : [],
+          })),
+      });
+    },
+  });
+
+  assert.equal(answerComposerRequestCount, fixture.goldSet.length);
+  assert.match(report.report, /Answer Composer Harness \(report-only\)/);
+  assert.match(report.report, /Source strategy: Sanity Hybrid \[sanityHybrid\]/);
+  assert.match(report.report, /Draft for prompt-allergy-epipen/);
+  assert.match(report.report, /Strategy summary:/);
+  assert.match(report.report, /Strategy: Sanity Hybrid/);
 });
 
 test("default comparison stops before retrieval when Sanity fixture parity is missing", async () => {
