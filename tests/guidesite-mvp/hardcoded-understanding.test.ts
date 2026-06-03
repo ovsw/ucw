@@ -157,6 +157,41 @@ test("accepted non-canonical Prompt Understanding changes the needs-context comp
   ]);
 });
 
+test("accepted non-canonical Prompt Understanding uses the right age article", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: "Is overnight camp right for my 10-year-old?",
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_age_article",
+    createRunId: () => "run_age_article",
+  });
+
+  const run = withPromptUnderstandingCandidate(
+    started.run,
+    {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 10-year-old Child.",
+      facts: {
+        child_age: {
+          value: 10,
+          provenance: {
+            source: "explicit",
+            promptText: "10-year-old",
+          },
+        },
+      },
+      concerns: [],
+      retrievalNeeds: ["overnight_readiness"],
+      contextNeeds: ["prior_sleepaway_experience"],
+    },
+    { now: () => new Date("2026-01-01T00:02:00.000Z") },
+  );
+
+  assert.equal(run.answerComposition?.sections[0]?.body, "The Parent is asking whether overnight camp is right for a 10-year-old Child.");
+});
+
 test("unknown Prompts use a safe fallback understanding and composition", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({

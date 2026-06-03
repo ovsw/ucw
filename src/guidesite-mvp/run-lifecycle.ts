@@ -447,10 +447,19 @@ function titleCaseIdentifier(identifier: string): string {
     .join(" ");
 }
 
+function getIndefiniteArticleForAge(age: number): "a" | "an" {
+  const ageText = String(Math.trunc(Math.abs(age)));
+  if (ageText.startsWith("8") || ageText.startsWith("11") || ageText.startsWith("18")) {
+    return "an";
+  }
+
+  return "a";
+}
+
 function createNeedContextSummary(run: RunState): string {
   const childAge = run.understanding?.facts.child_age?.value;
   if (typeof childAge === "number") {
-    return `The Parent is asking whether overnight camp is right for an ${childAge}-year-old Child.`;
+    return `The Parent is asking whether overnight camp is right for ${getIndefiniteArticleForAge(childAge)} ${childAge}-year-old Child.`;
   }
 
   return `The Parent is asking whether overnight camp is right for this Child: ${run.prompt.text}`;
