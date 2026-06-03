@@ -110,6 +110,21 @@ export interface AnswerComposition {
   diagnostics: string[];
 }
 
+export interface RetrievalResult {
+  sourceId: string;
+  sourceType: string;
+  title: string;
+  rank: number;
+  fieldPath: string;
+  sourceRevision: string;
+}
+
+export interface RetrievalResults {
+  needs: string[];
+  concerns: string[];
+  results: RetrievalResult[];
+}
+
 export interface SessionPatch {
   runId: string;
   sessionId: string;
@@ -174,6 +189,7 @@ export interface RunState {
   understanding: PromptUnderstanding | null;
   promptUnderstandingProvider: PromptUnderstandingProviderTrace | null;
   promptUnderstandingValidation: PromptUnderstandingValidationResult | null;
+  retrieval: RetrievalResults | null;
   answerComposition: AnswerComposition | null;
   patch: SessionPatch | null;
   committedSessionState: SessionState | null;

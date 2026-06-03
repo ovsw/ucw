@@ -14,6 +14,7 @@ import type {
   StartGuideSiteRunResult,
 } from "./types.js";
 import { applySessionPatchOperations } from "./patch-engine.js";
+import { retrieveGuideSiteFixtureSources } from "./fixture-retrieval.js";
 import {
   PromptUnderstandingProviderError,
   type PromptUnderstandingProvider,
@@ -154,6 +155,7 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
     understanding: null,
     promptUnderstandingProvider: null,
     promptUnderstandingValidation: null,
+    retrieval: null,
     answerComposition: null,
     patch: null,
     committedSessionState: null,
@@ -237,6 +239,7 @@ export function withPromptUnderstandingCandidate(
       promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
       understanding: null,
       promptUnderstandingValidation: validation,
+      retrieval: null,
       answerComposition: null,
       patch: null,
       committedSessionState: null,
@@ -251,6 +254,7 @@ export function withPromptUnderstandingCandidate(
     promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
     understanding: structuredClone(candidate),
     promptUnderstandingValidation: validation,
+    retrieval: retrieveGuideSiteFixtureSources(candidate),
     answerComposition: createCanonicalAnswerComposition(),
     patch: null,
     committedSessionState: null,
@@ -288,6 +292,7 @@ function createProviderFailureRun(
       valid: false,
       diagnostics,
     },
+    retrieval: null,
     answerComposition: null,
     patch: null,
     committedSessionState: null,
@@ -453,6 +458,7 @@ export function withHardcodedUnderstandingAndComposition(
     promptUnderstandingProvider: null,
     understanding,
     promptUnderstandingValidation: validation,
+    retrieval: validation.valid ? retrieveGuideSiteFixtureSources(understanding) : null,
     answerComposition: isCanonicalPrompt ? createCanonicalAnswerComposition() : createFallbackAnswerComposition(),
     patch: null,
     committedSessionState: null,
@@ -583,11 +589,34 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     JSON.stringify(run.promptUnderstandingValidation, null, 2),
     "Prompt Understanding:",
     JSON.stringify(run.understanding, null, 2),
+    renderRetrievalOperatorOutput(run),
     "Answer Composition:",
     JSON.stringify(run.answerComposition, null, 2),
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session State:",
     JSON.stringify(run.committedSessionState, null, 2),
+  ].join("\n");
+}
+
+function renderRetrievalOperatorOutput(run: RunState): string {
+  if (!run.retrieval) {
+    return ["Retrieval Results:", "null"].join("\n");
+  }
+
+  const resultLines = run.retrieval.results.flatMap((result) => [
+    `Source ID: ${result.sourceId}`,
+    `Source Type: ${result.sourceType}`,
+    `Title: ${result.title}`,
+    `Rank: ${result.rank}`,
+    `Field Path: ${result.fieldPath}`,
+    `Source Revision: ${result.sourceRevision}`,
+  ]);
+
+  return [
+    "Retrieval Results:",
+    `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
+    `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
+    ...resultLines,
   ].join("\n");
 }

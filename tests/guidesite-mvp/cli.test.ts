@@ -204,6 +204,50 @@ test("GuideSite MVP CLI saves successful Prompt Understanding validation diagnos
   }
 });
 
+test("GuideSite MVP CLI retrieves canonical fixture sources after validated Prompt Understanding", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
+  try {
+    const output = await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_cli_retrieval",
+      createRunId: () => "run_cli_retrieval",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+    });
+
+    const savedRunPath = join(runStateDirectory, "run_cli_retrieval.json");
+    assert.match(output, /Prompt Understanding:/);
+    assert.match(output, /Retrieval Results:/);
+    assert.match(output, /Source ID: program_overnight/);
+    assert.match(output, /Source Type: campProgram/);
+    assert.match(output, /Title: Overnight Camp Program/);
+    assert.match(output, /Rank: 1/);
+    assert.match(output, /Field Path: summary/);
+    assert.match(output, /Source Revision: mock_rev_program_overnight_001/);
+    assert.match(output, /Source ID: policy_homesickness/);
+    assert.match(output, /Source ID: policy_parent_communication/);
+
+    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
+    assert.equal(savedRun.status, "committed");
+    assert.deepEqual(savedRun.retrieval.needs, ["overnight_readiness", "homesickness_support"]);
+    assert.deepEqual(
+      savedRun.retrieval.results.map((result: { sourceId: string; rank: number }) => ({
+        sourceId: result.sourceId,
+        rank: result.rank,
+      })),
+      [
+        { sourceId: "program_overnight", rank: 1 },
+        { sourceId: "policy_homesickness", rank: 2 },
+        { sourceId: "policy_parent_communication", rank: 3 },
+      ],
+    );
+    assert.equal(savedRun.retrieval.results[0].fieldPath, "summary");
+    assert.equal(savedRun.retrieval.results[0].sourceRevision, "mock_rev_program_overnight_001");
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
 test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
   const promptsSeen: string[] = [];
