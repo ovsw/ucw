@@ -44,6 +44,20 @@ function cloneSessionState(session: SessionState): SessionState {
   return structuredClone(session);
 }
 
+function cloneRunWithClearedTransientState(run: RunState): RunState {
+  return {
+    ...structuredClone(run),
+    promptUnderstandingProvider: null,
+    understanding: null,
+    promptUnderstandingValidation: null,
+    retrieval: null,
+    answerComposition: null,
+    patch: null,
+    committedSessionState: null,
+    diagnostics: [],
+  };
+}
+
 function createEmptySessionState(sessionId: string, timestamp: string): SessionState {
   return {
     schemaVersion: 1,
@@ -196,16 +210,11 @@ export function withPromptUnderstandingCandidate(
 
   if (!validation.valid) {
     return {
-      ...structuredClone(run),
+      ...cloneRunWithClearedTransientState(run),
       status: "validation_failed",
       updatedAt: timestamp,
       promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
-      understanding: null,
       promptUnderstandingValidation: validation,
-      retrieval: null,
-      answerComposition: null,
-      patch: null,
-      committedSessionState: null,
       diagnostics: validation.diagnostics,
     };
   }
@@ -220,7 +229,7 @@ export function withPromptUnderstandingCandidate(
 
   if (!answerCompositionValidation.valid) {
     return {
-      ...structuredClone(run),
+      ...cloneRunWithClearedTransientState(run),
       status: "validation_failed",
       updatedAt: timestamp,
       promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
@@ -228,14 +237,12 @@ export function withPromptUnderstandingCandidate(
       promptUnderstandingValidation: validation,
       retrieval,
       answerComposition: null,
-      patch: null,
-      committedSessionState: null,
       diagnostics: [...retrieval.diagnostics, ...answerCompositionValidation.diagnostics],
     };
   }
 
   return {
-    ...structuredClone(run),
+    ...cloneRunWithClearedTransientState(run),
     status: sourceBackedRetrieval ? "composed" : "fallback",
     updatedAt: timestamp,
     promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
@@ -264,7 +271,7 @@ function createProviderFailureRun(
   const diagnostics = providerError.diagnostics.map((diagnostic) => `prompt_understanding_provider_failed: ${diagnostic}`);
 
   return {
-    ...structuredClone(run),
+    ...cloneRunWithClearedTransientState(run),
     status: "prompt_understanding_failed",
     updatedAt: timestamp,
     promptUnderstandingProvider: {
@@ -274,15 +281,10 @@ function createProviderFailureRun(
       parsedOutput: providerError.parsedOutput,
       diagnostics,
     },
-    understanding: null,
     promptUnderstandingValidation: {
       valid: false,
       diagnostics,
     },
-    retrieval: null,
-    answerComposition: null,
-    patch: null,
-    committedSessionState: null,
     diagnostics,
   };
 }
@@ -499,7 +501,7 @@ export function withHardcodedUnderstandingAndComposition(
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
 
   return {
-    ...structuredClone(run),
+    ...cloneRunWithClearedTransientState(run),
     status: isCanonicalPrompt ? "composed" : "fallback",
     updatedAt: timestamp,
     promptUnderstandingProvider: null,
@@ -510,8 +512,6 @@ export function withHardcodedUnderstandingAndComposition(
       isCanonicalPrompt && retrieval && sourceBackedRetrieval
         ? createCanonicalAnswerComposition(retrieval)
         : createFallbackAnswerComposition(),
-    patch: null,
-    committedSessionState: null,
     diagnostics: isCanonicalPrompt ? [] : ["unknown_prompt_fallback"],
   };
 }

@@ -206,9 +206,7 @@ export function validateAnswerCompositionCandidate(
     diagnostics.push("answer_composition_status_invalid");
   }
 
-  if (!requireNonEmptyString(composition.conversationalFraming, "answer_composition_conversational_framing_required", diagnostics)) {
-    // Continue validating the remaining shape so the operator sees all relevant diagnostics.
-  }
+  requireNonEmptyString(composition.conversationalFraming, "answer_composition_conversational_framing_required", diagnostics);
 
   const retrievalResultsById = normalizeRetrievalResults(retrieval);
   validateSections(composition.sections, retrievalResultsById, diagnostics);
