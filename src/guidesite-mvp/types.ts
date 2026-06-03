@@ -95,12 +95,32 @@ export interface SessionPatch {
   runId: string;
   sessionId: string;
   baseRevision: number;
-  visitorFacts: Record<string, VisitorFact>;
-  concerns: Record<string, ConcernState>;
-  focus: SessionFocus;
-  suggestedPrompts: SuggestedPrompt[];
-  summary: string;
+  operations: SessionPatchOperation[];
 }
+
+export type SessionPatchOperation =
+  | {
+      type: "upsertFact";
+      key: string;
+      fact: VisitorFact;
+    }
+  | {
+      type: "upsertConcern";
+      key: string;
+      concern: ConcernState;
+    }
+  | {
+      type: "setFocus";
+      focus: SessionFocus;
+    }
+  | {
+      type: "replaceSuggestedPrompts";
+      suggestedPrompts: SuggestedPrompt[];
+    }
+  | {
+      type: "updateSummary";
+      summary: string;
+    };
 
 export interface SessionState {
   schemaVersion: 1;

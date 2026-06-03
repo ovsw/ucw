@@ -34,13 +34,18 @@ test("canonical run commits a hardcoded Session Patch into compact Session State
 
   assert.equal(patch.baseRevision, 1);
   assert.equal(patch.runId, "run_patch");
-  assert.deepEqual(patch.visitorFacts.child_age, {
+  assert.deepEqual(
+    patch.operations.map((operation) => operation.type),
+    ["upsertFact", "upsertConcern", "upsertConcern", "setFocus", "replaceSuggestedPrompts", "updateSummary"],
+  );
+
+  assert.deepEqual(committed.session.visitorFacts.child_age, {
     value: 8,
     source: "explicit",
     sourceRunId: "run_patch",
     status: "active",
   });
-  assert.deepEqual(patch.concerns, {
+  assert.deepEqual(committed.session.concerns, {
     homesickness: {
       status: "open",
       sourceRunIds: ["run_patch"],
@@ -50,20 +55,19 @@ test("canonical run commits a hardcoded Session Patch into compact Session State
       sourceRunIds: ["run_patch"],
     },
   });
-  assert.deepEqual(patch.focus, {
+  assert.deepEqual(committed.session.focus, {
     goal: "assess_fit",
     contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
   });
-  assert.equal(patch.summary, "Parent is assessing overnight camp Fit for an 8-year-old Child.");
+  assert.equal(committed.session.summary, "Parent is assessing overnight camp Fit for an 8-year-old Child.");
 
   assert.equal(committed.applied, true);
   assert.equal(committed.session.revision, 2);
   assert.equal(committed.session.updatedAt, "2026-01-01T00:03:00.000Z");
-  assert.deepEqual(committed.session.visitorFacts, patch.visitorFacts);
-  assert.deepEqual(committed.session.concerns, patch.concerns);
-  assert.deepEqual(committed.session.focus, patch.focus);
-  assert.deepEqual(committed.session.suggestedPrompts, patch.suggestedPrompts);
-  assert.equal(committed.session.summary, patch.summary);
+  assert.deepEqual(
+    committed.session.suggestedPrompts.map((prompt) => prompt.id),
+    ["prompt_prior_sleepaway_experience", "prompt_child_readiness"],
+  );
 
   const output = renderGuideSiteRunOperatorOutput(committed.run);
 

@@ -10,6 +10,7 @@ import type {
   StartGuideSiteRunOptions,
   StartGuideSiteRunResult,
 } from "./types.js";
+import { applySessionPatchOperations } from "./patch-engine.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 
@@ -290,30 +291,49 @@ export function buildHardcodedSessionPatch(run: RunState): SessionPatch {
     runId: run.runId,
     sessionId: run.sessionId,
     baseRevision: run.baseSessionRevision,
-    visitorFacts: {
-      child_age: {
-        value: 8,
-        source: "explicit",
-        sourceRunId: run.runId,
-        status: "active",
+    operations: [
+      {
+        type: "upsertFact",
+        key: "child_age",
+        fact: {
+          value: 8,
+          source: "explicit",
+          sourceRunId: run.runId,
+          status: "active",
+        },
       },
-    },
-    concerns: {
-      homesickness: {
-        status: "open",
-        sourceRunIds: [run.runId],
+      {
+        type: "upsertConcern",
+        key: "homesickness",
+        concern: {
+          status: "open",
+          sourceRunIds: [run.runId],
+        },
       },
-      child_readiness: {
-        status: "open",
-        sourceRunIds: [run.runId],
+      {
+        type: "upsertConcern",
+        key: "child_readiness",
+        concern: {
+          status: "open",
+          sourceRunIds: [run.runId],
+        },
       },
-    },
-    focus: {
-      goal: "assess_fit",
-      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
-    },
-    suggestedPrompts: run.answerComposition.suggestedPrompts,
-    summary: "Parent is assessing overnight camp Fit for an 8-year-old Child.",
+      {
+        type: "setFocus",
+        focus: {
+          goal: "assess_fit",
+          contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+        },
+      },
+      {
+        type: "replaceSuggestedPrompts",
+        suggestedPrompts: run.answerComposition.suggestedPrompts,
+      },
+      {
+        type: "updateSummary",
+        summary: "Parent is assessing overnight camp Fit for an 8-year-old Child.",
+      },
+    ],
   };
 }
 
@@ -345,15 +365,11 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
   }
 
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const patchedSession = applySessionPatchOperations(liveSession, options.patch.operations);
   const committedSession: SessionState = {
-    ...liveSession,
+    ...patchedSession,
     revision: liveSession.revision + 1,
     updatedAt: timestamp,
-    visitorFacts: structuredClone(options.patch.visitorFacts),
-    concerns: structuredClone(options.patch.concerns),
-    focus: structuredClone(options.patch.focus),
-    suggestedPrompts: structuredClone(options.patch.suggestedPrompts),
-    summary: options.patch.summary,
   };
   const savedSession = options.stores.sessions.update(committedSession);
   options.stores.sessions.markCommittedRun(options.patch.runId);
