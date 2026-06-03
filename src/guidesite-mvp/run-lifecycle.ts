@@ -359,7 +359,7 @@ function createSourceRef(sourceId: string, retrieval: NonNullable<RunState["retr
 }
 
 function createSourceRefs(
-  sourceIds: string[],
+  sourceIds: readonly string[],
   retrieval: NonNullable<RunState["retrieval"]>,
 ): AnswerCompositionSourceRef[] {
   return sourceIds
@@ -377,7 +377,12 @@ type ContextNeedPromptTemplate = {
   concerns: string[];
 };
 
-const approvedContextNeedPromptTemplates: Record<string, ContextNeedPromptTemplate> = {
+type ContextNeed = "prior_sleepaway_experience" | "child_readiness";
+
+const canonicalSummarySourceIds = ["program_overnight"] as const;
+const canonicalConcernSourceIds = ["policy_homesickness", "policy_parent_communication"] as const;
+
+const approvedContextNeedPromptTemplates: Record<ContextNeed, ContextNeedPromptTemplate> = {
   prior_sleepaway_experience: {
     templateId: "ask_sleepaway_experience",
     text: "Has your child slept away from home before?",
@@ -389,6 +394,8 @@ const approvedContextNeedPromptTemplates: Record<string, ContextNeedPromptTempla
     concerns: ["child_readiness"],
   },
 };
+
+const approvedContextNeedPromptOrder: readonly ContextNeed[] = ["prior_sleepaway_experience", "child_readiness"];
 
 function formatList(items: string[]): string {
   if (items.length === 0) {
@@ -427,14 +434,14 @@ function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunSta
   const concernLabels = run.understanding?.concerns.map((concern) => concern.label) ?? [];
   const concernKeys = run.understanding?.concerns.map((concern) => concern.key) ?? [];
   const contextNeeds = run.understanding?.contextNeeds ?? [];
-  const sourceIds = retrieval.results.map((result) => result.sourceId);
   const suggestedPrompts = createSuggestedPrompts(run);
+  const concernSourceRefs = createSourceRefs(canonicalConcernSourceIds, retrieval);
   const sections: AnswerComposition["sections"] = [
     {
       kind: "summary",
       title: "Known Context",
       body: createNeedContextSummary(run),
-      sourceRefs: createSourceRefs(sourceIds.filter((sourceId) => sourceId === "program_overnight"), retrieval),
+      sourceRefs: createSourceRefs(canonicalSummarySourceIds, retrieval),
     },
     {
       kind: "fit_status",
@@ -452,10 +459,7 @@ function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunSta
           ? `${formatList(concernLabels)} should stay visible as open Concerns.`
           : "No open Concerns were identified in the validated Prompt Understanding.",
       items: concernKeys,
-      sourceRefs: createSourceRefs(
-        sourceIds.filter((sourceId) => sourceId === "policy_homesickness" || sourceId === "policy_parent_communication"),
-        retrieval,
-      ),
+      sourceRefs: concernSourceRefs,
     },
     {
       kind: "context_needs",
@@ -474,10 +478,7 @@ function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunSta
           ? "Approved prompts gather the missing Visitor Context."
           : "No approved follow-up prompts were available for the current Visitor Context.",
       items: suggestedPrompts.map((prompt) => prompt.id),
-      sourceRefs: createSourceRefs(
-        sourceIds.filter((sourceId) => sourceId === "policy_homesickness" || sourceId === "policy_parent_communication"),
-        retrieval,
-      ),
+      sourceRefs: concernSourceRefs,
     },
   ];
 
@@ -500,16 +501,13 @@ function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunSta
 
 function createSuggestedPrompts(run: RunState): AnswerComposition["suggestedPrompts"] {
   const understanding = run.understanding;
+  if (!understanding || understanding.goal !== "assess_fit") {
+    return [];
+  }
+
   const prompts: AnswerComposition["suggestedPrompts"] = [];
-
-  const promptNeeds = ["prior_sleepaway_experience", "child_readiness"] as const;
-
-  for (const contextNeed of promptNeeds) {
+  for (const contextNeed of approvedContextNeedPromptOrder) {
     const template = approvedContextNeedPromptTemplates[contextNeed];
-    if (!template || !understanding || understanding.goal !== "assess_fit") {
-      continue;
-    }
-
     const promptId = `prompt_${contextNeed}`;
     if (prompts.some((prompt) => prompt.id === promptId)) {
       continue;
@@ -547,6 +545,8 @@ function createSourcesSection(retrieval: NonNullable<RunState["retrieval"]>): An
 
 function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
   const sections = createNeedsContextSections(run, retrieval);
+  const diagnostics = [...retrieval.diagnostics, "needs_visitor_context", "no_fit_recommendation"];
+
   return {
     status: "needs_context",
     conversationalFraming:
@@ -556,7 +556,7 @@ function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<
     sections,
     suggestedPrompts: createSuggestedPrompts(run),
     citations: createSourceCitationIds(sections),
-    diagnostics: [...(retrieval.diagnostics.length > 0 ? retrieval.diagnostics : []), "needs_visitor_context", "no_fit_recommendation"],
+    diagnostics,
   };
 }
 
