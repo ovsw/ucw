@@ -1,5 +1,5 @@
 export type SessionStatus = "active";
-export type RunStatus = "started" | "composed" | "fallback";
+export type RunStatus = "started" | "composed" | "fallback" | "committed";
 export type PromptSource = "typed" | "suggested_prompt";
 export type VisitorFactSource = "explicit" | "inferred";
 export type VisitorFactStatus = "active" | "superseded" | "disputed";
@@ -91,6 +91,17 @@ export interface AnswerComposition {
   diagnostics: string[];
 }
 
+export interface SessionPatch {
+  runId: string;
+  sessionId: string;
+  baseRevision: number;
+  visitorFacts: Record<string, VisitorFact>;
+  concerns: Record<string, ConcernState>;
+  focus: SessionFocus;
+  suggestedPrompts: SuggestedPrompt[];
+  summary: string;
+}
+
 export interface SessionState {
   schemaVersion: 1;
   sessionId: string;
@@ -123,6 +134,8 @@ export interface RunState {
   snapshot: SessionState;
   understanding: PromptUnderstanding | null;
   answerComposition: AnswerComposition | null;
+  patch: SessionPatch | null;
+  committedSessionState: SessionState | null;
   diagnostics: string[];
 }
 
@@ -130,11 +143,14 @@ export interface SessionStore {
   create(session: SessionState): SessionState;
   read(sessionId: string): SessionState | null;
   update(session: SessionState): SessionState;
+  hasCommittedRun(runId: string): boolean;
+  markCommittedRun(runId: string): void;
 }
 
 export interface RunStore {
   create(run: RunState): RunState;
   read(runId: string): RunState | null;
+  update(run: RunState): RunState;
 }
 
 export interface GuideSiteStores {
@@ -152,6 +168,19 @@ export interface StartGuideSiteRunOptions {
 }
 
 export interface StartGuideSiteRunResult {
+  session: SessionState;
+  run: RunState;
+}
+
+export interface CommitSessionPatchOptions {
+  stores: GuideSiteStores;
+  run: RunState;
+  patch: SessionPatch;
+  now?: () => Date;
+}
+
+export interface CommitSessionPatchResult {
+  applied: boolean;
   session: SessionState;
   run: RunState;
 }

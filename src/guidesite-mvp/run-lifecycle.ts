@@ -1,8 +1,11 @@
 import type {
   AnswerComposition,
+  CommitSessionPatchOptions,
+  CommitSessionPatchResult,
   GuideSiteStores,
   PromptUnderstanding,
   RunState,
+  SessionPatch,
   SessionState,
   StartGuideSiteRunOptions,
   StartGuideSiteRunResult,
@@ -56,6 +59,7 @@ export function renderStartRunOperatorOutput(run: RunState): string {
 export function createGuideSiteMemoryStores(): GuideSiteStores {
   const sessions = new Map<string, SessionState>();
   const runs = new Map<string, RunState>();
+  const committedRunIds = new Set<string>();
 
   return {
     sessions: {
@@ -73,6 +77,12 @@ export function createGuideSiteMemoryStores(): GuideSiteStores {
         sessions.set(session.sessionId, stored);
         return cloneSessionState(stored);
       },
+      hasCommittedRun(runId) {
+        return committedRunIds.has(runId);
+      },
+      markCommittedRun(runId) {
+        committedRunIds.add(runId);
+      },
     },
     runs: {
       create(run) {
@@ -83,6 +93,11 @@ export function createGuideSiteMemoryStores(): GuideSiteStores {
       read(runId) {
         const run = runs.get(runId);
         return run ? structuredClone(run) : null;
+      },
+      update(run) {
+        const stored = structuredClone(run);
+        runs.set(run.runId, stored);
+        return structuredClone(stored);
       },
     },
   };
@@ -111,6 +126,8 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
     snapshot: cloneSessionState(session),
     understanding: null,
     answerComposition: null,
+    patch: null,
+    committedSessionState: null,
     diagnostics: [],
   };
 
@@ -258,7 +275,101 @@ export function withHardcodedUnderstandingAndComposition(
     updatedAt: timestamp,
     understanding: isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding(),
     answerComposition: isCanonicalPrompt ? createCanonicalAnswerComposition() : createFallbackAnswerComposition(),
+    patch: null,
+    committedSessionState: null,
     diagnostics: isCanonicalPrompt ? [] : ["unknown_prompt_fallback"],
+  };
+}
+
+export function buildHardcodedSessionPatch(run: RunState): SessionPatch {
+  if (!run.understanding || !run.answerComposition || run.answerComposition.status !== "needs_context") {
+    throw new Error("Cannot build hardcoded Session Patch without a needs-context canonical run");
+  }
+
+  return {
+    runId: run.runId,
+    sessionId: run.sessionId,
+    baseRevision: run.baseSessionRevision,
+    visitorFacts: {
+      child_age: {
+        value: 8,
+        source: "explicit",
+        sourceRunId: run.runId,
+        status: "active",
+      },
+    },
+    concerns: {
+      homesickness: {
+        status: "open",
+        sourceRunIds: [run.runId],
+      },
+      child_readiness: {
+        status: "open",
+        sourceRunIds: [run.runId],
+      },
+    },
+    focus: {
+      goal: "assess_fit",
+      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+    },
+    suggestedPrompts: run.answerComposition.suggestedPrompts,
+    summary: "Parent is assessing overnight camp Fit for an 8-year-old Child.",
+  };
+}
+
+export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSessionPatchResult {
+  const liveSession = options.stores.sessions.read(options.patch.sessionId);
+  if (!liveSession) {
+    throw new Error(`Cannot commit Session Patch: Session ${options.patch.sessionId} was not found`);
+  }
+
+  if (options.stores.sessions.hasCommittedRun(options.patch.runId)) {
+    const idempotentRun = {
+      ...structuredClone(options.run),
+      status: "committed",
+      patch: structuredClone(options.patch),
+      committedSessionState: liveSession,
+    } satisfies RunState;
+
+    return {
+      applied: false,
+      session: liveSession,
+      run: options.stores.runs.update(idempotentRun),
+    };
+  }
+
+  if (liveSession.revision !== options.patch.baseRevision) {
+    throw new Error(
+      `Cannot commit Session Patch for run ${options.patch.runId}: base revision ${options.patch.baseRevision} does not match live revision ${liveSession.revision}`,
+    );
+  }
+
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const committedSession: SessionState = {
+    ...liveSession,
+    revision: liveSession.revision + 1,
+    updatedAt: timestamp,
+    visitorFacts: structuredClone(options.patch.visitorFacts),
+    concerns: structuredClone(options.patch.concerns),
+    focus: structuredClone(options.patch.focus),
+    suggestedPrompts: structuredClone(options.patch.suggestedPrompts),
+    summary: options.patch.summary,
+  };
+  const savedSession = options.stores.sessions.update(committedSession);
+  options.stores.sessions.markCommittedRun(options.patch.runId);
+
+  const committedRun: RunState = {
+    ...structuredClone(options.run),
+    status: "committed",
+    updatedAt: timestamp,
+    patch: structuredClone(options.patch),
+    committedSessionState: savedSession,
+  };
+
+  return {
+    applied: true,
+    session: savedSession,
+    run: options.stores.runs.update(committedRun),
   };
 }
 
@@ -269,5 +380,9 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     JSON.stringify(run.understanding, null, 2),
     "Answer Composition:",
     JSON.stringify(run.answerComposition, null, 2),
+    "Session Patch:",
+    JSON.stringify(run.patch, null, 2),
+    "Committed Session State:",
+    JSON.stringify(run.committedSessionState, null, 2),
   ].join("\n");
 }
