@@ -1,0 +1,118 @@
+{
+  "fixtureVersion": 1,
+  "description": "Canonical Sanity-shaped source pack for the first GuideSite MVP overnight camp journey.",
+  "documents": [
+    {
+      "_id": "program_overnight",
+      "_type": "campProgram",
+      "_rev": "mock_rev_program_overnight_001",
+      "title": "Overnight Camp Program",
+      "sourceKind": "sourceOfTruth",
+      "contentMap": "Camp Program source for the overnight camp option a Parent is evaluating for an 8-year-old Child.",
+      "summary": "The overnight Camp Program gives children a residential camp experience with cabin life, daily routines, staff supervision, outdoor activities, and age-aware support for first-time campers.",
+      "body": "The overnight program is designed for children who are ready to spend several nights away from home with cabin staff support. Daily structure includes meals, cabin routines, activity periods, evening programs, and supervised downtime. The program can support first-time overnight campers when the Parent and camp understand the Child's prior sleepaway experience and readiness for separation, group living, and asking adults for help.",
+      "ageRange": {
+        "min": 8,
+        "max": 15
+      },
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern_homesickness"
+        }
+      ]
+    },
+    {
+      "_id": "policy_homesickness",
+      "_type": "policy",
+      "_rev": "mock_rev_policy_homesickness_001",
+      "title": "Homesickness Support Policy",
+      "sourceKind": "sourceOfTruth",
+      "contentMap": "Policy source for homesickness support, first-time overnight readiness, escalation, and staff reassurance.",
+      "summary": "Cabin staff watch for homesickness, help children settle into routines, encourage participation, and escalate persistent distress to senior staff.",
+      "body": "Homesickness support starts with attentive cabin staff who notice changes in mood, eating, sleeping, participation, or social connection. Staff use reassurance, routine, activity engagement, and check-ins to help the Child settle. If homesickness is persistent, intensifies, or affects wellbeing, staff escalate to senior staff for additional support and parent communication.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern_homesickness"
+        }
+      ]
+    },
+    {
+      "_id": "policy_parent_communication",
+      "_type": "policy",
+      "_rev": "mock_rev_policy_parent_communication_001",
+      "title": "Parent Communication Policy",
+      "sourceKind": "sourceOfTruth",
+      "contentMap": "Policy source for when and how camp contacts parents about adjustment, homesickness, wellbeing, or escalation.",
+      "summary": "Camp contacts parents when staff need family context, when adjustment concerns persist, or when a wellbeing issue needs parent involvement.",
+      "body": "Parent communication is used when staff need more context about a Child, when a Child's adjustment concern continues beyond ordinary settling-in support, or when wellbeing requires parent involvement. Routine updates and escalation paths are handled by designated staff so families receive clear information without disrupting the Child's normal adjustment process.",
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern_homesickness"
+        }
+      ]
+    },
+    {
+      "_id": "concern_homesickness",
+      "_type": "concern",
+      "_rev": "mock_rev_concern_homesickness_001",
+      "title": "Homesickness and Child Readiness",
+      "sourceKind": "sourceOfTruth",
+      "contentMap": "Parent Concern about whether a Child is ready for overnight separation, cabin routines, independence, and homesickness support.",
+      "summary": "Parents often need to assess Child Readiness by looking at prior sleepaway experience, separation confidence, self-care routines, social confidence, and willingness to ask adults for help.",
+      "concernArea": "child-readiness",
+      "parentSignals": [
+        "homesick",
+        "homesickness",
+        "first time",
+        "8-year-old",
+        "overnight",
+        "ready",
+        "readiness",
+        "separation"
+      ]
+    },
+    {
+      "_id": "prompt_template_sleepaway_experience",
+      "_type": "promptTemplate",
+      "_rev": "mock_rev_prompt_template_sleepaway_experience_001",
+      "title": "Prior Sleepaway Experience Prompt Template",
+      "sourceKind": "sourceOfTruth",
+      "contentMap": "Controlled Suggested Prompt template for gathering prior sleepaway experience before assessing Fit.",
+      "summary": "Suggested Prompt template that asks whether the Child has slept away from home before.",
+      "text": "Has your child slept away from home before?",
+      "purpose": "gather_fit_context",
+      "contextNeeds": [
+        "prior_sleepaway_experience"
+      ],
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern_homesickness"
+        }
+      ]
+    },
+    {
+      "_id": "prompt_template_child_readiness",
+      "_type": "promptTemplate",
+      "_rev": "mock_rev_prompt_template_child_readiness_001",
+      "title": "Child Readiness Prompt Template",
+      "sourceKind": "sourceOfTruth",
+      "contentMap": "Controlled Suggested Prompt template for gathering Child Readiness context before assessing Fit.",
+      "summary": "Suggested Prompt template that asks how the Child handles new routines and time away from the Parent.",
+      "text": "How does your child usually handle new routines or time away from you?",
+      "purpose": "gather_fit_context",
+      "contextNeeds": [
+        "child_readiness"
+      ],
+      "relatedConcerns": [
+        {
+          "_type": "reference",
+          "_ref": "concern_homesickness"
+        }
+      ]
+    }
+  ]
+}
