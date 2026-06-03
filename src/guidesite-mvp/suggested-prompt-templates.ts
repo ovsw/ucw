@@ -24,10 +24,8 @@ export const approvedContextNeedPromptTemplates = {
   },
 } as const satisfies Record<ContextNeed, ApprovedContextNeedPromptTemplate>;
 
-export function isApprovedContextNeed(contextNeed: string): contextNeed is ContextNeed {
-  return Object.prototype.hasOwnProperty.call(approvedContextNeedPromptTemplates, contextNeed);
-}
-
 export function getApprovedContextNeedPromptTemplate(contextNeed: string): ApprovedContextNeedPromptTemplate | null {
-  return isApprovedContextNeed(contextNeed) ? approvedContextNeedPromptTemplates[contextNeed] : null;
+  return Object.prototype.hasOwnProperty.call(approvedContextNeedPromptTemplates, contextNeed)
+    ? approvedContextNeedPromptTemplates[contextNeed as ContextNeed]
+    : null;
 }

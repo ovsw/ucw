@@ -7,7 +7,6 @@ import type {
 } from "./types.js";
 import {
   getApprovedContextNeedPromptTemplate,
-  isApprovedContextNeed,
 } from "./suggested-prompt-templates.js";
 
 const allowedAnswerCompositionStatuses = new Set<AnswerComposition["status"]>([
@@ -59,6 +58,14 @@ function requireStringArray(value: unknown, diagnostic: string, diagnostics: str
   }
 
   return true;
+}
+
+function areStringArraysEqual(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
 }
 
 function validateUnknownKeys(
@@ -161,11 +168,6 @@ function validateSuggestedPrompts(suggestedPrompts: unknown, diagnostics: string
     }
 
     const [contextNeed] = suggestedPrompt.contextNeeds;
-    if (!isApprovedContextNeed(contextNeed)) {
-      diagnostics.push(`${prefix}_unknown_context_need_${contextNeed}`);
-      return;
-    }
-
     const template = getApprovedContextNeedPromptTemplate(contextNeed);
     if (!template) {
       diagnostics.push(`${prefix}_unknown_context_need_${contextNeed}`);
@@ -184,10 +186,7 @@ function validateSuggestedPrompts(suggestedPrompts: unknown, diagnostics: string
       diagnostics.push(`${prefix}_purpose_mismatch`);
     }
 
-    if (
-      suggestedPrompt.concerns.length !== template.concerns.length ||
-      suggestedPrompt.concerns.some((concern, concernIndex) => concern !== template.concerns[concernIndex])
-    ) {
+    if (!areStringArraysEqual(suggestedPrompt.concerns, template.concerns)) {
       diagnostics.push(`${prefix}_concerns_mismatch`);
     }
   });

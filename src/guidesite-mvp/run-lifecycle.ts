@@ -30,10 +30,7 @@ import {
 } from "./prompt-understanding.js";
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
-import {
-  approvedContextNeedPromptTemplates,
-  isApprovedContextNeed,
-} from "./suggested-prompt-templates.js";
+import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 const canonicalGuideSiteSourcePack = loadCanonicalGuideSiteSourcePack();
@@ -542,12 +539,12 @@ function createSuggestedPrompts(run: RunState): SuggestedPromptDerivation {
   const diagnostics: string[] = [];
 
   for (const contextNeed of understanding.contextNeeds) {
-    if (!isApprovedContextNeed(contextNeed)) {
+    const template = getApprovedContextNeedPromptTemplate(contextNeed);
+    if (!template) {
       diagnostics.push(`suggested_prompt_unknown_context_need_${contextNeed}`);
       continue;
     }
 
-    const template = approvedContextNeedPromptTemplates[contextNeed];
     const promptId = `prompt_${contextNeed}`;
     if (prompts.some((prompt) => prompt.id === promptId)) {
       continue;
