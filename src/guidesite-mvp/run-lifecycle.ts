@@ -891,10 +891,7 @@ function renderAnswerCompositionValidationOperatorOutput(run: RunState): string 
     return ["Answer Composition Validation:", "null"].join("\n");
   }
 
-  return [
-    "Answer Composition Validation:",
-    JSON.stringify(run.answerCompositionValidation, null, 2),
-  ].join("\n");
+  return ["Answer Composition Validation:", JSON.stringify(run.answerCompositionValidation, null, 2)].join("\n");
 }
 
 function renderPromptUnderstandingSummary(run: RunState): string {
@@ -926,26 +923,7 @@ function renderPromptUnderstandingSummary(run: RunState): string {
 function renderAnswerCompositionOperatorOutput(run: RunState): string {
   const answerComposition = run.answerComposition;
   if (!answerComposition) {
-    const isAnswerCompositionValidationFailure = run.answerCompositionValidation?.valid === false;
-    return [
-      "Answer Composition:",
-      `Answer Composition Status: ${isAnswerCompositionValidationFailure ? "validation_failed" : "null"}`,
-      `Conversational Framing: ${isAnswerCompositionValidationFailure
-        ? "I don't have enough verified information to answer that confidently."
-        : "null"}`,
-      "Answer Composition Sections:",
-      "(none)",
-      "Suggested Prompts:",
-      "(none)",
-      "Citations:",
-      "(none)",
-      "Diagnostics:",
-      ...(isAnswerCompositionValidationFailure && run.answerCompositionValidation?.diagnostics.length
-        ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
-        : ["(none)"]),
-      "Raw Answer Composition JSON:",
-      "null",
-    ].join("\n");
+    return renderMissingAnswerCompositionOperatorOutput(run).join("\n");
   }
 
   const citationLines = renderAnswerCompositionCitations(answerComposition.citations, run.retrieval);
@@ -969,6 +947,32 @@ function renderAnswerCompositionOperatorOutput(run: RunState): string {
     "Raw Answer Composition JSON:",
     JSON.stringify(answerComposition, null, 2),
   ].join("\n");
+}
+
+function renderMissingAnswerCompositionOperatorOutput(run: RunState): string[] {
+  const validationFailed = run.answerCompositionValidation?.valid === false;
+  const diagnostics =
+    validationFailed && run.answerCompositionValidation?.diagnostics.length
+      ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
+      : ["(none)"];
+
+  return [
+    "Answer Composition:",
+    `Answer Composition Status: ${validationFailed ? "validation_failed" : "null"}`,
+    `Conversational Framing: ${
+      validationFailed ? "I don't have enough verified information to answer that confidently." : "null"
+    }`,
+    "Answer Composition Sections:",
+    "(none)",
+    "Suggested Prompts:",
+    "(none)",
+    "Citations:",
+    "(none)",
+    "Diagnostics:",
+    ...diagnostics,
+    "Raw Answer Composition JSON:",
+    "null",
+  ];
 }
 
 function renderAnswerCompositionSection(
