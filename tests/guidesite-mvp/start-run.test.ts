@@ -104,7 +104,7 @@ test("operator output displays Start Run fields from the Run State snapshot", ()
   assert.match(output, /Prompt: Is overnight camp right for my 8-year-old\?/);
   assert.match(output, /Session ID: session_output/);
   assert.match(output, /Run ID: run_output/);
-  assert.match(output, /Base Session Revision: 1/);
+  assert.match(output, /Base Revision: 1/);
   assert.match(output, /"sessionId": "session_output"/);
   assert.match(output, /"revision": 1/);
   assert.match(output, /"visitorFacts": \{\}/);
