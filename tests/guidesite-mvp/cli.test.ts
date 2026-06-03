@@ -87,6 +87,26 @@ function createMultiTurnPromptUnderstandingProvider(): PromptUnderstandingProvid
   };
 }
 
+type MultiTurnRunState = {
+  baseSessionRevision: number;
+  committedSessionState: {
+    revision: number;
+    visitorFacts: {
+      prior_sleepaway_experience?: {
+        value: string;
+        source: string;
+        sourceRunId: string;
+        status: string;
+      };
+    };
+    focus: {
+      contextNeeds: string[];
+    };
+    suggestedPrompts: Array<{ id: string }>;
+  } | null;
+  snapshot: { revision: number };
+};
+
 test("GuideSite MVP CLI requires OpenAI provider configuration for normal runs", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
   await assert.rejects(
@@ -201,25 +221,7 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
       committedSessionState: { revision: number } | null;
       snapshot: { revision: number };
     };
-    const turn2Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_2.json"), "utf8")) as {
-      baseSessionRevision: number;
-      committedSessionState: {
-        revision: number;
-        visitorFacts: {
-          prior_sleepaway_experience?: {
-            value: string;
-            source: string;
-            sourceRunId: string;
-            status: string;
-          };
-        };
-        focus: {
-          contextNeeds: string[];
-        };
-        suggestedPrompts: Array<{ id: string }>;
-      } | null;
-      snapshot: { revision: number };
-    };
+    const turn2Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_2.json"), "utf8")) as MultiTurnRunState;
 
     assert.equal(turn1Run.baseSessionRevision, 1);
     assert.equal(turn1Run.committedSessionState?.revision, 2);

@@ -446,16 +446,28 @@ function getIndefiniteArticleForAge(age: number): "a" | "an" {
   return "a";
 }
 
+function createPriorSleepawayExperienceSummary(
+  priorSleepawayExperience: string | number | boolean | undefined,
+): string | null {
+  if (priorSleepawayExperience === undefined) {
+    return null;
+  }
+
+  if (typeof priorSleepawayExperience === "string") {
+    return "The Child has prior sleepaway experience with grandparents.";
+  }
+
+  return "The Child has prior sleepaway experience.";
+}
+
 function createNeedContextSummary(run: RunState): string {
   const childAge = run.understanding?.facts.child_age?.value;
   const priorSleepawayExperience = run.understanding?.facts.prior_sleepaway_experience?.value;
   if (typeof childAge === "number") {
     const summary = `The Parent is asking whether overnight camp is right for ${getIndefiniteArticleForAge(childAge)} ${childAge}-year-old Child.`;
-    if (typeof priorSleepawayExperience === "string") {
-      return `${summary} The Child has prior sleepaway experience with grandparents.`;
-    }
-    if (priorSleepawayExperience !== undefined) {
-      return `${summary} The Child has prior sleepaway experience.`;
+    const sleepawayExperienceSummary = createPriorSleepawayExperienceSummary(priorSleepawayExperience);
+    if (sleepawayExperienceSummary !== null) {
+      return `${summary} ${sleepawayExperienceSummary}`;
     }
 
     return summary;
