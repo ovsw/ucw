@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildHardcodedSessionPatch,
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
   startGuideSiteRun,
+  withPromptUnderstandingCandidate,
   withHardcodedUnderstandingAndComposition,
 } from "../../src/guidesite-mvp/run-lifecycle.js";
 
@@ -23,6 +25,10 @@ test("canonical Prompt produces hardcoded Prompt Understanding and a needs-conte
     now: () => new Date("2026-01-01T00:02:00.000Z"),
   });
 
+  assert.deepEqual(run.promptUnderstandingValidation, {
+    valid: true,
+    diagnostics: [],
+  });
   assert.deepEqual(run.understanding, {
     goal: "assess_fit",
     promptType: "fit",
@@ -114,4 +120,72 @@ test("unknown Prompts use a safe fallback understanding and composition", () => 
   assert.equal(run.answerComposition?.status, "fallback");
   assert.deepEqual(run.answerComposition?.suggestedPrompts, []);
   assert.deepEqual(run.diagnostics, ["unknown_prompt_fallback"]);
+});
+
+test("invalid Prompt Understanding candidate fails safely before composition or Session Patch building", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_invalid_understanding",
+    createRunId: () => "run_invalid_understanding",
+  });
+
+  const run = withPromptUnderstandingCandidate(
+    started.run,
+    {
+      goal: "unknown",
+      promptType: "fit",
+      fitQuestion: "",
+      facts: {
+        child_age: {
+          value: 8,
+          provenance: {
+            source: "inferred",
+            promptText: "",
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "",
+          label: "",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: [""],
+      contextNeeds: [""],
+    },
+    { now: () => new Date("2026-01-01T00:02:00.000Z") },
+  );
+
+  assert.equal(run.status, "validation_failed");
+  assert.equal(run.understanding, null);
+  assert.equal(run.answerComposition, null);
+  assert.equal(run.patch, null);
+  assert.equal(run.committedSessionState, null);
+  assert.deepEqual(run.promptUnderstandingValidation, {
+    valid: false,
+    diagnostics: [
+      "prompt_understanding_goal_required",
+      "prompt_understanding_fit_question_required",
+      "prompt_understanding_fact_child_age_prompt_text_required",
+      "prompt_understanding_fact_child_age_explicit_provenance_required",
+      "prompt_understanding_concern_0_key_required",
+      "prompt_understanding_concern_0_label_required",
+      "prompt_understanding_retrieval_need_0_required",
+      "prompt_understanding_context_need_0_required",
+    ],
+  });
+  assert.deepEqual(run.diagnostics, run.promptUnderstandingValidation.diagnostics);
+  assert.throws(() => buildHardcodedSessionPatch(run), /validated Prompt Understanding/);
+
+  assert.deepEqual(stores.sessions.read("session_invalid_understanding"), started.session);
+
+  const output = renderGuideSiteRunOperatorOutput(run);
+  assert.match(output, /Prompt Understanding Validation:/);
+  assert.match(output, /prompt_understanding_fact_child_age_explicit_provenance_required/);
+  assert.match(output, /Prompt Understanding:\nnull/);
 });

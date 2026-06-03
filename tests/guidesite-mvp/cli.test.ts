@@ -58,6 +58,32 @@ test("GuideSite MVP CLI saves fallback Run State diagnostics as inspectable JSON
   }
 });
 
+test("GuideSite MVP CLI saves successful Prompt Understanding validation diagnostics as inspectable JSON", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
+  try {
+    const output = runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_cli_valid",
+      createRunId: () => "run_cli_valid",
+    });
+
+    const savedRunPath = join(runStateDirectory, "run_cli_valid.json");
+    assert.match(output, /Prompt Understanding Validation:/);
+    assert.match(output, /"valid": true/);
+    assert.match(output, new RegExp(`Saved Run State: ${savedRunPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+
+    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
+    assert.equal(savedRun.status, "committed");
+    assert.deepEqual(savedRun.promptUnderstandingValidation, {
+      valid: true,
+      diagnostics: [],
+    });
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
 test("GuideSite MVP CLI argument parsing joins unquoted Prompt text and defaults when empty", () => {
   assert.deepEqual(parseGuideSiteMvpCliArgs([]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,

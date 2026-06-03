@@ -1,5 +1,5 @@
 export type SessionStatus = "active";
-export type RunStatus = "started" | "composed" | "fallback" | "committed";
+export type RunStatus = "started" | "composed" | "fallback" | "validation_failed" | "committed";
 export type PromptSource = "typed" | "suggested_prompt";
 export type VisitorFactSource = "explicit" | "inferred";
 export type VisitorFactStatus = "active" | "superseded" | "disputed";
@@ -63,6 +63,11 @@ export interface PromptUnderstanding {
   concerns: PromptUnderstandingConcern[];
   retrievalNeeds: string[];
   contextNeeds: string[];
+}
+
+export interface PromptUnderstandingValidationResult {
+  valid: boolean;
+  diagnostics: string[];
 }
 
 export type AnswerCompositionStatus = "needs_context" | "fallback";
@@ -153,6 +158,7 @@ export interface RunState {
   prompt: RunPrompt;
   snapshot: SessionState;
   understanding: PromptUnderstanding | null;
+  promptUnderstandingValidation: PromptUnderstandingValidationResult | null;
   answerComposition: AnswerComposition | null;
   patch: SessionPatch | null;
   committedSessionState: SessionState | null;

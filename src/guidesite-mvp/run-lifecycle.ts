@@ -4,6 +4,7 @@ import type {
   CommitSessionPatchResult,
   GuideSiteStores,
   PromptUnderstanding,
+  PromptUnderstandingValidationResult,
   RunState,
   RunStore,
   SessionPatch,
@@ -146,6 +147,7 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
     },
     snapshot: cloneSessionState(session),
     understanding: null,
+    promptUnderstandingValidation: null,
     answerComposition: null,
     patch: null,
     committedSessionState: null,
@@ -155,6 +157,96 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
   return {
     session,
     run: options.stores.runs.create(run),
+  };
+}
+
+export function validatePromptUnderstanding(
+  understanding: PromptUnderstanding,
+): PromptUnderstandingValidationResult {
+  const diagnostics: string[] = [];
+
+  if (understanding.goal === "unknown") {
+    diagnostics.push("prompt_understanding_goal_required");
+  }
+
+  if (understanding.promptType === "unknown") {
+    diagnostics.push("prompt_understanding_prompt_type_required");
+  }
+
+  if (understanding.promptType === "fit" && !understanding.fitQuestion?.trim()) {
+    diagnostics.push("prompt_understanding_fit_question_required");
+  }
+
+  for (const [factKey, fact] of Object.entries(understanding.facts)) {
+    if (!fact.provenance.promptText.trim()) {
+      diagnostics.push(`prompt_understanding_fact_${factKey}_prompt_text_required`);
+    }
+
+    if (fact.provenance.source !== "explicit") {
+      diagnostics.push(`prompt_understanding_fact_${factKey}_explicit_provenance_required`);
+    }
+  }
+
+  understanding.concerns.forEach((concern, index) => {
+    if (!concern.key.trim()) {
+      diagnostics.push(`prompt_understanding_concern_${index}_key_required`);
+    }
+
+    if (!concern.label.trim()) {
+      diagnostics.push(`prompt_understanding_concern_${index}_label_required`);
+    }
+  });
+
+  understanding.retrievalNeeds.forEach((need, index) => {
+    if (!need.trim()) {
+      diagnostics.push(`prompt_understanding_retrieval_need_${index}_required`);
+    }
+  });
+
+  understanding.contextNeeds.forEach((need, index) => {
+    if (!need.trim()) {
+      diagnostics.push(`prompt_understanding_context_need_${index}_required`);
+    }
+  });
+
+  return {
+    valid: diagnostics.length === 0,
+    diagnostics,
+  };
+}
+
+export function withPromptUnderstandingCandidate(
+  run: RunState,
+  candidate: PromptUnderstanding,
+  options: { now?: () => Date } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const validation = validatePromptUnderstanding(candidate);
+
+  if (!validation.valid) {
+    return {
+      ...structuredClone(run),
+      status: "validation_failed",
+      updatedAt: timestamp,
+      understanding: null,
+      promptUnderstandingValidation: validation,
+      answerComposition: null,
+      patch: null,
+      committedSessionState: null,
+      diagnostics: validation.diagnostics,
+    };
+  }
+
+  return {
+    ...structuredClone(run),
+    status: "composed",
+    updatedAt: timestamp,
+    understanding: structuredClone(candidate),
+    promptUnderstandingValidation: validation,
+    answerComposition: createCanonicalAnswerComposition(),
+    patch: null,
+    committedSessionState: null,
+    diagnostics: [],
   };
 }
 
@@ -289,12 +381,15 @@ export function withHardcodedUnderstandingAndComposition(
 ): RunState {
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const isCanonicalPrompt = run.prompt.text === canonicalPromptText;
+  const understanding = isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding();
+  const validation = validatePromptUnderstanding(understanding);
 
   return {
     ...structuredClone(run),
     status: isCanonicalPrompt ? "composed" : "fallback",
     updatedAt: timestamp,
-    understanding: isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding(),
+    understanding,
+    promptUnderstandingValidation: validation,
     answerComposition: isCanonicalPrompt ? createCanonicalAnswerComposition() : createFallbackAnswerComposition(),
     patch: null,
     committedSessionState: null,
@@ -303,6 +398,10 @@ export function withHardcodedUnderstandingAndComposition(
 }
 
 export function buildHardcodedSessionPatch(run: RunState): SessionPatch {
+  if (!run.promptUnderstandingValidation?.valid) {
+    throw new Error("Cannot build hardcoded Session Patch without validated Prompt Understanding");
+  }
+
   if (!run.understanding || !run.answerComposition || run.answerComposition.status !== "needs_context") {
     throw new Error("Cannot build hardcoded Session Patch without a needs-context canonical run");
   }
@@ -415,6 +514,8 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
 export function renderGuideSiteRunOperatorOutput(run: RunState): string {
   return [
     renderStartRunOperatorOutput(run),
+    "Prompt Understanding Validation:",
+    JSON.stringify(run.promptUnderstandingValidation, null, 2),
     "Prompt Understanding:",
     JSON.stringify(run.understanding, null, 2),
     "Answer Composition:",
