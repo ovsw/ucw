@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   DEFAULT_GUIDESITE_MVP_PROMPT,
+  SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS,
   parseGuideSiteMvpCliArgs,
   runGuideSiteMvpCli,
 } from "../../src/guidesite-mvp/cli.js";
@@ -203,21 +204,150 @@ test("GuideSite MVP CLI saves successful Prompt Understanding validation diagnos
   }
 });
 
+test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run State", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
+  const promptsSeen: string[] = [];
+  try {
+    const output = await runGuideSiteMvpCli(["--sample-prompts", "--run-state-dir", runStateDirectory], {
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => `session_sample_${promptsSeen.length + 1}`,
+      createRunId: () => `run_sample_${promptsSeen.length + 1}`,
+      promptUnderstandingProvider: {
+        async understandPrompt(promptText) {
+          promptsSeen.push(promptText);
+          const understanding: PromptUnderstanding = {
+            ...canonicalUnderstanding,
+            fitQuestion: `Understand sample Prompt: ${promptText}`,
+            retrievalNeeds: [`retrieval_need_${promptsSeen.length}`],
+            contextNeeds: [`context_need_${promptsSeen.length}`],
+          };
+
+          return {
+            understanding,
+            trace: {
+              provider: "fake",
+              model: "fake-guidesite-prompt-understanding",
+              rawOutput: JSON.stringify(understanding),
+              parsedOutput: understanding,
+              diagnostics: [`diagnostic_${promptsSeen.length}`],
+            },
+          };
+        },
+      },
+    });
+
+    assert.deepEqual(promptsSeen, SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS);
+    assert.match(output, /GuideSite Sprint 3 Sample Prompt Runs/);
+
+    for (const [index, promptText] of SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.entries()) {
+      const runNumber = index + 1;
+      const savedRunPath = join(runStateDirectory, `run_sample_${runNumber}.json`);
+      assert.match(output, new RegExp(`Sample Prompt ${runNumber}/${SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.length}`));
+      assert.match(output, new RegExp(`Prompt: ${promptText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      assert.match(output, new RegExp(`"retrieval_need_${runNumber}"`));
+      assert.match(output, new RegExp(`"context_need_${runNumber}"`));
+      assert.match(output, new RegExp(`"diagnostic_${runNumber}"`));
+      assert.match(output, new RegExp(`Saved Run State: ${savedRunPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+
+      const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
+      assert.equal(savedRun.prompt.text, promptText);
+      assert.deepEqual(savedRun.promptUnderstandingProvider.diagnostics, [`diagnostic_${runNumber}`]);
+      assert.deepEqual(savedRun.promptUnderstandingValidation, {
+        valid: true,
+        diagnostics: [],
+      });
+      assert.equal(savedRun.understanding.fitQuestion, `Understand sample Prompt: ${promptText}`);
+    }
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite MVP CLI sample Prompt runs continue and surface invalid provider output", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
+  let runNumber = 0;
+  const invalidProviderOutput = {
+    goal: "unknown",
+    promptType: "fit",
+    fitQuestion: "",
+    facts: {},
+    concerns: [],
+    retrievalNeeds: [],
+    contextNeeds: [],
+  };
+  try {
+    const output = await runGuideSiteMvpCli(["--sample-prompts"], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => `session_sample_invalid_${runNumber + 1}`,
+      createRunId: () => {
+        runNumber += 1;
+        return `run_sample_invalid_${runNumber}`;
+      },
+      promptUnderstandingProvider: {
+        async understandPrompt(promptText) {
+          if (promptText === SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS[2]) {
+            throw new PromptUnderstandingProviderError("provider schema rejected", {
+              rawOutput: JSON.stringify(invalidProviderOutput),
+              parsedOutput: invalidProviderOutput,
+              diagnostics: ["goal: unknown is not valid for this Prompt"],
+            });
+          }
+
+          return {
+            understanding: canonicalUnderstanding,
+            trace: {
+              provider: "fake",
+              model: "fake-guidesite-prompt-understanding",
+              rawOutput: JSON.stringify(canonicalUnderstanding),
+              parsedOutput: canonicalUnderstanding,
+              diagnostics: [],
+            },
+          };
+        },
+      },
+    });
+
+    assert.match(output, /Sample Prompt 3\/5/);
+    assert.match(output, /Prompt: What happens if my son gets homesick\?/);
+    assert.match(output, /prompt_understanding_provider_failed: goal: unknown is not valid for this Prompt/);
+    assert.match(output, /Sample Prompt 5\/5/);
+    assert.match(output, /Prompt: Can I trust your staff\?/);
+
+    const savedRun = JSON.parse(await readFile(join(runStateDirectory, "run_sample_invalid_3.json"), "utf8"));
+    assert.equal(savedRun.status, "prompt_understanding_failed");
+    assert.deepEqual(savedRun.promptUnderstandingProvider.parsedOutput, invalidProviderOutput);
+    assert.equal(savedRun.understanding, null);
+    assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
 test("GuideSite MVP CLI argument parsing joins unquoted Prompt text and defaults when empty", () => {
   assert.deepEqual(parseGuideSiteMvpCliArgs([]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
+    samplePrompts: false,
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["  "]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
+    samplePrompts: false,
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: null,
+    samplePrompts: false,
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--run-state-dir", ".guidesite-runs", "Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: ".guidesite-runs",
+    samplePrompts: false,
+  });
+  assert.deepEqual(parseGuideSiteMvpCliArgs(["--sample-prompts", "--run-state-dir", ".guidesite-runs"]), {
+    promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
+    runStateDirectory: ".guidesite-runs",
+    samplePrompts: true,
   });
 });
