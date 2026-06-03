@@ -61,10 +61,12 @@ test("canonical Prompt produces hardcoded Prompt Understanding and a needs-conte
   });
 
   assert.equal(run.answerComposition?.status, "needs_context");
+  assert.equal(run.answerComposition?.conversationalFraming, "Age 8 is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.");
   assert.deepEqual(
     run.answerComposition?.sections.map((section) => section.kind),
     ["summary", "fit_status", "concerns", "context_needs", "suggested_prompts", "diagnostics"],
   );
+  assert.deepEqual(run.answerComposition?.citations, ["program_overnight", "policy_homesickness", "policy_parent_communication"]);
   assert.deepEqual(run.answerComposition?.suggestedPrompts, [
     {
       id: "prompt_prior_sleepaway_experience",
@@ -89,6 +91,9 @@ test("canonical Prompt produces hardcoded Prompt Understanding and a needs-conte
   assert.match(output, /Prompt Understanding:/);
   assert.match(output, /"goal": "assess_fit"/);
   assert.match(output, /Answer Composition:/);
+  assert.match(output, /Answer Composition Status: needs_context/);
+  assert.match(output, /Conversational Framing:/);
+  assert.match(output, /Suggested Prompts:/);
   assert.match(output, /"status": "needs_context"/);
   assert.doesNotMatch(output, /best fit|recommended|safe|available/i);
 });
@@ -217,4 +222,30 @@ test("Answer Composition source refs must map to Run State Retrieval Results bef
     /answer_composition_source_ref_missing_policy_missing_retrieval_result/,
   );
   assert.deepEqual(stores.sessions.read("session_stale_source_ref"), started.session);
+});
+
+test("Answer Composition validation rejects presentation-only fields before Session Patch building", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_invalid_answer_composition",
+    createRunId: () => "run_invalid_answer_composition",
+  });
+  const run = withHardcodedUnderstandingAndComposition(started.run, {
+    now: () => new Date("2026-01-01T00:02:00.000Z"),
+  });
+  const invalidCompositionRun = structuredClone(run);
+
+  if (invalidCompositionRun.answerComposition?.sections[0]) {
+    (invalidCompositionRun.answerComposition.sections[0] as { kind: string; title: string; body: string; layoutHint?: string }).kind = "card";
+    (invalidCompositionRun.answerComposition.sections[0] as { kind: string; title: string; body: string; layoutHint?: string }).layoutHint = "two-column";
+  }
+
+  assert.throws(
+    () => buildHardcodedSessionPatch(invalidCompositionRun),
+    /answer_composition_section_0_kind_invalid/,
+  );
+  assert.deepEqual(stores.sessions.read("session_invalid_answer_composition"), started.session);
 });

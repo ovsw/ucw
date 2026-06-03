@@ -27,6 +27,7 @@ import {
   assessPromptUnderstandingCandidate,
   validatePromptUnderstandingMeaning,
 } from "./prompt-understanding.js";
+import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
@@ -215,6 +216,23 @@ export function withPromptUnderstandingCandidate(
   const answerComposition = sourceBackedRetrieval
     ? createCanonicalAnswerComposition(retrieval)
     : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
+  const answerCompositionValidation = validateAnswerCompositionCandidate(answerComposition, retrieval);
+
+  if (!answerCompositionValidation.valid) {
+    return {
+      ...structuredClone(run),
+      status: "validation_failed",
+      updatedAt: timestamp,
+      promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
+      understanding: structuredClone(candidate),
+      promptUnderstandingValidation: validation,
+      retrieval,
+      answerComposition: null,
+      patch: null,
+      committedSessionState: null,
+      diagnostics: [...retrieval.diagnostics, ...answerCompositionValidation.diagnostics],
+    };
+  }
 
   return {
     ...structuredClone(run),
@@ -564,12 +582,11 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     JSON.stringify(run.promptUnderstandingProvider, null, 2),
     "Prompt Understanding Validation:",
     JSON.stringify(run.promptUnderstandingValidation, null, 2),
+    renderPromptUnderstandingSummary(run),
     "Prompt Understanding:",
     JSON.stringify(run.understanding, null, 2),
     renderRetrievalOperatorOutput(run),
-    "Answer Composition:",
-    JSON.stringify(run.answerComposition, null, 2),
-    renderAnswerCompositionSourceRefsOperatorOutput(run),
+    renderAnswerCompositionOperatorOutput(run),
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session State:",
@@ -577,23 +594,133 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
   ].join("\n");
 }
 
-function renderAnswerCompositionSourceRefsOperatorOutput(run: RunState): string {
-  if (!run.answerComposition) {
-    return ["Answer Composition Source Refs:", "null"].join("\n");
+function renderPromptUnderstandingSummary(run: RunState): string {
+  if (!run.understanding) {
+    return ["Prompt Understanding Summary:", "null"].join("\n");
   }
 
-  const sourceRefLines = run.answerComposition.sections.flatMap((section) =>
-    (section.sourceRefs ?? []).flatMap((sourceRef) => [
-      `Section: ${section.title}`,
-      `Source Title: ${sourceRef.title}`,
-      `Source ID: ${sourceRef.sourceId}`,
-      `Source Type: ${sourceRef.sourceType}`,
-      `Field Path: ${sourceRef.fieldPath}`,
-      `Source Revision: ${sourceRef.sourceRevision}`,
-    ]),
+  const factLines = Object.entries(run.understanding.facts).map(
+    ([factKey, fact]) => `${factKey}: ${fact.value} (${fact.provenance.source}; ${fact.provenance.promptText})`,
+  );
+  const concernLines = run.understanding.concerns.map(
+    (concern) => `${concern.key}: ${concern.label} [${concern.status}; ${concern.provenance}]`,
   );
 
-  return ["Answer Composition Source Refs:", ...(sourceRefLines.length > 0 ? sourceRefLines : ["(none)"])].join("\n");
+  return [
+    "Prompt Understanding Summary:",
+    `Goal: ${run.understanding.goal}`,
+    `Prompt Type: ${run.understanding.promptType}`,
+    `Fit Question: ${run.understanding.fitQuestion ?? "(none)"}`,
+    "Facts:",
+    ...(factLines.length > 0 ? factLines : ["(none)"]),
+    "Concerns:",
+    ...(concernLines.length > 0 ? concernLines : ["(none)"]),
+    `Retrieval Needs: ${run.understanding.retrievalNeeds.join(", ") || "(none)"}`,
+    `Context Needs: ${run.understanding.contextNeeds.join(", ") || "(none)"}`,
+  ].join("\n");
+}
+
+function renderAnswerCompositionOperatorOutput(run: RunState): string {
+  const answerComposition = run.answerComposition;
+  if (!answerComposition) {
+    return [
+      "Answer Composition:",
+      "Answer Composition Status: null",
+      "Conversational Framing: null",
+      "Answer Composition Sections:",
+      "(none)",
+      "Suggested Prompts:",
+      "(none)",
+      "Citations:",
+      "(none)",
+      "Diagnostics:",
+      "(none)",
+      "Raw Answer Composition JSON:",
+      "null",
+    ].join("\n");
+  }
+
+  const citationLines = renderAnswerCompositionCitations(answerComposition.citations, run.retrieval);
+
+  return [
+    "Answer Composition:",
+    `Answer Composition Status: ${answerComposition.status}`,
+    `Conversational Framing: ${answerComposition.conversationalFraming}`,
+    "Answer Composition Sections:",
+    ...(answerComposition.sections.length > 0
+      ? answerComposition.sections.flatMap((section, index) => renderAnswerCompositionSection(section, index, run.retrieval))
+      : ["(none)"]),
+    "Suggested Prompts:",
+    ...(answerComposition.suggestedPrompts.length > 0
+      ? answerComposition.suggestedPrompts.flatMap((prompt, index) => renderSuggestedPrompt(prompt, index))
+      : ["(none)"]),
+    "Citations:",
+    ...(citationLines.length > 0 ? citationLines : ["(none)"]),
+    "Diagnostics:",
+    ...(answerComposition.diagnostics.length > 0 ? answerComposition.diagnostics.map((diagnostic) => `- ${diagnostic}`) : ["(none)"]),
+    "Raw Answer Composition JSON:",
+    JSON.stringify(answerComposition, null, 2),
+  ].join("\n");
+}
+
+function renderAnswerCompositionSection(
+  section: AnswerComposition["sections"][number],
+  index: number,
+  retrieval: RunState["retrieval"],
+): string[] {
+  const lines = [
+    `Section ${index + 1}:`,
+    `  Kind: ${section.kind}`,
+    `  Title: ${section.title}`,
+    `  Body: ${section.body}`,
+  ];
+
+  if (section.items && section.items.length > 0) {
+    lines.push("  Items:");
+    lines.push(...section.items.map((item) => `    - ${item}`));
+  }
+
+  if (section.sourceRefs && section.sourceRefs.length > 0) {
+    lines.push("  Source Refs:");
+    lines.push(...section.sourceRefs.flatMap((sourceRef) => renderSourceRef(sourceRef, retrieval)));
+  }
+
+  return lines;
+}
+
+function renderSourceRef(sourceRef: AnswerCompositionSourceRef, retrieval: RunState["retrieval"]): string[] {
+  const retrievalResult = retrieval?.results.find((result) => result.sourceId === sourceRef.sourceId);
+  return [
+    `    Source Title: ${sourceRef.title}`,
+    `    Source ID: ${sourceRef.sourceId}`,
+    `    Source Type: ${sourceRef.sourceType}`,
+    `    Field Path: ${sourceRef.fieldPath}`,
+    `    Source Revision: ${sourceRef.sourceRevision}`,
+    retrievalResult ? `    Matched Retrieval Title: ${retrievalResult.title}` : "    Matched Retrieval Title: (missing)",
+  ];
+}
+
+function renderSuggestedPrompt(prompt: AnswerComposition["suggestedPrompts"][number], index: number): string[] {
+  return [
+    `Prompt ${index + 1}:`,
+    `  ID: ${prompt.id}`,
+    `  Purpose: ${prompt.purpose}`,
+    `  Template ID: ${prompt.templateId}`,
+    `  Text: ${prompt.text}`,
+    `  Context Needs: ${prompt.contextNeeds.join(", ") || "(none)"}`,
+    `  Concerns: ${prompt.concerns.join(", ") || "(none)"}`,
+  ];
+}
+
+function renderAnswerCompositionCitations(citations: string[], retrieval: RunState["retrieval"]): string[] {
+  const retrievalResultsById = new Map(retrieval?.results.map((result) => [result.sourceId, result]) ?? []);
+
+  return citations.map((citation) => {
+    const retrievalResult = retrievalResultsById.get(citation);
+    return retrievalResult
+      ? `${citation}: ${retrievalResult.title} [${retrievalResult.sourceType}; ${retrievalResult.fieldPath}; ${retrievalResult.sourceRevision}]`
+      : `${citation}: (missing retrieval result)`;
+  });
 }
 
 function renderRetrievalOperatorOutput(run: RunState): string {
@@ -604,7 +731,7 @@ function renderRetrievalOperatorOutput(run: RunState): string {
   const resultLines = run.retrieval.results.flatMap((result) => [
     `Source ID: ${result.sourceId}`,
     `Source Type: ${result.sourceType}`,
-    `Title: ${result.title}`,
+    `Source Title: ${result.title}`,
     `Rank: ${result.rank}`,
     `Field Path: ${result.fieldPath}`,
     `Source Revision: ${result.sourceRevision}`,

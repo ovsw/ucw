@@ -34,6 +34,15 @@ test("GuideSite turn commits the canonical Prompt into inspectable Run State", a
     assert.equal(run.promptUnderstandingValidation?.valid, true);
     assert.equal(run.retrieval?.coverage.status, "source_backed");
     assert.equal(run.answerComposition?.status, "needs_context");
+    assert.equal(
+      run.answerComposition?.conversationalFraming,
+      "Age 8 is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.",
+    );
+    assert.deepEqual(run.answerComposition?.citations, [
+      "program_overnight",
+      "policy_homesickness",
+      "policy_parent_communication",
+    ]);
     assert.ok(run.patch);
     assert.ok(run.committedSessionState);
 

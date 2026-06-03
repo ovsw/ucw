@@ -92,9 +92,15 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
 
   assert.match(output, new RegExp(`Prompt: ${canonicalGuideSitePrompt.replace("?", "\\?")}`));
   assert.match(output, /Prompt Understanding Provider:/);
+  assert.match(output, /Prompt Understanding Summary:/);
+  assert.match(output, /Retrieval Status: source_backed/);
   assert.match(output, /"provider": "fake"/);
   assert.match(output, /Retrieval Results:/);
   assert.match(output, /Answer Composition:/);
+  assert.match(output, /Answer Composition Status: needs_context/);
+  assert.match(output, /Conversational Framing:/);
+  assert.match(output, /Answer Composition Sections:/);
+  assert.match(output, /Suggested Prompts:/);
   assert.match(output, /Session Patch:/);
   assert.match(output, /Committed Session State:/);
   assert.match(output, /Has your child slept away from home before\?/);
