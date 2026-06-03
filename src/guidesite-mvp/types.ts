@@ -171,6 +171,7 @@ export interface RunStore {
   create(run: RunState): RunState;
   read(runId: string): RunState | null;
   update(run: RunState): RunState;
+  inspect?(runId: string): { path: string } | null;
 }
 
 export interface GuideSiteStores {

@@ -5,6 +5,7 @@ import type {
   GuideSiteStores,
   PromptUnderstanding,
   RunState,
+  RunStore,
   SessionPatch,
   SessionState,
   StartGuideSiteRunOptions,
@@ -76,7 +77,7 @@ export function renderStartRunOperatorOutput(run: RunState): string {
   ].join("\n");
 }
 
-export function createGuideSiteMemoryStores(): GuideSiteStores {
+export function createGuideSiteMemoryStores(options: { runs?: RunStore } = {}): GuideSiteStores {
   const sessions = new Map<string, SessionState>();
   const runs = new Map<string, RunState>();
   const committedRunIds = new Set<string>();
@@ -104,7 +105,7 @@ export function createGuideSiteMemoryStores(): GuideSiteStores {
         committedRunIds.add(runId);
       },
     },
-    runs: {
+    runs: options.runs ?? {
       create(run) {
         const stored = structuredClone(run);
         runs.set(run.runId, stored);
