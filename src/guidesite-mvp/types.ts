@@ -84,7 +84,7 @@ export interface PromptUnderstandingProviderTrace {
   diagnostics: string[];
 }
 
-export type AnswerCompositionStatus = "needs_context" | "fallback";
+export type AnswerCompositionStatus = "needs_context" | "answered" | "partial" | "fallback";
 export type AnswerSectionKind =
   | "summary"
   | "fit_status"

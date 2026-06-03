@@ -34,6 +34,23 @@ export const canonicalGuideSiteUnderstanding: PromptUnderstanding = {
   contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
 };
 
+export const homesicknessConcernUnderstanding: PromptUnderstanding = {
+  goal: "address_concern",
+  promptType: "factual",
+  fitQuestion: null,
+  facts: {},
+  concerns: [
+    {
+      key: "homesickness",
+      label: "Homesickness",
+      status: "open",
+      provenance: "explicit",
+    },
+  ],
+  retrievalNeeds: ["homesickness_support"],
+  contextNeeds: [],
+};
+
 export function createFakePromptUnderstandingProvider(
   understanding: PromptUnderstanding = canonicalGuideSiteUnderstanding,
 ): PromptUnderstandingProvider {

@@ -11,6 +11,7 @@ import {
   canonicalGuideSitePrompt,
   canonicalGuideSiteUnderstanding,
   createFakePromptUnderstandingProvider,
+  homesicknessConcernUnderstanding,
 } from "./test-helpers.js";
 
 test("GuideSite turn commits the canonical Prompt into inspectable Run State", async () => {
@@ -42,6 +43,7 @@ test("GuideSite turn commits the canonical Prompt into inspectable Run State", a
       "program_overnight",
       "policy_homesickness",
       "policy_parent_communication",
+      "concern_homesickness",
     ]);
     assert.ok(run.patch);
     assert.ok(run.committedSessionState);
@@ -168,6 +170,99 @@ test("GuideSite turn preserves insufficient source material as fallback Run Stat
     const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_empty_retrieval.json"), "utf8")) as typeof run;
     assert.equal(savedRun.status, "fallback");
     assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn composes a source-backed homesickness Concern answer without committing Session State", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: "What happens if my child gets homesick?",
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_homesickness",
+      createRunId: () => "run_turn_homesickness",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
+    });
+
+    assert.equal(run.status, "composed");
+    assert.equal(run.answerComposition?.status, "answered");
+    assert.match(run.answerComposition?.conversationalFraming ?? "", /homesickness/i);
+    assert.deepEqual(run.answerComposition?.citations, [
+      "concern_homesickness",
+      "policy_homesickness",
+      "policy_parent_communication",
+    ]);
+    assert.deepEqual(run.answerComposition?.sections.map((section) => section.kind), [
+      "summary",
+      "concerns",
+      "sources",
+      "diagnostics",
+    ]);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.diagnostics, []);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_homesickness.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "composed");
+    assert.equal(savedRun.committedSessionState, null);
+    assert.match(savedRun.answerComposition?.sections[0]?.body ?? "", /homesickness/i);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn composes a partial homesickness Concern answer when fixture source material is missing", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: "What happens if my child gets homesick?",
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_homesickness_partial",
+      createRunId: () => "run_turn_homesickness_partial",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
+      retrievalAdapter: {
+        id: "partial-homesickness",
+        label: "Partial Homesickness Retrieval",
+        retrieve(input) {
+          return {
+            needs: [...input.retrievalNeeds],
+            concerns: input.concerns.map((concern) => concern.key),
+            results: [
+              {
+                sourceId: "policy_homesickness",
+                sourceType: "policy",
+                title: "Homesickness Support Policy",
+                rank: 1,
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_homesickness_001",
+              },
+            ],
+            diagnostics: ["fake_partial_homesickness_retrieval"],
+            coverage: {
+              status: "source_backed",
+              matchedSourceIds: ["policy_homesickness"],
+            },
+          };
+        },
+      },
+    });
+
+    assert.equal(run.status, "composed");
+    assert.equal(run.answerComposition?.status, "partial");
+    assert.match(run.answerComposition?.diagnostics.join(" ") ?? "", /missing.*concern_homesickness/i);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.diagnostics, ["fake_partial_homesickness_retrieval"]);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { PromptUnderstanding, RetrievalCoverage, RetrievalResult, RetrievalResults } from "./types.js";
 
 const defaultSourcePackPath = "fixtures/guidesite-mvp/canonical-source-pack.json";
-const retrievableSourceTypes = new Set(["campProgram", "policy"]);
+const retrievableSourceTypes = new Set(["campProgram", "policy", "concern"]);
 
 type SanityReference = {
   _type: "reference";
@@ -104,6 +104,10 @@ function sourceIdsForUnderstanding(understanding: PromptUnderstanding): string[]
   const needSet = new Set(understanding.retrievalNeeds);
   const concernSet = new Set(understanding.concerns.map((concern) => concern.key));
   const sourceIds: string[] = [];
+
+  if (needSet.has("homesickness_support") || concernSet.has("homesickness")) {
+    sourceIds.push("concern_homesickness");
+  }
 
   if (needSet.has("overnight_readiness")) {
     sourceIds.push("program_overnight");

@@ -15,11 +15,35 @@ const retrieval: RetrievalResults = {
       fieldPath: "summary",
       sourceRevision: "mock_rev_program_overnight_001",
     },
+    {
+      sourceId: "concern_homesickness",
+      sourceType: "concern",
+      title: "Homesickness and Child Readiness",
+      rank: 2,
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_concern_homesickness_001",
+    },
+    {
+      sourceId: "policy_homesickness",
+      sourceType: "policy",
+      title: "Homesickness Support Policy",
+      rank: 3,
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_policy_homesickness_001",
+    },
+    {
+      sourceId: "policy_parent_communication",
+      sourceType: "policy",
+      title: "Parent Communication Policy",
+      rank: 4,
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_policy_parent_communication_001",
+    },
   ],
   diagnostics: [],
   coverage: {
     status: "source_backed",
-    matchedSourceIds: ["program_overnight"],
+    matchedSourceIds: ["program_overnight", "concern_homesickness", "policy_homesickness", "policy_parent_communication"],
   },
 };
 
@@ -54,6 +78,97 @@ const validComposition: AnswerComposition = {
 
 test("Answer Composition contract accepts the canonical semantic shape", () => {
   assert.deepEqual(validateAnswerCompositionCandidate(validComposition, retrieval), {
+    valid: true,
+    diagnostics: [],
+  });
+});
+
+test("Answer Composition contract accepts source-backed homesickness answers", () => {
+  const answeredComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The approved fixture material explains how the camp handles homesickness.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Homesickness Answer",
+        body: "Homesickness is a concern for first-time overnight campers, and the approved fixture material explains how staff support the Child.",
+        sourceRefs: [
+          {
+            sourceId: "concern_homesickness",
+            sourceType: "concern",
+            title: "Homesickness and Child Readiness",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_concern_homesickness_001",
+          },
+        ],
+      },
+      {
+        kind: "concerns",
+        title: "Concern",
+        body: "Camp staff watch for homesickness, help the Child settle, and escalate persistent distress.",
+        items: ["homesickness"],
+        sourceRefs: [
+          {
+            sourceId: "policy_homesickness",
+            sourceType: "policy",
+            title: "Homesickness Support Policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_homesickness_001",
+          },
+          {
+            sourceId: "policy_parent_communication",
+            sourceType: "policy",
+            title: "Parent Communication Policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_parent_communication_001",
+          },
+        ],
+      },
+      {
+        kind: "sources",
+        title: "Sources",
+        body: "Approved fixture source material was retrieved for the homesickness concern.",
+        items: [
+          "Homesickness and Child Readiness (concern_homesickness)",
+          "Homesickness Support Policy (policy_homesickness)",
+          "Parent Communication Policy (policy_parent_communication)",
+        ],
+        sourceRefs: [
+          {
+            sourceId: "concern_homesickness",
+            sourceType: "concern",
+            title: "Homesickness and Child Readiness",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_concern_homesickness_001",
+          },
+          {
+            sourceId: "policy_homesickness",
+            sourceType: "policy",
+            title: "Homesickness Support Policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_homesickness_001",
+          },
+          {
+            sourceId: "policy_parent_communication",
+            sourceType: "policy",
+            title: "Parent Communication Policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_parent_communication_001",
+          },
+        ],
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: "All required source material was available.",
+      },
+    ],
+    suggestedPrompts: [],
+    citations: ["concern_homesickness", "policy_homesickness", "policy_parent_communication"],
+    diagnostics: [],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(answeredComposition, retrieval), {
     valid: true,
     diagnostics: [],
   });

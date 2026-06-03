@@ -66,7 +66,12 @@ test("canonical Prompt produces hardcoded Prompt Understanding and a needs-conte
     run.answerComposition?.sections.map((section) => section.kind),
     ["summary", "fit_status", "concerns", "context_needs", "suggested_prompts", "sources", "diagnostics"],
   );
-  assert.deepEqual(run.answerComposition?.citations, ["program_overnight", "policy_homesickness", "policy_parent_communication"]);
+  assert.deepEqual(run.answerComposition?.citations, [
+    "program_overnight",
+    "policy_homesickness",
+    "policy_parent_communication",
+    "concern_homesickness",
+  ]);
   assert.deepEqual(run.answerComposition?.suggestedPrompts, [
     {
       id: "prompt_prior_sleepaway_experience",

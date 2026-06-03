@@ -16,6 +16,7 @@ import type {
 import { applySessionPatchOperations } from "./patch-engine.js";
 import {
   createFixtureGuideSiteRetrievalAdapter,
+  loadCanonicalGuideSiteSourcePack,
   type GuideSiteRetrievalAdapter,
   type GuideSiteRetrievalResult,
 } from "./fixture-retrieval.js";
@@ -31,6 +32,12 @@ import { validateAnswerCompositionCandidate } from "./answer-composition-contrac
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
+const canonicalGuideSiteSourcePack = loadCanonicalGuideSiteSourcePack();
+const canonicalGuideSiteSourceLookup = new Map(
+  canonicalGuideSiteSourcePack.documents.map((document) => [document._id, document] as const),
+);
+
+type CanonicalGuideSiteSource = (typeof canonicalGuideSiteSourcePack.documents)[number];
 
 function createDefaultSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -223,7 +230,7 @@ export function withPromptUnderstandingCandidate(
   const retrieval = retrievalAdapter.retrieve(candidate);
   const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
   const answerComposition = sourceBackedRetrieval
-    ? createCanonicalAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
+    ? createValidatedAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
     : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
   const answerCompositionValidation = validateAnswerCompositionCandidate(answerComposition, retrieval);
 
@@ -369,6 +376,19 @@ function createSourceRefs(
 
 function createSourceCitationIds(sections: AnswerComposition["sections"]): string[] {
   return [...new Set(sections.flatMap((section) => section.sourceRefs?.map((sourceRef) => sourceRef.sourceId) ?? []))];
+}
+
+function getCanonicalGuideSiteSource(sourceId: string): CanonicalGuideSiteSource | null {
+  return canonicalGuideSiteSourceLookup.get(sourceId) ?? null;
+}
+
+function getCanonicalGuideSiteSourceText(sourceId: string): string | null {
+  const source = getCanonicalGuideSiteSource(sourceId);
+  if (!source) {
+    return null;
+  }
+
+  return source.summary?.trim() || source.body?.trim() || source.contentMap?.trim() || null;
 }
 
 type ContextNeedPromptTemplate = {
@@ -543,6 +563,89 @@ function createSourcesSection(retrieval: NonNullable<RunState["retrieval"]>): An
   };
 }
 
+function createConcernAnswerSourceIds(retrieval: NonNullable<RunState["retrieval"]>): {
+  available: string[];
+  missing: string[];
+} {
+  const required = ["concern_homesickness", "policy_homesickness", "policy_parent_communication"] as const;
+  const available = required.filter((sourceId) => retrieval.results.some((result) => result.sourceId === sourceId));
+  const missing = required.filter((sourceId) => !available.includes(sourceId));
+
+  return {
+    available: [...available],
+    missing: [...missing],
+  };
+}
+
+function createConcernAnswerDiagnostic(missingSourceIds: string[]): string {
+  return `homesickness_answer_partial_missing_source_material: ${formatList(missingSourceIds)}`;
+}
+
+function createHomesicknessConcernAnswerComposition(
+  run: RunState,
+  retrieval: NonNullable<RunState["retrieval"]>,
+): AnswerComposition {
+  const { available, missing } = createConcernAnswerSourceIds(retrieval);
+  const sourceRefs = createSourceRefs(available, retrieval);
+  const concernSummary = getCanonicalGuideSiteSourceText("concern_homesickness");
+  const homesicknessPolicySummary = getCanonicalGuideSiteSourceText("policy_homesickness");
+  const parentCommunicationSummary = getCanonicalGuideSiteSourceText("policy_parent_communication");
+  const availableText = [concernSummary, homesicknessPolicySummary, parentCommunicationSummary]
+    .filter((text): text is string => typeof text === "string" && text.length > 0)
+    .join(" ");
+  const answered = missing.length === 0;
+  const diagnostics = answered ? [] : [createConcernAnswerDiagnostic(missing)];
+
+  return {
+    status: answered ? "answered" : "partial",
+    conversationalFraming: answered
+      ? "The approved fixture material explains how the camp handles homesickness."
+      : "The approved fixture material supports a partial homesickness answer, but some source material was unavailable.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Homesickness Answer",
+        body:
+          availableText ||
+          "Approved fixture source material for the homesickness concern was not available in full.",
+        sourceRefs,
+      },
+      {
+        kind: "concerns",
+        title: "Concern",
+        body:
+          getCanonicalGuideSiteSourceText("concern_homesickness") ??
+          "Homesickness remains an open Concern in the validated Prompt Understanding.",
+        items: ["homesickness"],
+        sourceRefs: createSourceRefs(
+          available.length > 0 ? available : ["concern_homesickness"],
+          retrieval,
+        ),
+      },
+      {
+        kind: "sources",
+        title: "Sources",
+        body: "Approved fixture source material was retrieved for the homesickness concern.",
+        items: available.map((sourceId) => {
+          const source = getCanonicalGuideSiteSource(sourceId);
+          return source ? `${source.title} (${sourceId})` : sourceId;
+        }),
+        sourceRefs,
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: answered
+          ? "All required source material was available."
+          : `Partial homesickness answer because ${formatList(missing)} was unavailable.`,
+      },
+    ],
+    suggestedPrompts: [],
+    citations: available,
+    diagnostics,
+  };
+}
+
 function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
   const sections = createNeedsContextSections(run, retrieval);
   const diagnostics = [...retrieval.diagnostics, "needs_visitor_context", "no_fit_recommendation"];
@@ -558,6 +661,18 @@ function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<
     citations: createSourceCitationIds(sections),
     diagnostics,
   };
+}
+
+function createValidatedAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
+  if (run.understanding?.goal === "assess_fit") {
+    return createCanonicalAnswerComposition(run, retrieval);
+  }
+
+  if (run.understanding?.concerns.some((concern) => concern.key === "homesickness")) {
+    return createHomesicknessConcernAnswerComposition(run, retrieval);
+  }
+
+  return createInsufficientSourceAnswerComposition([...retrieval.diagnostics, "unsupported_answer_composition_goal"]);
 }
 
 function createFallbackUnderstanding(): PromptUnderstanding {
@@ -621,9 +736,10 @@ export function withHardcodedUnderstandingAndComposition(
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
   const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding) : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
-  const answerComposition = isCanonicalPrompt && retrieval && sourceBackedRetrieval
-    ? createCanonicalAnswerComposition({ ...run, understanding, retrieval }, retrieval)
-    : createFallbackAnswerComposition();
+  const answerComposition =
+    isCanonicalPrompt && retrieval && sourceBackedRetrieval
+      ? createValidatedAnswerComposition({ ...run, understanding, retrieval }, retrieval)
+      : createFallbackAnswerComposition();
 
   return {
     ...cloneRunWithClearedTransientState(run),

@@ -1,6 +1,6 @@
 import type { AnswerComposition, AnswerSectionKind, RetrievalResults, SuggestedPrompt } from "./types.js";
 
-const allowedAnswerCompositionStatuses = new Set<AnswerComposition["status"]>(["needs_context", "fallback"]);
+const allowedAnswerCompositionStatuses = new Set<AnswerComposition["status"]>(["needs_context", "answered", "partial", "fallback"]);
 const allowedSectionKinds = new Set<AnswerSectionKind>([
   "summary",
   "fit_status",

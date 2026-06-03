@@ -26,23 +26,30 @@ test("fixture retrieval adapter exposes the canonical GuideSite retrieval seam",
     })),
     [
       {
+        sourceId: "concern_homesickness",
+        sourceType: "concern",
+        rank: 1,
+        fieldPath: "summary",
+        sourceRevision: "mock_rev_concern_homesickness_001",
+      },
+      {
         sourceId: "program_overnight",
         sourceType: "campProgram",
-        rank: 1,
+        rank: 2,
         fieldPath: "summary",
         sourceRevision: "mock_rev_program_overnight_001",
       },
       {
         sourceId: "policy_homesickness",
         sourceType: "policy",
-        rank: 2,
+        rank: 3,
         fieldPath: "summary",
         sourceRevision: "mock_rev_policy_homesickness_001",
       },
       {
         sourceId: "policy_parent_communication",
         sourceType: "policy",
-        rank: 3,
+        rank: 4,
         fieldPath: "summary",
         sourceRevision: "mock_rev_policy_parent_communication_001",
       },
@@ -50,7 +57,12 @@ test("fixture retrieval adapter exposes the canonical GuideSite retrieval seam",
   );
   assert.deepEqual(retrieval.coverage, {
     status: "source_backed",
-    matchedSourceIds: ["program_overnight", "policy_homesickness", "policy_parent_communication"],
+    matchedSourceIds: [
+      "concern_homesickness",
+      "program_overnight",
+      "policy_homesickness",
+      "policy_parent_communication",
+    ],
   });
   assert.deepEqual(retrieval.diagnostics, []);
 });

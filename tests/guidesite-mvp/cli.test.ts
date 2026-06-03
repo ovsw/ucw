@@ -14,6 +14,7 @@ import {
   canonicalGuideSitePrompt,
   canonicalGuideSiteUnderstanding,
   createFakePromptUnderstandingProvider,
+  homesicknessConcernUnderstanding,
 } from "./test-helpers.js";
 
 function createProviderJsonResponse(body: unknown): Response {
@@ -134,6 +135,20 @@ test("GuideSite MVP CLI renders sample Prompt runs", async () => {
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }
+});
+
+test("GuideSite MVP CLI renders a source-backed homesickness Concern answer", async () => {
+  const output = await runGuideSiteMvpCli(["What happens if my child gets homesick?"], {
+    promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
+  });
+
+  assert.match(output, /Answer Composition Status: answered/);
+  assert.match(output, /Homesickness Support Policy/);
+  assert.match(output, /Parent Communication Policy/);
+  assert.match(output, /Source ID: policy_homesickness/);
+  assert.match(output, /Source ID: policy_parent_communication/);
+  assert.match(output, /Raw Answer Composition JSON:/);
+  assert.match(output, /Committed Session State:\nnull/);
 });
 
 test("GuideSite MVP CLI preserves failed provider output in the rendered Run State", async () => {
