@@ -64,7 +64,7 @@ test("canonical Prompt produces hardcoded Prompt Understanding and a needs-conte
   assert.equal(run.answerComposition?.conversationalFraming, "Age 8 is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.");
   assert.deepEqual(
     run.answerComposition?.sections.map((section) => section.kind),
-    ["summary", "fit_status", "concerns", "context_needs", "suggested_prompts", "diagnostics"],
+    ["summary", "fit_status", "concerns", "context_needs", "suggested_prompts", "sources", "diagnostics"],
   );
   assert.deepEqual(run.answerComposition?.citations, ["program_overnight", "policy_homesickness", "policy_parent_communication"]);
   assert.deepEqual(run.answerComposition?.suggestedPrompts, [
@@ -96,6 +96,60 @@ test("canonical Prompt produces hardcoded Prompt Understanding and a needs-conte
   assert.match(output, /Suggested Prompts:/);
   assert.match(output, /"status": "needs_context"/);
   assert.doesNotMatch(output, /best fit|recommended|safe|available/i);
+});
+
+test("accepted non-canonical Prompt Understanding changes the needs-context composition", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: "Is overnight camp right for my 11-year-old?",
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_noncanonical_understanding",
+    createRunId: () => "run_noncanonical_understanding",
+  });
+
+  const run = withPromptUnderstandingCandidate(
+    started.run,
+    {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 11-year-old Child.",
+      facts: {
+        child_age: {
+          value: 11,
+          provenance: {
+            source: "explicit",
+            promptText: "11-year-old",
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+    },
+    { now: () => new Date("2026-01-01T00:02:00.000Z") },
+  );
+
+  assert.equal(run.status, "composed");
+  assert.equal(run.answerComposition?.status, "needs_context");
+  assert.match(run.answerComposition?.sections[0]?.body ?? "", /11-year-old/);
+  assert.doesNotMatch(run.answerComposition?.sections[0]?.body ?? "", /8-year-old/);
+  assert.deepEqual(run.answerComposition?.sections.map((section) => section.kind), [
+    "summary",
+    "fit_status",
+    "concerns",
+    "context_needs",
+    "suggested_prompts",
+    "sources",
+    "diagnostics",
+  ]);
 });
 
 test("unknown Prompts use a safe fallback understanding and composition", () => {

@@ -223,7 +223,7 @@ export function withPromptUnderstandingCandidate(
   const retrieval = retrievalAdapter.retrieve(candidate);
   const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
   const answerComposition = sourceBackedRetrieval
-    ? createCanonicalAnswerComposition(retrieval)
+    ? createCanonicalAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
     : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
   const answerCompositionValidation = validateAnswerCompositionCandidate(answerComposition, retrieval);
 
@@ -371,70 +371,192 @@ function createSourceCitationIds(sections: AnswerComposition["sections"]): strin
   return [...new Set(sections.flatMap((section) => section.sourceRefs?.map((sourceRef) => sourceRef.sourceId) ?? []))];
 }
 
-function createCanonicalAnswerComposition(retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
+type ContextNeedPromptTemplate = {
+  templateId: string;
+  text: string;
+  concerns: string[];
+};
+
+const approvedContextNeedPromptTemplates: Record<string, ContextNeedPromptTemplate> = {
+  prior_sleepaway_experience: {
+    templateId: "ask_sleepaway_experience",
+    text: "Has your child slept away from home before?",
+    concerns: ["homesickness"],
+  },
+  child_readiness: {
+    templateId: "ask_child_readiness",
+    text: "How does your child usually handle new routines or time away from you?",
+    concerns: ["child_readiness"],
+  },
+};
+
+function formatList(items: string[]): string {
+  if (items.length === 0) {
+    return "(none)";
+  }
+
+  if (items.length === 1) {
+    return items[0];
+  }
+
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function titleCaseIdentifier(identifier: string): string {
+  return identifier
+    .split("_")
+    .filter((part) => part.length > 0)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function createNeedContextSummary(run: RunState): string {
+  const childAge = run.understanding?.facts.child_age?.value;
+  if (typeof childAge === "number") {
+    return `The Parent is asking whether overnight camp is right for an ${childAge}-year-old Child.`;
+  }
+
+  return `The Parent is asking whether overnight camp is right for this Child: ${run.prompt.text}`;
+}
+
+function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition["sections"] {
+  const concernLabels = run.understanding?.concerns.map((concern) => concern.label) ?? [];
+  const concernKeys = run.understanding?.concerns.map((concern) => concern.key) ?? [];
+  const contextNeeds = run.understanding?.contextNeeds ?? [];
+  const sourceIds = retrieval.results.map((result) => result.sourceId);
+  const suggestedPrompts = createSuggestedPrompts(run);
   const sections: AnswerComposition["sections"] = [
     {
       kind: "summary",
       title: "Known Context",
-      body: "The Parent is asking about overnight camp for an 8-year-old Child.",
-      sourceRefs: createSourceRefs(["program_overnight"], retrieval),
+      body: createNeedContextSummary(run),
+      sourceRefs: createSourceRefs(sourceIds.filter((sourceId) => sourceId === "program_overnight"), retrieval),
     },
     {
       kind: "fit_status",
       title: "Fit Status",
-      body: "Fit cannot be assessed honestly yet because prior sleepaway experience and Child Readiness are still unknown.",
+      body:
+        contextNeeds.length > 0
+          ? `Fit cannot be assessed honestly yet because ${formatList(contextNeeds.map((need) => titleCaseIdentifier(need)))} are still unknown.`
+          : "Fit can be assessed from the currently validated Visitor Context.",
     },
     {
       kind: "concerns",
       title: "Open Concerns",
-      body: "Homesickness and Child Readiness should stay visible as open Concerns.",
-      items: ["homesickness", "child_readiness"],
-      sourceRefs: createSourceRefs(["policy_homesickness", "policy_parent_communication"], retrieval),
+      body:
+        concernLabels.length > 0
+          ? `${formatList(concernLabels)} should stay visible as open Concerns.`
+          : "No open Concerns were identified in the validated Prompt Understanding.",
+      items: concernKeys,
+      sourceRefs: createSourceRefs(
+        sourceIds.filter((sourceId) => sourceId === "policy_homesickness" || sourceId === "policy_parent_communication"),
+        retrieval,
+      ),
     },
     {
       kind: "context_needs",
       title: "Missing Visitor Context",
-      body: "The next turn should gather prior sleepaway experience and Child Readiness.",
-      items: ["prior_sleepaway_experience", "child_readiness"],
+      body:
+        contextNeeds.length > 0
+          ? `The next turn should gather ${formatList(contextNeeds.map((need) => titleCaseIdentifier(need)))}.`
+          : "The next turn does not need to gather additional Visitor Context.",
+      items: contextNeeds,
     },
     {
       kind: "suggested_prompts",
       title: "Suggested Prompts",
-      body: "Controlled prompts gather the missing Visitor Context.",
-      items: ["prompt_prior_sleepaway_experience", "prompt_child_readiness"],
-    },
-    {
-      kind: "diagnostics",
-      title: "Diagnostics",
-      body: "No source-backed Fit recommendation was attempted in this Sprint 1 slice.",
+      body:
+        suggestedPrompts.length > 0
+          ? "Approved prompts gather the missing Visitor Context."
+          : "No approved follow-up prompts were available for the current Visitor Context.",
+      items: suggestedPrompts.map((prompt) => prompt.id),
+      sourceRefs: createSourceRefs(
+        sourceIds.filter((sourceId) => sourceId === "policy_homesickness" || sourceId === "policy_parent_communication"),
+        retrieval,
+      ),
     },
   ];
 
+  const sourcesSection = createSourcesSection(retrieval);
+  if (sourcesSection) {
+    sections.push(sourcesSection);
+  }
+
+  sections.push({
+    kind: "diagnostics",
+    title: "Diagnostics",
+    body:
+      retrieval.coverage.status === "source_backed"
+        ? "Validated Prompt Understanding and source-backed retrieval were composed without a Fit recommendation."
+        : "Validated Prompt Understanding was composed without enough source-backed material for a Fit recommendation.",
+  });
+
+  return sections;
+}
+
+function createSuggestedPrompts(run: RunState): AnswerComposition["suggestedPrompts"] {
+  const understanding = run.understanding;
+  const prompts: AnswerComposition["suggestedPrompts"] = [];
+
+  const promptNeeds = ["prior_sleepaway_experience", "child_readiness"] as const;
+
+  for (const contextNeed of promptNeeds) {
+    const template = approvedContextNeedPromptTemplates[contextNeed];
+    if (!template || !understanding || understanding.goal !== "assess_fit") {
+      continue;
+    }
+
+    const promptId = `prompt_${contextNeed}`;
+    if (prompts.some((prompt) => prompt.id === promptId)) {
+      continue;
+    }
+
+    prompts.push({
+      id: promptId,
+      purpose: "gather_fit_context",
+      text: template.text,
+      contextNeeds: [contextNeed],
+      concerns: [...template.concerns],
+      templateId: template.templateId,
+    });
+  }
+
+  return prompts;
+}
+
+function createSourcesSection(retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition["sections"][number] | null {
+  if (retrieval.results.length === 0) {
+    return null;
+  }
+
+  return {
+    kind: "sources",
+    title: "Sources",
+    body: "Approved fixture source material was retrieved for the validated Prompt Understanding.",
+    items: retrieval.results.map((result) => `${result.title} (${result.sourceId})`),
+    sourceRefs: createSourceRefs(
+      retrieval.results.map((result) => result.sourceId),
+      retrieval,
+    ),
+  };
+}
+
+function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
+  const sections = createNeedsContextSections(run, retrieval);
   return {
     status: "needs_context",
     conversationalFraming:
-      "Age 8 is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.",
+      typeof run.understanding?.facts.child_age?.value === "number"
+        ? `Age ${run.understanding.facts.child_age.value} is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.`
+        : "The GuideSite needs more Visitor Context before it can honestly assess Fit.",
     sections,
-    suggestedPrompts: [
-      {
-        id: "prompt_prior_sleepaway_experience",
-        purpose: "gather_fit_context",
-        text: "Has your child slept away from home before?",
-        contextNeeds: ["prior_sleepaway_experience"],
-        concerns: ["homesickness"],
-        templateId: "ask_sleepaway_experience",
-      },
-      {
-        id: "prompt_child_readiness",
-        purpose: "gather_fit_context",
-        text: "How does your child usually handle new routines or time away from you?",
-        contextNeeds: ["child_readiness"],
-        concerns: ["child_readiness"],
-        templateId: "ask_child_readiness",
-      },
-    ],
+    suggestedPrompts: createSuggestedPrompts(run),
     citations: createSourceCitationIds(sections),
-    diagnostics: ["needs_visitor_context", "no_fit_recommendation"],
+    diagnostics: [...(retrieval.diagnostics.length > 0 ? retrieval.diagnostics : []), "needs_visitor_context", "no_fit_recommendation"],
   };
 }
 
@@ -499,20 +621,20 @@ export function withHardcodedUnderstandingAndComposition(
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
   const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding) : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
+  const answerComposition = isCanonicalPrompt && retrieval && sourceBackedRetrieval
+    ? createCanonicalAnswerComposition({ ...run, understanding, retrieval }, retrieval)
+    : createFallbackAnswerComposition();
 
   return {
     ...cloneRunWithClearedTransientState(run),
-    status: isCanonicalPrompt ? "composed" : "fallback",
+    status: isCanonicalPrompt && sourceBackedRetrieval ? "composed" : "fallback",
     updatedAt: timestamp,
     promptUnderstandingProvider: null,
     understanding,
     promptUnderstandingValidation: validation,
     retrieval,
-    answerComposition:
-      isCanonicalPrompt && retrieval && sourceBackedRetrieval
-        ? createCanonicalAnswerComposition(retrieval)
-        : createFallbackAnswerComposition(),
-    diagnostics: isCanonicalPrompt ? [] : ["unknown_prompt_fallback"],
+    answerComposition,
+    diagnostics: isCanonicalPrompt && sourceBackedRetrieval ? [] : ["unknown_prompt_fallback"],
   };
 }
 
