@@ -133,6 +133,10 @@ export interface RetrievalResults {
   concerns: string[];
   results: RetrievalResult[];
   diagnostics: string[];
+  coverage: {
+    status: "source_backed" | "empty_retrieval";
+    matchedSourceIds: string[];
+  };
 }
 
 export interface SessionPatch {

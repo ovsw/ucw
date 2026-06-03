@@ -26,6 +26,23 @@ type CanonicalSourcePack = {
   documents: CanonicalSource[];
 };
 
+export type GuideSiteRetrievalCoverage = {
+  status: "source_backed" | "empty_retrieval";
+  matchedSourceIds: string[];
+};
+
+export type GuideSiteRetrievalInput = PromptUnderstanding;
+
+export type GuideSiteRetrievalResult = RetrievalResults & {
+  coverage: GuideSiteRetrievalCoverage;
+};
+
+export interface GuideSiteRetrievalAdapter {
+  id: string;
+  label: string;
+  retrieve(input: GuideSiteRetrievalInput): GuideSiteRetrievalResult;
+}
+
 function assertNonEmptyString(value: unknown, diagnostic: string): asserts value is string {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`Invalid GuideSite source fixture: ${diagnostic}`);
@@ -122,10 +139,10 @@ function createRetrievalDiagnostics(understanding: PromptUnderstanding, results:
   return diagnostic ? [diagnostic] : [];
 }
 
-export function retrieveGuideSiteFixtureSources(
+function retrieveGuideSiteFixtureSourcesFromPack(
   understanding: PromptUnderstanding,
-  sourcePack: CanonicalSourcePack = loadCanonicalGuideSiteSourcePack(),
-): RetrievalResults {
+  sourcePack: CanonicalSourcePack,
+): GuideSiteRetrievalResult {
   const documentsById = new Map(sourcePack.documents.map((document) => [document._id, document]));
   const sourceIds = sourceIdsForUnderstanding(understanding);
   const results = sourceIds.map((sourceId, index) => {
@@ -146,5 +163,28 @@ export function retrieveGuideSiteFixtureSources(
     concerns: understanding.concerns.map((concern) => concern.key),
     results,
     diagnostics: createRetrievalDiagnostics(understanding, results),
+    coverage: {
+      status: results.length > 0 ? "source_backed" : "empty_retrieval",
+      matchedSourceIds: results.map((result) => result.sourceId),
+    },
   };
+}
+
+export function createFixtureGuideSiteRetrievalAdapter(
+  sourcePack: CanonicalSourcePack = loadCanonicalGuideSiteSourcePack(),
+): GuideSiteRetrievalAdapter {
+  return {
+    id: "fixture",
+    label: "Canonical Fixture",
+    retrieve(input: GuideSiteRetrievalInput): GuideSiteRetrievalResult {
+      return retrieveGuideSiteFixtureSourcesFromPack(input, sourcePack);
+    },
+  };
+}
+
+export function retrieveGuideSiteFixtureSources(
+  understanding: PromptUnderstanding,
+  sourcePack: CanonicalSourcePack = loadCanonicalGuideSiteSourcePack(),
+): GuideSiteRetrievalResult {
+  return retrieveGuideSiteFixtureSourcesFromPack(understanding, sourcePack);
 }

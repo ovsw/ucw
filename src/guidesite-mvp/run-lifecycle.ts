@@ -14,7 +14,11 @@ import type {
   StartGuideSiteRunResult,
 } from "./types.js";
 import { applySessionPatchOperations } from "./patch-engine.js";
-import { retrieveGuideSiteFixtureSources } from "./fixture-retrieval.js";
+import {
+  createFixtureGuideSiteRetrievalAdapter,
+  type GuideSiteRetrievalAdapter,
+  type GuideSiteRetrievalResult,
+} from "./fixture-retrieval.js";
 import {
   PromptUnderstandingProviderError,
   type PromptUnderstandingProvider,
@@ -25,6 +29,10 @@ import {
 } from "./prompt-understanding.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
+
+function createDefaultGuideSiteRetrievalAdapter(): GuideSiteRetrievalAdapter {
+  return createFixtureGuideSiteRetrievalAdapter();
+}
 
 function createDefaultSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -175,7 +183,11 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
 export function withPromptUnderstandingCandidate(
   run: RunState,
   candidate: PromptUnderstanding,
-  options: { now?: () => Date; providerTrace?: PromptUnderstandingProviderTrace } = {},
+  options: {
+    now?: () => Date;
+    providerTrace?: PromptUnderstandingProviderTrace;
+    retrievalAdapter?: GuideSiteRetrievalAdapter;
+  } = {},
 ): RunState {
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const assessment = assessPromptUnderstandingCandidate(candidate);
@@ -200,15 +212,14 @@ export function withPromptUnderstandingCandidate(
     };
   }
 
-  const retrieval = retrieveGuideSiteFixtureSources(candidate);
-  const answerComposition =
-    retrieval.results.length > 0
-      ? createCanonicalAnswerComposition(retrieval)
-      : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
+  const retrieval = (options.retrievalAdapter ?? createDefaultGuideSiteRetrievalAdapter()).retrieve(candidate);
+  const answerComposition = isSourceBackedRetrieval(retrieval)
+    ? createCanonicalAnswerComposition(retrieval)
+    : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
 
   return {
     ...structuredClone(run),
-    status: retrieval.results.length > 0 ? "composed" : "fallback",
+    status: isSourceBackedRetrieval(retrieval) ? "composed" : "fallback",
     updatedAt: timestamp,
     promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
     understanding: structuredClone(candidate),
@@ -450,6 +461,10 @@ function createInsufficientSourceAnswerComposition(diagnostics: string[]): Answe
   };
 }
 
+function isSourceBackedRetrieval(retrieval: GuideSiteRetrievalResult): boolean {
+  return retrieval.coverage.status === "source_backed";
+}
+
 function validateAnswerCompositionSourceRefs(run: RunState): string[] {
   if (!run.answerComposition) {
     return [];
@@ -493,7 +508,7 @@ export function withHardcodedUnderstandingAndComposition(
   const isCanonicalPrompt = run.prompt.text === canonicalPromptText;
   const understanding = isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding();
   const validation = validatePromptUnderstandingMeaning(understanding);
-  const retrieval = validation.valid ? retrieveGuideSiteFixtureSources(understanding) : null;
+  const retrieval = validation.valid ? createDefaultGuideSiteRetrievalAdapter().retrieve(understanding) : null;
 
   return {
     ...structuredClone(run),
@@ -503,7 +518,10 @@ export function withHardcodedUnderstandingAndComposition(
     understanding,
     promptUnderstandingValidation: validation,
     retrieval,
-    answerComposition: isCanonicalPrompt && retrieval ? createCanonicalAnswerComposition(retrieval) : createFallbackAnswerComposition(),
+    answerComposition:
+      isCanonicalPrompt && retrieval && isSourceBackedRetrieval(retrieval)
+        ? createCanonicalAnswerComposition(retrieval)
+        : createFallbackAnswerComposition(),
     patch: null,
     committedSessionState: null,
     diagnostics: isCanonicalPrompt ? [] : ["unknown_prompt_fallback"],
@@ -687,8 +705,8 @@ function renderRetrievalOperatorOutput(run: RunState): string {
     "Retrieval Input:",
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
-    `Retrieval Status: ${run.retrieval.results.length > 0 ? "source_backed" : "empty_retrieval"}`,
-    run.retrieval.results.length === 0
+    `Retrieval Status: ${run.retrieval.coverage.status}`,
+    !isSourceBackedRetrieval(run.retrieval)
       ? "No fixture sources matched the validated Prompt Understanding."
       : null,
     ...run.retrieval.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic}`),
