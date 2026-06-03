@@ -102,6 +102,26 @@ function sourceIdsForUnderstanding(understanding: PromptUnderstanding): string[]
   return [...new Set(sourceIds)];
 }
 
+function createInsufficientSourceDiagnostic(understanding: PromptUnderstanding): string | null {
+  if (understanding.retrievalNeeds.length === 0 && understanding.concerns.length === 0) {
+    return null;
+  }
+
+  const needs = understanding.retrievalNeeds.join(", ") || "(none)";
+  const concerns = understanding.concerns.map((concern) => concern.key).join(", ") || "(none)";
+
+  return `insufficient_fixture_sources: no approved fixture sources matched retrieval needs ${needs} or concerns ${concerns}`;
+}
+
+function createRetrievalDiagnostics(understanding: PromptUnderstanding, results: RetrievalResult[]): string[] {
+  if (results.length > 0) {
+    return [];
+  }
+
+  const diagnostic = createInsufficientSourceDiagnostic(understanding);
+  return diagnostic ? [diagnostic] : [];
+}
+
 export function retrieveGuideSiteFixtureSources(
   understanding: PromptUnderstanding,
   sourcePack: CanonicalSourcePack = loadCanonicalGuideSiteSourcePack(),
@@ -125,5 +145,6 @@ export function retrieveGuideSiteFixtureSources(
     needs: [...understanding.retrievalNeeds],
     concerns: understanding.concerns.map((concern) => concern.key),
     results,
+    diagnostics: createRetrievalDiagnostics(understanding, results),
   };
 }

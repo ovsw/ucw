@@ -247,18 +247,22 @@ export function withPromptUnderstandingCandidate(
     };
   }
 
+  const retrieval = retrieveGuideSiteFixtureSources(candidate);
+  const answerComposition =
+    retrieval.results.length > 0 ? createCanonicalAnswerComposition() : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
+
   return {
     ...structuredClone(run),
-    status: "composed",
+    status: retrieval.results.length > 0 ? "composed" : "fallback",
     updatedAt: timestamp,
     promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
     understanding: structuredClone(candidate),
     promptUnderstandingValidation: validation,
-    retrieval: retrieveGuideSiteFixtureSources(candidate),
-    answerComposition: createCanonicalAnswerComposition(),
+    retrieval,
+    answerComposition,
     patch: null,
     committedSessionState: null,
-    diagnostics: [],
+    diagnostics: retrieval.diagnostics,
   };
 }
 
@@ -442,6 +446,23 @@ function createFallbackAnswerComposition(): AnswerComposition {
   };
 }
 
+function createInsufficientSourceAnswerComposition(diagnostics: string[]): AnswerComposition {
+  return {
+    status: "fallback",
+    conversationalFraming: "The GuideSite fixture retrieval did not find approved source material for this Prompt.",
+    sections: [
+      {
+        kind: "diagnostics",
+        title: "Insufficient Source Material",
+        body: "No fixture sources matched the validated Prompt Understanding, so no source-backed answer material was composed.",
+      },
+    ],
+    suggestedPrompts: [],
+    citations: [],
+    diagnostics,
+  };
+}
+
 export function withHardcodedUnderstandingAndComposition(
   run: RunState,
   options: { now?: () => Date } = {},
@@ -617,6 +638,12 @@ function renderRetrievalOperatorOutput(run: RunState): string {
     "Retrieval Results:",
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
+    run.retrieval.results.length === 0
+      ? "No fixture sources matched the validated Prompt Understanding."
+      : null,
+    ...run.retrieval.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic}`),
     ...resultLines,
-  ].join("\n");
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 }

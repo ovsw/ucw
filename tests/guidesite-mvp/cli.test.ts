@@ -310,6 +310,62 @@ test("GuideSite MVP CLI retrieves canonical fixture sources after validated Prom
   }
 });
 
+test("GuideSite MVP CLI persists insufficient-source diagnostics for empty fixture retrieval", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
+  const unsupportedUnderstanding: PromptUnderstanding = {
+    ...canonicalUnderstanding,
+    concerns: [
+      {
+        key: "transportation",
+        label: "Transportation",
+        status: "open",
+        provenance: "explicit",
+      },
+    ],
+    retrievalNeeds: ["bus_schedule"],
+    contextNeeds: ["pickup_location"],
+  };
+
+  try {
+    const output = await runGuideSiteMvpCli(["Do", "you", "offer", "camp", "bus", "pickup?"], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_cli_empty_retrieval",
+      createRunId: () => "run_cli_empty_retrieval",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(unsupportedUnderstanding),
+    });
+
+    const savedRunPath = join(runStateDirectory, "run_cli_empty_retrieval.json");
+    assert.match(output, /Retrieval Results:/);
+    assert.match(output, /Needs: bus_schedule/);
+    assert.match(output, /Concerns: transportation/);
+    assert.match(output, /No fixture sources matched the validated Prompt Understanding/);
+    assert.match(output, /insufficient_fixture_sources/);
+    assert.doesNotMatch(output, /Source ID:/);
+    assert.doesNotMatch(output, /Source Type:/);
+    assert.doesNotMatch(output, /Committed Session State:\n\{/);
+
+    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
+    assert.equal(savedRun.status, "fallback");
+    assert.deepEqual(savedRun.retrieval.needs, ["bus_schedule"]);
+    assert.deepEqual(savedRun.retrieval.concerns, ["transportation"]);
+    assert.deepEqual(savedRun.retrieval.results, []);
+    assert.deepEqual(savedRun.retrieval.diagnostics, [
+      "insufficient_fixture_sources: no approved fixture sources matched retrieval needs bus_schedule or concerns transportation",
+    ]);
+    assert.deepEqual(savedRun.diagnostics, savedRun.retrieval.diagnostics);
+    assert.equal(savedRun.patch, null);
+    assert.equal(savedRun.committedSessionState, null);
+    assert.equal(savedRun.answerComposition.status, "fallback");
+    assert.deepEqual(savedRun.answerComposition.citations, []);
+    assert.deepEqual(savedRun.answerComposition.suggestedPrompts, []);
+    assert.deepEqual(savedRun.answerComposition.diagnostics, savedRun.retrieval.diagnostics);
+    assert.equal(savedRun.answerComposition.sections.some((section: { kind: string }) => section.kind === "sources"), false);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
 test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
   const promptsSeen: string[] = [];

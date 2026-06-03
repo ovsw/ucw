@@ -123,6 +123,7 @@ export interface RetrievalResults {
   needs: string[];
   concerns: string[];
   results: RetrievalResult[];
+  diagnostics: string[];
 }
 
 export interface SessionPatch {
