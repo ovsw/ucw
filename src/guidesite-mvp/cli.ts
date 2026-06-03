@@ -89,9 +89,18 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
 }
 
 function renderGuideSiteMvpCliOutput(run: Parameters<typeof renderGuideSiteRunOperatorOutput>[0], savedRunPath?: string): string {
-  return [renderGuideSiteRunOperatorOutput(run), savedRunPath ? `Saved Run State: ${savedRunPath}` : null]
-    .filter((line) => line !== null)
-    .join("\n");
+  const lines = [renderGuideSiteRunOperatorOutput(run)];
+
+  if (savedRunPath) {
+    lines.push(`Saved Run State: ${savedRunPath}`);
+  }
+
+  return lines.join("\n");
+}
+
+function createGuideSiteMvpStores(runStateDirectory?: string) {
+  const runStore = runStateDirectory ? createGuideSiteFileRunStore(runStateDirectory) : undefined;
+  return createGuideSiteMemoryStores(runStore ? { runs: runStore } : undefined);
 }
 
 async function runSingleGuideSiteMvpPrompt(
@@ -99,9 +108,7 @@ async function runSingleGuideSiteMvpPrompt(
   options: RunGuideSiteMvpCliOptions,
   promptUnderstandingProvider: PromptUnderstandingProvider,
 ): Promise<string> {
-  const runStateDirectory = options.runStateDirectory;
-  const runStore = runStateDirectory ? createGuideSiteFileRunStore(runStateDirectory) : undefined;
-  const stores = createGuideSiteMemoryStores(runStore ? { runs: runStore } : undefined);
+  const stores = createGuideSiteMvpStores(options.runStateDirectory);
   const run = await runGuideSiteMvpTurn({
     promptText,
     stores,
@@ -120,9 +127,7 @@ async function runMultiTurnGuideSiteMvpSession(
   options: RunGuideSiteMvpCliOptions,
   promptUnderstandingProvider: PromptUnderstandingProvider,
 ): Promise<string> {
-  const runStateDirectory = options.runStateDirectory;
-  const runStore = runStateDirectory ? createGuideSiteFileRunStore(runStateDirectory) : undefined;
-  const stores = createGuideSiteMemoryStores(runStore ? { runs: runStore } : undefined);
+  const stores = createGuideSiteMvpStores(options.runStateDirectory);
   const sessionId = options.createSessionId?.() ?? `session_${crypto.randomUUID()}`;
   const runIdPrefix = options.createRunId?.() ?? `run_${crypto.randomUUID()}`;
   const outputs: string[] = [];
@@ -182,7 +187,7 @@ export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMv
   }
 
   if (parsedArgs.turnPrompts.length > 0) {
-    const promptTexts = [parsedArgs.promptText || DEFAULT_GUIDESITE_MVP_PROMPT, ...parsedArgs.turnPrompts];
+    const promptTexts = [parsedArgs.promptText, ...parsedArgs.turnPrompts];
     return runMultiTurnGuideSiteMvpSession(promptTexts, runOptions, promptUnderstandingProvider);
   }
 
