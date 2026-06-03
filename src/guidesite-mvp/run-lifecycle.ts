@@ -30,10 +30,6 @@ import {
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 
-function createDefaultGuideSiteRetrievalAdapter(): GuideSiteRetrievalAdapter {
-  return createFixtureGuideSiteRetrievalAdapter();
-}
-
 function createDefaultSessionId(): string {
   return `session_${crypto.randomUUID()}`;
 }
@@ -212,14 +208,16 @@ export function withPromptUnderstandingCandidate(
     };
   }
 
-  const retrieval = (options.retrievalAdapter ?? createDefaultGuideSiteRetrievalAdapter()).retrieve(candidate);
-  const answerComposition = isSourceBackedRetrieval(retrieval)
+  const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
+  const retrieval = retrievalAdapter.retrieve(candidate);
+  const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
+  const answerComposition = sourceBackedRetrieval
     ? createCanonicalAnswerComposition(retrieval)
     : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
 
   return {
     ...structuredClone(run),
-    status: isSourceBackedRetrieval(retrieval) ? "composed" : "fallback",
+    status: sourceBackedRetrieval ? "composed" : "fallback",
     updatedAt: timestamp,
     promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
     understanding: structuredClone(candidate),
@@ -508,7 +506,9 @@ export function withHardcodedUnderstandingAndComposition(
   const isCanonicalPrompt = run.prompt.text === canonicalPromptText;
   const understanding = isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding();
   const validation = validatePromptUnderstandingMeaning(understanding);
-  const retrieval = validation.valid ? createDefaultGuideSiteRetrievalAdapter().retrieve(understanding) : null;
+  const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
+  const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding) : null;
+  const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
 
   return {
     ...structuredClone(run),
@@ -519,7 +519,7 @@ export function withHardcodedUnderstandingAndComposition(
     promptUnderstandingValidation: validation,
     retrieval,
     answerComposition:
-      isCanonicalPrompt && retrieval && isSourceBackedRetrieval(retrieval)
+      isCanonicalPrompt && retrieval && sourceBackedRetrieval
         ? createCanonicalAnswerComposition(retrieval)
         : createFallbackAnswerComposition(),
     patch: null,

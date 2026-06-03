@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { PromptUnderstanding, RetrievalResult, RetrievalResults } from "./types.js";
+import type { PromptUnderstanding, RetrievalCoverage, RetrievalResult, RetrievalResults } from "./types.js";
 
 const defaultSourcePackPath = "fixtures/guidesite-mvp/canonical-source-pack.json";
 const retrievableSourceTypes = new Set(["campProgram", "policy"]);
@@ -26,10 +26,7 @@ type CanonicalSourcePack = {
   documents: CanonicalSource[];
 };
 
-export type GuideSiteRetrievalCoverage = {
-  status: "source_backed" | "empty_retrieval";
-  matchedSourceIds: string[];
-};
+export type GuideSiteRetrievalCoverage = RetrievalCoverage;
 
 export type GuideSiteRetrievalInput = PromptUnderstanding;
 
@@ -165,7 +162,7 @@ function retrieveGuideSiteFixtureSourcesFromPack(
     diagnostics: createRetrievalDiagnostics(understanding, results),
     coverage: {
       status: results.length > 0 ? "source_backed" : "empty_retrieval",
-      matchedSourceIds: results.map((result) => result.sourceId),
+      matchedSourceIds: [...sourceIds],
     },
   };
 }

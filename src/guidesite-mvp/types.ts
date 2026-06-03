@@ -128,15 +128,17 @@ export interface RetrievalResult {
   sourceRevision: string;
 }
 
+export type RetrievalCoverage = {
+  status: "source_backed" | "empty_retrieval";
+  matchedSourceIds: string[];
+};
+
 export interface RetrievalResults {
   needs: string[];
   concerns: string[];
   results: RetrievalResult[];
   diagnostics: string[];
-  coverage: {
-    status: "source_backed" | "empty_retrieval";
-    matchedSourceIds: string[];
-  };
+  coverage: RetrievalCoverage;
 }
 
 export interface SessionPatch {
