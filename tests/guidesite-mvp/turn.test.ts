@@ -35,6 +35,10 @@ test("GuideSite turn commits the canonical Prompt into inspectable Run State", a
     assert.equal(run.promptUnderstandingValidation?.valid, true);
     assert.equal(run.retrieval?.coverage.status, "source_backed");
     assert.equal(run.answerComposition?.status, "needs_context");
+    assert.deepEqual(run.answerCompositionValidation, {
+      valid: true,
+      diagnostics: [],
+    });
     assert.equal(
       run.answerComposition?.conversationalFraming,
       "Age 8 is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.",
@@ -52,6 +56,10 @@ test("GuideSite turn commits the canonical Prompt into inspectable Run State", a
     assert.equal(savedRun.status, "committed");
     assert.equal(savedRun.committedSessionState?.revision, 2);
     assert.equal(savedRun.patch?.baseRevision, 1);
+    assert.deepEqual(stores.runs.read("run_turn_canonical")?.answerCompositionValidation, {
+      valid: true,
+      diagnostics: [],
+    });
     assert.deepEqual(savedRun.diagnostics, []);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
@@ -222,6 +230,7 @@ test("GuideSite turn falls back safely when Answer Composition validation fails"
     ) as typeof run;
     assert.equal(savedRun.status, "validation_failed");
     assert.equal(savedRun.answerComposition, null);
+    assert.equal(savedRun.answerCompositionValidation?.valid, false);
     assert.equal(savedRun.rejectedAnswerComposition?.sections[0]?.sourceRefs?.[0]?.title, "Unsafe Secret Draft");
     assert.equal(savedRun.committedSessionState, null);
   } finally {

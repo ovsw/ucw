@@ -53,6 +53,10 @@ test("file Run Store persists committed canonical Run State as inspectable JSON"
     assert.equal(savedRun.prompt.text, canonicalPrompt);
     assert.equal(savedRun.snapshot.sessionId, "session_persisted");
     assert.equal(savedRun.understanding.goal, "assess_fit");
+    assert.deepEqual(savedRun.answerCompositionValidation, {
+      valid: true,
+      diagnostics: [],
+    });
     assert.equal(savedRun.answerComposition.status, "needs_context");
     assert.equal(savedRun.patch.baseRevision, 1);
     assert.deepEqual(savedRun.diagnostics, []);
@@ -105,6 +109,7 @@ test("file Run Store persists Prompt Understanding validation failures without c
     assert.equal(savedRun.status, "validation_failed");
     assert.equal(savedRun.understanding, null);
     assert.equal(savedRun.answerComposition, null);
+    assert.equal(savedRun.answerCompositionValidation, null);
     assert.equal(savedRun.patch, null);
     assert.equal(savedRun.committedSessionState, null);
     assert.equal(savedRun.promptUnderstandingValidation.valid, false);
