@@ -37,7 +37,8 @@ const allowedCompositionKeys = new Set(["status", "conversationalFraming", "sect
 const allowedSectionKeys = new Set(["kind", "title", "body", "items", "sourceRefs"]);
 const allowedSourceRefKeys = new Set(["sourceId", "sourceType", "title", "fieldPath", "sourceRevision"]);
 const allowedSuggestedPromptKeys = new Set(["id", "text", "purpose", "contextNeeds", "concerns", "templateId"]);
-const factualSectionKinds = new Set<AnswerSectionKind>(["summary", "concerns", "sources"]);
+type FactualSectionKind = "summary" | "concerns" | "sources";
+const factualSectionKinds = new Set<FactualSectionKind>(["summary", "concerns", "sources"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -86,18 +87,22 @@ function normalizeRetrievalResults(retrieval: RetrievalResults | null): Map<stri
   return new Map(retrieval?.results.map((result) => [result.sourceId, result]) ?? []);
 }
 
+function isFactualSectionKind(kind: unknown): kind is FactualSectionKind {
+  return typeof kind === "string" && factualSectionKinds.has(kind as FactualSectionKind);
+}
+
 function validateSourceRefs(
   sectionIndex: number,
   sourceRefs: unknown,
   retrievalResultsById: Map<string, RetrievalResults["results"][number]>,
   diagnostics: string[],
-): string[] {
+): Set<string> {
   if (!Array.isArray(sourceRefs)) {
     diagnostics.push(`answer_composition_section_${sectionIndex}_source_refs_invalid`);
-    return [];
+    return new Set();
   }
 
-  const validSourceIds: string[] = [];
+  const validSourceIds = new Set<string>();
   sourceRefs.forEach((sourceRef, sourceRefIndex) => {
     const prefix = `answer_composition_section_${sectionIndex}_source_ref_${sourceRefIndex}`;
     if (!isRecord(sourceRef)) {
@@ -133,7 +138,7 @@ function validateSourceRefs(
       return;
     }
 
-    validSourceIds.push(sourceRef.sourceId);
+    validSourceIds.add(sourceRef.sourceId);
   });
 
   return validSourceIds;
@@ -203,13 +208,13 @@ function validateSections(
   sections: unknown,
   retrievalResultsById: Map<string, RetrievalResults["results"][number]>,
   diagnostics: string[],
-): string[] {
+): Set<string> {
   if (!Array.isArray(sections)) {
     diagnostics.push("answer_composition_sections_invalid");
-    return [];
+    return new Set();
   }
 
-  const factualSourceIds: string[] = [];
+  const factualSourceIds = new Set<string>();
   sections.forEach((section, sectionIndex) => {
     const prefix = `answer_composition_section_${sectionIndex}`;
     if (!isRecord(section)) {
@@ -237,15 +242,52 @@ function validateSections(
 
     if (section.sourceRefs !== undefined) {
       const sectionSourceIds = validateSourceRefs(sectionIndex, section.sourceRefs, retrievalResultsById, diagnostics);
-      if (factualSectionKinds.has(section.kind as AnswerSectionKind)) {
-        factualSourceIds.push(...sectionSourceIds);
+      if (isFactualSectionKind(section.kind)) {
+        sectionSourceIds.forEach((sourceId) => factualSourceIds.add(sourceId));
       }
-    } else if (factualSectionKinds.has(section.kind as AnswerSectionKind)) {
+    } else if (isFactualSectionKind(section.kind)) {
       diagnostics.push(`${prefix}_source_refs_required`);
     }
   });
 
   return factualSourceIds;
+}
+
+function validateCitations(
+  citations: unknown,
+  retrieval: RetrievalResults | null,
+  retrievalResultsById: Map<string, RetrievalResults["results"][number]>,
+  factualSourceIds: Set<string>,
+  diagnostics: string[],
+): void {
+  if (!Array.isArray(citations)) {
+    diagnostics.push("answer_composition_citations_invalid");
+    return;
+  }
+
+  const citationSet = new Set<string>();
+  for (const citation of citations) {
+    if (typeof citation !== "string" || citation.trim().length === 0) {
+      diagnostics.push("answer_composition_citation_invalid");
+      continue;
+    }
+
+    citationSet.add(citation);
+    if (retrieval && !retrievalResultsById.has(citation)) {
+      diagnostics.push(`answer_composition_citation_${citation}_missing_retrieval_result`);
+      continue;
+    }
+
+    if (!factualSourceIds.has(citation)) {
+      diagnostics.push(`answer_composition_citation_${citation}_unsupported_source_ref`);
+    }
+  }
+
+  for (const factualSourceId of factualSourceIds) {
+    if (!citationSet.has(factualSourceId)) {
+      diagnostics.push(`answer_composition_citation_${factualSourceId}_missing_required_citation`);
+    }
+  }
 }
 
 export function validateAnswerCompositionCandidate(
@@ -272,35 +314,7 @@ export function validateAnswerCompositionCandidate(
   const retrievalResultsById = normalizeRetrievalResults(retrieval);
   const factualSourceIds = validateSections(composition.sections, retrievalResultsById, diagnostics);
   validateSuggestedPrompts(composition.suggestedPrompts, diagnostics);
-
-  if (!Array.isArray(composition.citations)) {
-    diagnostics.push("answer_composition_citations_invalid");
-  } else {
-    const citationSet = new Set<string>();
-    const factualSourceIdSet = new Set(factualSourceIds);
-    for (const citation of composition.citations) {
-      if (typeof citation !== "string" || citation.trim().length === 0) {
-        diagnostics.push("answer_composition_citation_invalid");
-        continue;
-      }
-
-      citationSet.add(citation);
-      if (retrieval && !retrievalResultsById.has(citation)) {
-        diagnostics.push(`answer_composition_citation_${citation}_missing_retrieval_result`);
-        continue;
-      }
-
-      if (!factualSourceIdSet.has(citation)) {
-        diagnostics.push(`answer_composition_citation_${citation}_unsupported_source_ref`);
-      }
-    }
-
-    for (const factualSourceId of new Set(factualSourceIds)) {
-      if (!citationSet.has(factualSourceId)) {
-        diagnostics.push(`answer_composition_citation_${factualSourceId}_missing_required_citation`);
-      }
-    }
-  }
+  validateCitations(composition.citations, retrieval, retrievalResultsById, factualSourceIds, diagnostics);
 
   if (!Array.isArray(composition.diagnostics) || composition.diagnostics.some((diagnostic) => typeof diagnostic !== "string")) {
     diagnostics.push("answer_composition_diagnostics_invalid");
