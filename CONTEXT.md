@@ -217,6 +217,7 @@ _Avoid_: Session, GuideSite Session
 - A **GuideSite** adapts to the **Visitor**'s **Prompt**, **Constraints**, and **Concerns**.
 - **Decision Confidence** requires the **Visitor**'s major **Constraints** and **Concerns** to be addressed.
 - **Prompt Understanding** interprets a **Prompt** before the system finds related **Content Entities**.
+- Every real **Answer Assembly Process** includes **Prompt Understanding** before retrieval or answer assembly.
 - **Concern Surfacing** is a responsibility within **Prompt Understanding**.
 - The real answer flow should model **Prompt Understanding** as the stage; **Concern Surfacing** can remain visible as a sub-output for evaluation and reporting.
 - **Prompt Understanding** may identify retrieval needs, but **Retrieval Strategies** own query construction and source retrieval.
