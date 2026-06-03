@@ -14,6 +14,7 @@ import {
   type OpenAIPromptUnderstandingEnv,
   type PromptUnderstandingProvider,
 } from "./openai-prompt-understanding.js";
+import { mergeGuideSiteMvpOpenAIEnv } from "./env.js";
 
 export const DEFAULT_GUIDESITE_MVP_PROMPT = "Is overnight camp right for my 8-year-old?";
 export const SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS = [
@@ -36,6 +37,7 @@ export type RunGuideSiteMvpCliOptions = {
   createSessionId?: () => string;
   createRunId?: () => string;
   env?: OpenAIPromptUnderstandingEnv;
+  envFilePath?: string;
   fetchImpl?: typeof fetch;
   promptUnderstandingProvider?: PromptUnderstandingProvider;
 };
@@ -128,7 +130,12 @@ export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMv
   const promptUnderstandingProvider =
     runOptions.promptUnderstandingProvider ??
     createOpenAIPromptUnderstandingProvider(
-      readOpenAIPromptUnderstandingConfig(runOptions.env),
+      readOpenAIPromptUnderstandingConfig(
+        mergeGuideSiteMvpOpenAIEnv({
+          env: runOptions.env,
+          envFilePath: runOptions.envFilePath,
+        }),
+      ),
       runOptions.fetchImpl,
     );
 

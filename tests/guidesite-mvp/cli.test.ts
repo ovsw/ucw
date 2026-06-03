@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,11 +66,73 @@ function createFakePromptUnderstandingProvider(
   };
 }
 
+function createProviderJsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: {
+      "content-type": "application/json",
+    },
+  });
+}
+
 test("GuideSite MVP CLI requires OpenAI provider configuration for normal runs", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
   await assert.rejects(
-    () => runGuideSiteMvpCli([], { env: {} }),
+    () => runGuideSiteMvpCli([], { env: {}, envFilePath: join(runStateDirectory, ".env") }),
     /Missing required OpenAI config for GuideSite Prompt Understanding: OPENAI_API_KEY/,
   );
+  rmSync(runStateDirectory, { recursive: true, force: true });
+});
+
+test("GuideSite MVP CLI reads OpenAI provider configuration from the repo-root .env file", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
+  const envFilePath = join(runStateDirectory, ".env");
+  let capturedInit: RequestInit | undefined;
+  try {
+    writeFileSync(envFilePath, "OPENAI_API_KEY=dotenv-key\nOPENAI_PROMPT_UNDERSTANDING_MODEL=dotenv-model\n");
+
+    await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
+      env: {},
+      envFilePath,
+      fetchImpl: async (_input, init) => {
+        capturedInit = init;
+        return createProviderJsonResponse({ output_text: JSON.stringify(canonicalUnderstanding) });
+      },
+    });
+
+    const requestBody = JSON.parse(String(capturedInit?.body ?? "{}")) as { model?: string };
+    assert.equal((capturedInit?.headers as Record<string, string>).authorization, "Bearer dotenv-key");
+    assert.equal(requestBody.model, "dotenv-model");
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite MVP CLI lets process env override the repo-root .env file", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
+  const envFilePath = join(runStateDirectory, ".env");
+  let capturedInit: RequestInit | undefined;
+  try {
+    writeFileSync(envFilePath, "OPENAI_API_KEY=dotenv-key\nOPENAI_PROMPT_UNDERSTANDING_MODEL=dotenv-model\n");
+
+    await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
+      env: {
+        OPENAI_API_KEY: "process-key",
+        OPENAI_PROMPT_UNDERSTANDING_MODEL: "process-model",
+      },
+      envFilePath,
+      fetchImpl: async (_input, init) => {
+        capturedInit = init;
+        return createProviderJsonResponse({ output_text: JSON.stringify(canonicalUnderstanding) });
+      },
+    });
+
+    const requestBody = JSON.parse(String(capturedInit?.body ?? "{}")) as { model?: string };
+    assert.equal((capturedInit?.headers as Record<string, string>).authorization, "Bearer process-key");
+    assert.equal(requestBody.model, "process-model");
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
 });
 
 test("GuideSite MVP CLI defaults to the canonical Prompt and commits the walking skeleton", async () => {
