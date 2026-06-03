@@ -30,6 +30,10 @@ import {
 } from "./prompt-understanding.js";
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
+import {
+  approvedContextNeedPromptTemplates,
+  isApprovedContextNeed,
+} from "./suggested-prompt-templates.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 const canonicalGuideSiteSourcePack = loadCanonicalGuideSiteSourcePack();
@@ -404,37 +408,12 @@ function getCanonicalGuideSiteSourceText(sourceId: string): string | null {
   return source.summary?.trim() || source.body?.trim() || source.contentMap?.trim() || null;
 }
 
-type ContextNeedPromptTemplate = {
-  templateId: string;
-  text: string;
-  concerns: string[];
-};
-
-type ContextNeed = "prior_sleepaway_experience" | "child_readiness";
 type SuggestedPromptDerivation = {
   suggestedPrompts: AnswerComposition["suggestedPrompts"];
   diagnostics: string[];
 };
-
 const canonicalSummarySourceIds = ["program_overnight"] as const;
 const canonicalConcernSourceIds = ["policy_homesickness", "policy_parent_communication"] as const;
-
-const approvedContextNeedPromptTemplates: Record<ContextNeed, ContextNeedPromptTemplate> = {
-  prior_sleepaway_experience: {
-    templateId: "ask_sleepaway_experience",
-    text: "Has your child slept away from home before?",
-    concerns: ["homesickness"],
-  },
-  child_readiness: {
-    templateId: "ask_child_readiness",
-    text: "How does your child usually handle new routines or time away from you?",
-    concerns: ["child_readiness"],
-  },
-};
-
-function isApprovedContextNeed(contextNeed: string): contextNeed is ContextNeed {
-  return Object.prototype.hasOwnProperty.call(approvedContextNeedPromptTemplates, contextNeed);
-}
 
 function formatList(items: string[]): string {
   if (items.length === 0) {
@@ -576,7 +555,7 @@ function createSuggestedPrompts(run: RunState): SuggestedPromptDerivation {
 
     prompts.push({
       id: promptId,
-      purpose: "gather_fit_context",
+      purpose: template.purpose,
       text: template.text,
       contextNeeds: [contextNeed],
       concerns: [...template.concerns],

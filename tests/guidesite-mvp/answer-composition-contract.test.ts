@@ -76,8 +76,39 @@ const validComposition: AnswerComposition = {
   diagnostics: ["needs_visitor_context"],
 };
 
+const approvedSuggestedPrompts: AnswerComposition["suggestedPrompts"] = [
+  {
+    id: "prompt_prior_sleepaway_experience",
+    purpose: "gather_fit_context",
+    text: "Has your child slept away from home before?",
+    contextNeeds: ["prior_sleepaway_experience"],
+    concerns: ["homesickness"],
+    templateId: "ask_sleepaway_experience",
+  },
+  {
+    id: "prompt_child_readiness",
+    purpose: "gather_fit_context",
+    text: "How does your child usually handle new routines or time away from you?",
+    contextNeeds: ["child_readiness"],
+    concerns: ["child_readiness"],
+    templateId: "ask_child_readiness",
+  },
+];
+
 test("Answer Composition contract accepts the canonical semantic shape", () => {
   assert.deepEqual(validateAnswerCompositionCandidate(validComposition, retrieval), {
+    valid: true,
+    diagnostics: [],
+  });
+});
+
+test("Answer Composition contract accepts approved Suggested Prompts", () => {
+  const compositionWithApprovedPrompts: AnswerComposition = {
+    ...validComposition,
+    suggestedPrompts: approvedSuggestedPrompts,
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(compositionWithApprovedPrompts, retrieval), {
     valid: true,
     diagnostics: [],
   });
@@ -171,6 +202,111 @@ test("Answer Composition contract accepts source-backed homesickness answers", (
   assert.deepEqual(validateAnswerCompositionCandidate(answeredComposition, retrieval), {
     valid: true,
     diagnostics: [],
+  });
+});
+
+test("Answer Composition contract rejects Suggested Prompts with unknown context needs", () => {
+  const invalidComposition: AnswerComposition = {
+    ...validComposition,
+    suggestedPrompts: [
+      {
+        id: "prompt_transportation",
+        purpose: "gather_fit_context",
+        text: "How will your child get to camp?",
+        contextNeeds: ["transportation"],
+        concerns: ["homesickness"],
+        templateId: "ask_transportation",
+      },
+    ],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_suggested_prompt_0_unknown_context_need_transportation"],
+  });
+});
+
+test("Answer Composition contract rejects Suggested Prompts with wrong template details", () => {
+  const invalidComposition: AnswerComposition = {
+    ...validComposition,
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "gather_fit_context",
+        text: "Has your child slept away from home before?",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience_v2",
+      },
+    ],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_suggested_prompt_0_template_id_mismatch"],
+  });
+});
+
+test("Answer Composition contract rejects Suggested Prompts with mismatched contextNeeds", () => {
+  const invalidComposition: AnswerComposition = {
+    ...validComposition,
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "gather_fit_context",
+        text: "Has your child slept away from home before?",
+        contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+    ],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_suggested_prompt_0_context_needs_mismatch"],
+  });
+});
+
+test("Answer Composition contract rejects Suggested Prompts with unsupported decisioning text", () => {
+  const invalidComposition: AnswerComposition = {
+    ...validComposition,
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "gather_fit_context",
+        text: "This camp is the best fit. Enroll now.",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+    ],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_suggested_prompt_0_text_mismatch"],
+  });
+});
+
+test("Answer Composition contract rejects Suggested Prompts with decisioning purpose", () => {
+  const invalidComposition: AnswerComposition = {
+    ...validComposition,
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "test_fit",
+        text: "Has your child slept away from home before?",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+    ],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_suggested_prompt_0_purpose_mismatch"],
   });
 });
 

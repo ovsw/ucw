@@ -169,6 +169,38 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
   ]);
 });
 
+test("Session Patch builder rejects unvalidated Suggested Prompts even when invoked directly", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_patch_builder_invalid_prompt",
+    createRunId: () => "run_patch_builder_invalid_prompt",
+  });
+  const composedRun = withHardcodedUnderstandingAndComposition(started.run, {
+    now: () => new Date("2026-01-01T00:02:00.000Z"),
+  });
+
+  const invalidRun = {
+    ...composedRun,
+    answerComposition: composedRun.answerComposition
+      ? {
+          ...composedRun.answerComposition,
+          suggestedPrompts: [
+            {
+              ...composedRun.answerComposition.suggestedPrompts[0]!,
+              purpose: "test_fit" as const,
+              text: "This camp is the best fit. Enroll now.",
+            },
+          ],
+        }
+      : null,
+  } as typeof composedRun;
+
+  assert.throws(() => buildSessionPatchFromValidatedRun(invalidRun), /unsupported Answer Composition/);
+});
+
 test("Session Patch builder rejects a valid run whose Answer Composition is not patchable", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({

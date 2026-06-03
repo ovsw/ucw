@@ -5,6 +5,10 @@ import type {
   RetrievalResults,
   SuggestedPrompt,
 } from "./types.js";
+import {
+  getApprovedContextNeedPromptTemplate,
+  isApprovedContextNeed,
+} from "./suggested-prompt-templates.js";
 
 const allowedAnswerCompositionStatuses = new Set<AnswerComposition["status"]>([
   "needs_context",
@@ -148,6 +152,43 @@ function validateSuggestedPrompts(suggestedPrompts: unknown, diagnostics: string
 
     if (typeof suggestedPrompt.purpose !== "string" || !allowedSuggestedPromptPurposes.has(suggestedPrompt.purpose as SuggestedPrompt["purpose"])) {
       diagnostics.push(`${prefix}_purpose_invalid`);
+      return;
+    }
+
+    if (suggestedPrompt.contextNeeds.length !== 1) {
+      diagnostics.push(`${prefix}_context_needs_mismatch`);
+      return;
+    }
+
+    const [contextNeed] = suggestedPrompt.contextNeeds;
+    if (!isApprovedContextNeed(contextNeed)) {
+      diagnostics.push(`${prefix}_unknown_context_need_${contextNeed}`);
+      return;
+    }
+
+    const template = getApprovedContextNeedPromptTemplate(contextNeed);
+    if (!template) {
+      diagnostics.push(`${prefix}_unknown_context_need_${contextNeed}`);
+      return;
+    }
+
+    if (suggestedPrompt.templateId !== template.templateId) {
+      diagnostics.push(`${prefix}_template_id_mismatch`);
+    }
+
+    if (suggestedPrompt.text !== template.text) {
+      diagnostics.push(`${prefix}_text_mismatch`);
+    }
+
+    if (suggestedPrompt.purpose !== template.purpose) {
+      diagnostics.push(`${prefix}_purpose_mismatch`);
+    }
+
+    if (
+      suggestedPrompt.concerns.length !== template.concerns.length ||
+      suggestedPrompt.concerns.some((concern, concernIndex) => concern !== template.concerns[concernIndex])
+    ) {
+      diagnostics.push(`${prefix}_concerns_mismatch`);
     }
   });
 }
