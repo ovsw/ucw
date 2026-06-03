@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the MVP architecture for managing conversational state in a GuideSite experience.
+This document defines the MVP architecture for managing conversational state in a GuideSite tech-demo experience.
 
 The system uses two state objects:
 
@@ -17,6 +17,8 @@ Session State → session snapshot in Run State → pipeline writes Run State �
 
 The goal is to keep the system testable, replayable, and resistant to hidden state mutation while avoiding unnecessary architecture complexity for the MVP.
 
+For this MVP, "minimum viable" means valuable as an operator-led technical demo, not as a self-serve customer product.
+
 ---
 
 # 2. Product Context
@@ -25,7 +27,24 @@ GuideSite is an intent-first website architecture where the visitor asks questio
 
 The system should not behave like a generic chatbot.
 
-It should produce source-backed UI compositions such as:
+For the MVP, the primary actor is the **Demo Operator** building or presenting the demo.
+
+The customer may see the demo output, but they should not interact with the system directly.
+
+The **Demo Operator** can impersonate a **Visitor** by entering or selecting **Prompts** as that **Visitor** would, then interpret the output and explain the system's intentions, limitations, and current functionality.
+
+The **Demo Operator** is not the **Visitor** whose decision context is being modeled. **Prompt**, **Visitor Context**, and **Session State** refer to the impersonated **Visitor**.
+
+The MVP should produce:
+
+- conversational framing text
+- source-backed answer data
+- raw structured JSON for a future **Answer Presentation** layer
+- diagnostics that help the operator explain or debug the run
+
+It does not need to produce rendered **Answer Components**.
+
+Post-MVP, the raw structured JSON may be transformed into an **Answer Presentation** with **Answer Components** such as:
 
 - answer summaries
 - recommendation cards
@@ -36,7 +55,7 @@ It should produce source-backed UI compositions such as:
 - source/proof drawers
 - human escalation CTAs
 
-The LLM may help interpret intent and orchestrate the response, but it must not invent facts, policies, prices, recommendations, or claims.
+The LLM may help interpret intent and orchestrate the **Answer Composition**, but it must not invent facts, policies, prices, recommendations, or claims.
 
 ---
 
@@ -48,11 +67,12 @@ The MVP should prove that the system can:
 2. Understand the current visitor prompt.
 3. Extract structured facts, concerns, retrieval needs, and context needs.
 4. Retrieve verified content from Sanity.
-5. Compose a source-backed UI response.
-6. Validate the response before committing state.
+5. Produce **Conversational Framing** and a source-backed **Answer Composition**.
+6. Validate the **Answer Composition** before committing state.
 7. Produce an explicit patch to update session memory.
 8. Commit the patch safely using optimistic concurrency.
 9. Keep each run replayable and debuggable.
+10. Give the operator enough raw output to demonstrate the idea without building a customer-facing UI.
 
 ---
 
@@ -70,6 +90,12 @@ The MVP should not include:
 - autonomous content summarization without source constraints
 - advanced personalization beyond the current session
 - multi-user account memory
+- customer-facing self-serve interaction
+- a production **Answer Presentation** layer
+- an **Answer Component** registry
+- **Answer Component** prop schemas
+- polished rendered cards, tables, panels, or CTAs
+- customer-operated controls
 
 These may be added later if product testing proves they are necessary.
 
@@ -91,7 +117,7 @@ Run State captures the complete lifecycle of one conversational turn:
 - session snapshot
 - structured understanding
 - retrieval results
-- UI composition
+- Answer Composition
 - validation result
 - session patch
 - diagnostics
@@ -122,18 +148,34 @@ This applies to:
 - concerns
 - context needs
 - suggested prompts
-- UI blocks
+- Answer Composition sections
 - answer claims
 
-## 5.6 UI composition is first-class
+## 5.6 Answer Composition is first-class
 
-The answer is not just prose.
+The MVP answer is not a production UI.
 
-The answer is a structured UI composition made from approved components and source-backed data.
+The answer is an **Answer Composition** made of:
+
+- **Conversational Framing**
+- raw structured JSON
+- source references
+- suggested next prompts or context needs
+- diagnostics
+
+This **Answer Composition** is the contract that a future **Answer Presentation** can consume.
+
+For MVP, the **Answer Composition** may be displayed plainly to the operator.
 
 ## 5.7 Recommendations require deterministic support
 
 The system must not label something “best fit,” “recommended,” “safe,” “affordable,” or “available” unless that label is produced by approved rules or verified source data.
+
+## 5.8 Optimize for operator demo value
+
+The MVP should optimize for a clear, inspectable demonstration of the core loop.
+
+It does not need to be valuable to a customer without the operator present.
 
 ---
 
@@ -150,13 +192,13 @@ Prompt Understanding
    ↓
 Sanity Retrieval
    ↓
-Compose UI + Validate
+Build Answer Composition + Validate
    ↓
 Build Session Patch
    ↓
 Commit Patch
    ↓
-Render Answer
+Display Demo Output
 ```
 
 ---
@@ -386,7 +428,7 @@ It is not the source of truth for the session, but it is the source of truth for
 
   "retrieval": null,
 
-  "composition": null,
+  "answerComposition": null,
 
   "validation": null,
 
@@ -508,7 +550,7 @@ Sanity Dataset.
 
 ---
 
-## Step 4: Compose UI and Validate
+## Step 4: Build Answer Composition and Validate
 
 ### Reads
 
@@ -516,45 +558,42 @@ Sanity Dataset.
 - `runState.snapshot`
 - `runState.understanding`
 - `runState.retrieval`
-- component registry
 - validation rules
 - safety rules
 - suggested prompt templates
 
 ### Writes
 
-- `runState.composition`
+- `runState.answerComposition`
 - `runState.validation`
 
-### Composition Shape
+### Answer Composition Shape
 
 ```json
 {
-  "compositionId": "answer_2",
+  "compositionId": "composition_2",
   "status": "needs_context",
-  "blocks": [
-    {
-      "type": "AnswerSummary",
-      "props": {
-        "text": "Overnight camp may be a fit, but I need a little more context before recommending it confidently."
+  "conversationalFraming": "Overnight camp may be a fit, but I need a little more context before recommending it confidently.",
+  "sections": {
+    "kind": "decision_support_response",
+    "items": [
+      {
+        "kind": "summary",
+        "text": "The current answer should stay conditional because readiness depends on prior sleepaway experience and child readiness.",
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "ContextNeedsPanel",
-      "props": {
-        "needs": ["prior_sleepaway_experience", "child_readiness"]
+      {
+        "kind": "context_needs",
+        "needs": ["prior_sleepaway_experience", "child_readiness"],
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "SuggestedPromptList",
-      "props": {
-        "prompts": ["sp_1"]
-      },
-      "sourceRefs": []
-    }
-  ],
+      {
+        "kind": "suggested_prompts",
+        "promptIds": ["sp_1"],
+        "sourceRefs": []
+      }
+    ]
+  },
   "citations": [],
   "suggestedPrompts": [
     {
@@ -586,7 +625,7 @@ abstained
 {
   "status": "passed",
   "checks": {
-    "componentSchemaValid": true,
+    "compositionShapeValid": true,
     "sourceCoverageValid": true,
     "safetyRulesPassed": true,
     "suggestedPromptsValid": true,
@@ -602,14 +641,16 @@ The answer must pass validation before the session patch can be committed.
 
 Validation should check:
 
-1. Every factual claim has source support or is clearly framed as a question/context need.
-2. Every UI block conforms to the component schema.
+1. Every factual claim in **Conversational Framing** or composition sections has source support or is clearly framed as a question/context need.
+2. The raw **Answer Composition** JSON conforms to the MVP shape.
 3. Suggested prompts come from approved templates or approved generation rules.
 4. Safety-sensitive topics use approved framing.
 5. Recommendations are supported by deterministic rules.
 6. Pricing, dates, availability, and eligibility come from structured data.
-7. The response status matches the available evidence.
+7. The composition status matches the available evidence.
 8. The system does not overclaim certainty.
+
+For MVP, validation does not need to prove that **Answer Components** can render. That belongs to the future **Answer Presentation** layer.
 
 ---
 
@@ -618,7 +659,7 @@ Validation should check:
 ### Reads
 
 - `runState.understanding`
-- `runState.composition`
+- `runState.answerComposition`
 - `runState.validation`
 
 ### Writes
@@ -673,7 +714,7 @@ Validation should check:
 
 ### Rules
 
-- Build patch only after composition validation passes.
+- Build patch only after **Answer Composition** validation passes.
 - Patch should include `baseRevision`.
 - Patch should include `runId`.
 - Patch operations should be idempotent where possible.
@@ -726,19 +767,21 @@ This prevents duplicate commits during retries.
 
 ---
 
-## Step 7: Render Answer
+## Step 7: Display Demo Output
 
 ### Reads
 
-`runState.composition`
+`runState.answerComposition`
 
 ### Writes
 
-UI-local render state only.
+Operator-facing demo output only.
 
 ### Rule
 
-For MVP, commit before rendering the final answer.
+For MVP, commit before displaying the final **Answer Composition**.
+
+The output may be shown as plain **Conversational Framing** plus formatted JSON. It does not need to render customer-facing **Answer Components**.
 
 If streaming is introduced later, streamed output should be treated as provisional until validation and commit are complete.
 
@@ -770,7 +813,7 @@ archiveSuggestedPrompt
 
 # 11. Source and Citation Model
 
-Source provenance should be stored primarily in Run State and UI Composition, not bloated into Session State.
+Source provenance should be stored primarily in Run State and the **Answer Composition**, not bloated into Session State.
 
 ## Citation Shape
 
@@ -787,75 +830,79 @@ Source provenance should be stored primarily in Run State and UI Composition, no
 
 ## Rules
 
-- Every source-backed UI block should include `sourceRefs`.
-- Every factual answer should expose its sources to the visitor.
+- Every source-backed **Answer Composition** section should include `sourceRefs`.
+- Every factual answer should expose its sources to the operator.
 - Source references should point to approved Sanity content.
 - Source revisions should be stored where possible for auditability.
 - For MVP, source snapshots do not need to be persisted in Session State.
 
 ---
 
-# 12. UI Composition Model
+# 12. Answer Composition Contract
 
-The answer should be rendered as structured UI, not a freeform chat message.
+The answer should be represented as **Conversational Framing** plus raw structured JSON.
 
-## Composition Shape
+It is not a rendered **Answer Component** tree.
+
+The JSON is intentionally simple so the operator can inspect it during a demo and a future **Answer Presentation** layer can map it into **Answer Components** later.
+
+## Answer Composition Shape
 
 ```json
 {
-  "compositionId": "answer_2",
+  "compositionId": "composition_2",
   "status": "partial",
-  "blocks": [
-    {
-      "type": "VerdictPanel",
-      "props": {
-        "variant": "likely_fit_with_caveat",
-        "headline": "Likely fit, with one important caveat"
+  "conversationalFraming": "Likely fit, with one important caveat: I need more context about prior sleepaway experience before making this stronger.",
+  "sections": {
+    "kind": "decision_support_response",
+    "items": [
+      {
+        "kind": "verdict",
+        "label": "likely_fit_with_caveat",
+        "headline": "Likely fit, with one important caveat",
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "ConcernCard",
-      "props": {
+      {
+        "kind": "concern",
         "concernId": "homesickness",
-        "title": "Homesickness support"
+        "headline": "Homesickness support",
+        "sourceRefs": ["policy_homesickness"]
       },
-      "sourceRefs": ["policy_homesickness"]
-    },
-    {
-      "type": "SuggestedPromptList",
-      "props": {
-        "prompts": ["sp_1", "sp_2"]
-      },
-      "sourceRefs": []
-    }
-  ],
+      {
+        "kind": "suggested_prompts",
+        "promptIds": ["sp_1", "sp_2"],
+        "sourceRefs": []
+      }
+    ]
+  },
   "citations": [],
   "suggestedPrompts": [],
   "diagnostics": []
 }
 ```
 
-## MVP Component Types
+## MVP Section Kinds
 
 ```txt
-AnswerSummary
-VerdictPanel
-ConcernCard
-ContextNeedsPanel
-SuggestedPromptList
-SourceList
-HumanEscalationCTA
-ProgramCard
-ComparisonTable
+summary
+answer
+verdict
+concern
+context_needs
+suggested_prompts
+sources
+escalation
+comparison
 ```
 
 ## Rules
 
-- Components should be selected by the system or LLM orchestration.
-- Component props must validate against a schema.
-- Components must not contain unsupported claims.
-- Sensitive components should use approved templates.
+- Use semantic section kinds, not **Answer Component** names.
+- Avoid **Answer Component**-specific fields such as `props`, visual variants, layout hints, or interaction handlers.
+- Keep the **Answer Composition** stable enough for a future **Answer Presentation** layer to consume.
+- **Answer Composition** sections must not contain unsupported claims.
+- Sensitive sections should use approved framing.
+- The future **Answer Presentation** layer owns visual layout, interaction behavior, and any **Answer Component** prop schemas.
 
 ---
 
@@ -903,22 +950,22 @@ If retrieval does not return enough verified material:
 ```json
 {
   "status": "insufficient_sources",
-  "blocks": [
-    {
-      "type": "AnswerSummary",
-      "props": {
-        "text": "I do not have enough verified information to answer that confidently."
+  "conversationalFraming": "I do not have enough verified information to answer that confidently.",
+  "sections": {
+    "kind": "decision_support_response",
+    "items": [
+      {
+        "kind": "summary",
+        "text": "The available sources are insufficient for a confident answer.",
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "HumanEscalationCTA",
-      "props": {
-        "reason": "This question requires confirmation from the camp."
-      },
-      "sourceRefs": []
-    }
-  ]
+      {
+        "kind": "escalation",
+        "reason": "This question requires confirmation from the camp.",
+        "sourceRefs": []
+      }
+    ]
+  }
 }
 ```
 
@@ -929,32 +976,32 @@ If the system needs visitor information before answering:
 ```json
 {
   "status": "needs_context",
-  "blocks": [
-    {
-      "type": "ContextNeedsPanel",
-      "props": {
-        "needs": ["prior_sleepaway_experience"]
+  "conversationalFraming": "I need one more piece of context before answering confidently.",
+  "sections": {
+    "kind": "decision_support_response",
+    "items": [
+      {
+        "kind": "context_needs",
+        "needs": ["prior_sleepaway_experience"],
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "SuggestedPromptList",
-      "props": {
-        "prompts": ["sp_1"]
-      },
-      "sourceRefs": []
-    }
-  ]
+      {
+        "kind": "suggested_prompts",
+        "promptIds": ["sp_1"],
+        "sourceRefs": []
+      }
+    ]
+  }
 }
 ```
 
 ## Validation Failure
 
-If composition validation fails:
+If **Answer Composition** validation fails:
 
 1. Do not commit the patch.
-2. Do not render the unsafe composition.
-3. Render a safe fallback.
+2. Do not display the unsafe **Answer Composition**.
+3. Display a safe fallback to the operator.
 4. Log diagnostics in Run State.
 
 ---
@@ -997,7 +1044,7 @@ prompt
 snapshot
 understanding
 retrieval
-composition
+answerComposition
 validation
 patch
 diagnostics
@@ -1056,34 +1103,32 @@ Is overnight camp right for my 8-year-old?
 }
 ```
 
-## Composition
+## Answer Composition
 
 ```json
 {
   "status": "needs_context",
-  "blocks": [
-    {
-      "type": "AnswerSummary",
-      "props": {
-        "text": "Overnight camp may be a fit, but I need a little more context before recommending it confidently."
+  "conversationalFraming": "Overnight camp may be a fit, but I need a little more context before recommending it confidently.",
+  "sections": {
+    "kind": "decision_support_response",
+    "items": [
+      {
+        "kind": "summary",
+        "text": "The answer should stay conditional until prior sleepaway experience and child readiness are known.",
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "ContextNeedsPanel",
-      "props": {
-        "needs": ["prior_sleepaway_experience", "child_readiness"]
+      {
+        "kind": "context_needs",
+        "needs": ["prior_sleepaway_experience", "child_readiness"],
+        "sourceRefs": []
       },
-      "sourceRefs": []
-    },
-    {
-      "type": "SuggestedPromptList",
-      "props": {
-        "prompts": ["sp_1"]
-      },
-      "sourceRefs": []
-    }
-  ],
+      {
+        "kind": "suggested_prompts",
+        "promptIds": ["sp_1"],
+        "sourceRefs": []
+      }
+    ]
+  },
   "suggestedPrompts": [
     {
       "id": "sp_1",
@@ -1166,7 +1211,7 @@ Is overnight camp right for my 8-year-old?
 
 ## Source Grounding
 
-- Factual UI blocks expose source references.
+- Factual **Answer Composition** sections expose source references.
 - Unsupported claims fail validation.
 - Sensitive topics require approved framing.
 
@@ -1176,11 +1221,12 @@ Is overnight camp right for my 8-year-old?
 - Suggested prompt text comes from approved templates or validated generation rules.
 - Freeform LLM prompt suggestions are not directly committed.
 
-## UI Composition
+## Answer Composition Contract
 
-- The answer is represented as structured component blocks.
-- Component props validate against schemas.
-- The rendered answer matches the validated composition.
+- The answer is represented as **Conversational Framing** plus raw structured JSON.
+- The **Answer Composition** validates against the MVP shape.
+- The operator-facing output matches the validated **Answer Composition**.
+- The MVP does not require rendered **Answer Components**.
 
 ## MVP Simplicity
 
@@ -1207,6 +1253,8 @@ Possible post-MVP additions:
 11. Saved personalized plans.
 12. Multi-session visitor accounts.
 13. A/B testing for decision-confidence metrics.
+14. Production **Answer Presentation** layer and **Answer Component** schemas.
+15. Customer-facing self-serve interaction.
 
 These should be added only after the MVP proves the core loop.
 
@@ -1221,8 +1269,9 @@ Session = compact durable memory
 Run = full trace of one turn
 Snapshot = isolated read model
 Patch = validated state update
-Composition = source-backed UI answer
+Answer Composition = Conversational Framing plus source-backed JSON
 Commit = atomic revision-checked write
+Demo = operator-led presentation output
 ```
 
 The system should optimize for:
@@ -1232,7 +1281,8 @@ The system should optimize for:
 - explicit state transitions
 - deterministic commits
 - minimal live session complexity
-- validated UI composition
+- validated Answer Compositions
 - safe handling of sensitive concerns
+- operator demo value before customer product value
 
 This preserves the original snapshot-plus-patch insight while stripping out unnecessary MVP complexity.
