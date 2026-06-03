@@ -242,6 +242,9 @@ test("Session Patch builder marks source-backed homesickness answers as addresse
     patch.operations.map((operation) => operation.type),
     ["upsertConcern", "setFocus", "replaceSuggestedPrompts", "updateSummary"],
   );
+  const firstPatchOperation = patch.operations[0];
+  assert.equal(firstPatchOperation?.type, "upsertConcern");
+  assert.equal(firstPatchOperation?.concern.status, "addressed");
   assert.deepEqual(committed.session.concerns, {
     homesickness: {
       status: "addressed",

@@ -10,15 +10,15 @@ function createSessionSummary(run: RunState): string {
   return run.answerComposition?.conversationalFraming ?? run.prompt.text;
 }
 
-function createAddressedConcernKeys(run: RunState): Set<string> {
-  if (run.answerComposition?.status !== "answered") {
+function createAddressedConcernKeySet(run: RunState): Set<string> {
+  const answerComposition = run.answerComposition;
+  if (answerComposition?.status !== "answered") {
     return new Set();
   }
 
+  const addressedConcernSections = answerComposition.sections.filter((section) => section.kind === "concerns");
   return new Set(
-    run.answerComposition.sections.flatMap((section) =>
-      section.kind === "concerns" ? section.items ?? [] : [],
-    ),
+    addressedConcernSections.flatMap((section) => section.items ?? []),
   );
 }
 
@@ -32,7 +32,7 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
     return [];
   }
 
-  const addressedConcernKeys = createAddressedConcernKeys(run);
+  const addressedConcernKeys = createAddressedConcernKeySet(run);
   const factOperations = Object.entries(understanding.facts).map(([key, fact]) => ({
     type: "upsertFact" as const,
     key,
@@ -79,11 +79,12 @@ export function buildSessionPatchFromValidatedRun(run: RunState): SessionPatch {
     throw new Error("Cannot build Session Patch without validated Prompt Understanding");
   }
 
-  if (run.answerComposition?.status !== "needs_context" && run.answerComposition?.status !== "answered") {
+  const answerComposition = run.answerComposition;
+  if (answerComposition?.status !== "needs_context" && answerComposition?.status !== "answered") {
     throw new Error("Cannot build Session Patch without a patchable Answer Composition");
   }
 
-  const compositionValidation = validateAnswerCompositionCandidate(run.answerComposition, run.retrieval);
+  const compositionValidation = validateAnswerCompositionCandidate(answerComposition, run.retrieval);
   if (!compositionValidation.valid) {
     throw new Error(`Cannot build Session Patch with unsupported Answer Composition: ${compositionValidation.diagnostics.join(", ")}`);
   }

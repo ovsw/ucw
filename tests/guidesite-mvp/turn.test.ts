@@ -312,7 +312,9 @@ test("GuideSite turn commits a source-backed homesickness Concern answer into Se
       "diagnostics",
     ]);
     assert.equal(run.patch?.operations[0]?.type, "upsertConcern");
-    assert.equal(run.patch?.operations[0] && "concern" in run.patch.operations[0] ? run.patch.operations[0].concern.status : null, "addressed");
+    const firstPatchOperation = run.patch?.operations[0];
+    assert.equal(firstPatchOperation?.type, "upsertConcern");
+    assert.equal(firstPatchOperation?.concern.status, "addressed");
     assert.equal(run.committedSessionState?.concerns.homesickness.status, "addressed");
     assert.equal(run.committedSessionState?.concerns.child_readiness, undefined);
     assert.deepEqual(run.diagnostics, []);
