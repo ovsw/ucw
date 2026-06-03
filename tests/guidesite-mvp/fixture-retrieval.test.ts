@@ -4,38 +4,7 @@ import {
   createFixtureGuideSiteRetrievalAdapter,
   loadCanonicalGuideSiteSourcePack,
 } from "../../src/guidesite-mvp/fixture-retrieval.js";
-import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
-
-const canonicalUnderstanding: PromptUnderstanding = {
-  goal: "assess_fit",
-  promptType: "fit",
-  fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
-  facts: {
-    child_age: {
-      value: 8,
-      provenance: {
-        source: "explicit",
-        promptText: "8-year-old",
-      },
-    },
-  },
-  concerns: [
-    {
-      key: "homesickness",
-      label: "Homesickness",
-      status: "open",
-      provenance: "implied",
-    },
-    {
-      key: "child_readiness",
-      label: "Child Readiness",
-      status: "open",
-      provenance: "implied",
-    },
-  ],
-  retrievalNeeds: ["overnight_readiness", "homesickness_support"],
-  contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
-};
+import { canonicalGuideSiteUnderstanding } from "./test-helpers.js";
 
 test("fixture retrieval adapter exposes the canonical GuideSite retrieval seam", () => {
   const adapter = createFixtureGuideSiteRetrievalAdapter(loadCanonicalGuideSiteSourcePack());
@@ -43,7 +12,7 @@ test("fixture retrieval adapter exposes the canonical GuideSite retrieval seam",
   assert.equal(adapter.id, "fixture");
   assert.equal(adapter.label, "Canonical Fixture");
 
-  const retrieval = adapter.retrieve(canonicalUnderstanding);
+  const retrieval = adapter.retrieve(canonicalGuideSiteUnderstanding);
 
   assert.deepEqual(retrieval.needs, ["overnight_readiness", "homesickness_support"]);
   assert.deepEqual(retrieval.concerns, ["homesickness", "child_readiness"]);
@@ -90,7 +59,7 @@ test("fixture retrieval adapter returns empty source coverage and diagnostics fo
   const adapter = createFixtureGuideSiteRetrievalAdapter(loadCanonicalGuideSiteSourcePack());
 
   const retrieval = adapter.retrieve({
-    ...canonicalUnderstanding,
+    ...canonicalGuideSiteUnderstanding,
     concerns: [
       {
         key: "transportation",

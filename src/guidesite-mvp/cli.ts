@@ -85,13 +85,8 @@ async function runSingleGuideSiteMvpPrompt(
   promptUnderstandingProvider: PromptUnderstandingProvider,
 ): Promise<string> {
   const runStateDirectory = options.runStateDirectory;
-  const stores = createGuideSiteMemoryStores(
-    runStateDirectory
-      ? {
-          runs: createGuideSiteFileRunStore(runStateDirectory),
-      }
-      : undefined,
-  );
+  const runStore = runStateDirectory ? createGuideSiteFileRunStore(runStateDirectory) : undefined;
+  const stores = createGuideSiteMemoryStores(runStore ? { runs: runStore } : undefined);
   const run = await runGuideSiteMvpTurn({
     promptText,
     stores,

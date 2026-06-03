@@ -9,61 +9,12 @@ import {
   parseGuideSiteMvpCliArgs,
   runGuideSiteMvpCli,
 } from "../../src/guidesite-mvp/cli.js";
+import { PromptUnderstandingProviderError } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
 import {
-  PromptUnderstandingProviderError,
-  type PromptUnderstandingProvider,
-} from "../../src/guidesite-mvp/openai-prompt-understanding.js";
-import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
-
-const canonicalUnderstanding: PromptUnderstanding = {
-  goal: "assess_fit",
-  promptType: "fit",
-  fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
-  facts: {
-    child_age: {
-      value: 8,
-      provenance: {
-        source: "explicit",
-        promptText: "8-year-old",
-      },
-    },
-  },
-  concerns: [
-    {
-      key: "homesickness",
-      label: "Homesickness",
-      status: "open",
-      provenance: "implied",
-    },
-    {
-      key: "child_readiness",
-      label: "Child Readiness",
-      status: "open",
-      provenance: "implied",
-    },
-  ],
-  retrievalNeeds: ["overnight_readiness", "homesickness_support"],
-  contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
-};
-
-function createFakePromptUnderstandingProvider(
-  understanding: PromptUnderstanding = canonicalUnderstanding,
-): PromptUnderstandingProvider {
-  return {
-    async understandPrompt() {
-      return {
-        understanding,
-        trace: {
-          provider: "fake",
-          model: "fake-guidesite-prompt-understanding",
-          rawOutput: JSON.stringify(understanding),
-          parsedOutput: understanding,
-          diagnostics: [],
-        },
-      };
-    },
-  };
-}
+  canonicalGuideSitePrompt,
+  canonicalGuideSiteUnderstanding,
+  createFakePromptUnderstandingProvider,
+} from "./test-helpers.js";
 
 function createProviderJsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -95,7 +46,7 @@ test("GuideSite MVP CLI reads OpenAI provider configuration from the repo-root .
       envFilePath,
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return createProviderJsonResponse({ output_text: JSON.stringify(canonicalUnderstanding) });
+        return createProviderJsonResponse({ output_text: JSON.stringify(canonicalGuideSiteUnderstanding) });
       },
     });
 
@@ -122,7 +73,7 @@ test("GuideSite MVP CLI lets process env override the repo-root .env file", asyn
       envFilePath,
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return createProviderJsonResponse({ output_text: JSON.stringify(canonicalUnderstanding) });
+        return createProviderJsonResponse({ output_text: JSON.stringify(canonicalGuideSiteUnderstanding) });
       },
     });
 
@@ -139,7 +90,7 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
     promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
   });
 
-  assert.match(output, new RegExp(`Prompt: ${DEFAULT_GUIDESITE_MVP_PROMPT.replace("?", "\\?")}`));
+  assert.match(output, new RegExp(`Prompt: ${canonicalGuideSitePrompt.replace("?", "\\?")}`));
   assert.match(output, /Prompt Understanding Provider:/);
   assert.match(output, /"provider": "fake"/);
   assert.match(output, /Retrieval Results:/);

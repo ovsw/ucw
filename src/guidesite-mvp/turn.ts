@@ -17,18 +17,20 @@ export interface RunGuideSiteMvpTurnOptions {
 }
 
 export async function runGuideSiteMvpTurn(options: RunGuideSiteMvpTurnOptions): Promise<RunState> {
+  const { promptText, stores, promptUnderstandingProvider, now, createSessionId, createRunId } = options;
+
   const started = startGuideSiteRun({
-    promptText: options.promptText,
-    stores: options.stores,
-    now: options.now,
-    createSessionId: options.createSessionId,
-    createRunId: options.createRunId,
+    promptText,
+    stores,
+    now,
+    createSessionId,
+    createRunId,
   });
 
-  const composedRun = await withProviderBackedUnderstandingAndComposition(started.run, options.promptUnderstandingProvider, {
-    now: options.now,
+  const composedRun = await withProviderBackedUnderstandingAndComposition(started.run, promptUnderstandingProvider, {
+    now,
   });
-  const storedRun = options.stores.runs.update(composedRun);
+  const storedRun = stores.runs.update(composedRun);
 
   if (storedRun.answerComposition?.status !== "needs_context") {
     return storedRun;
@@ -36,10 +38,10 @@ export async function runGuideSiteMvpTurn(options: RunGuideSiteMvpTurnOptions): 
 
   const patch = buildHardcodedSessionPatch(storedRun);
   const committed = commitSessionPatch({
-    stores: options.stores,
+    stores,
     run: storedRun,
     patch,
-    now: options.now,
+    now,
   });
 
   return committed.run;
