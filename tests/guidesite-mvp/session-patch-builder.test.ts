@@ -111,6 +111,21 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
   );
 
   assert.equal(run.status, "composed");
+  assert.deepEqual(run.answerComposition?.suggestedPrompts, [
+    {
+      id: "prompt_prior_sleepaway_experience",
+      purpose: "gather_fit_context",
+      text: "Has your child slept away from home before?",
+      contextNeeds: ["prior_sleepaway_experience"],
+      concerns: ["homesickness"],
+      templateId: "ask_sleepaway_experience",
+    },
+  ]);
+  assert.deepEqual(run.answerComposition?.diagnostics, [
+    "suggested_prompt_unknown_context_need_camp_budget",
+    "needs_visitor_context",
+    "no_fit_recommendation",
+  ]);
 
   const patch = buildSessionPatchFromValidatedRun(run);
   const committed = commitSessionPatch({
@@ -151,7 +166,6 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
   assert.equal(committed.session.summary, "Parent is assessing overnight camp Fit for an 8-year-old Child.");
   assert.deepEqual(committed.session.suggestedPrompts.map((prompt) => prompt.id), [
     "prompt_prior_sleepaway_experience",
-    "prompt_child_readiness",
   ]);
 });
 

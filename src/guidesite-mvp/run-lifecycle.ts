@@ -398,6 +398,10 @@ type ContextNeedPromptTemplate = {
 };
 
 type ContextNeed = "prior_sleepaway_experience" | "child_readiness";
+type SuggestedPromptDerivation = {
+  suggestedPrompts: AnswerComposition["suggestedPrompts"];
+  diagnostics: string[];
+};
 
 const canonicalSummarySourceIds = ["program_overnight"] as const;
 const canonicalConcernSourceIds = ["policy_homesickness", "policy_parent_communication"] as const;
@@ -414,8 +418,6 @@ const approvedContextNeedPromptTemplates: Record<ContextNeed, ContextNeedPromptT
     concerns: ["child_readiness"],
   },
 };
-
-const approvedContextNeedPromptOrder: readonly ContextNeed[] = ["prior_sleepaway_experience", "child_readiness"];
 
 function formatList(items: string[]): string {
   if (items.length === 0) {
@@ -454,7 +456,7 @@ function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunSta
   const concernLabels = run.understanding?.concerns.map((concern) => concern.label) ?? [];
   const concernKeys = run.understanding?.concerns.map((concern) => concern.key) ?? [];
   const contextNeeds = run.understanding?.contextNeeds ?? [];
-  const suggestedPrompts = createSuggestedPrompts(run);
+  const suggestedPrompts = createSuggestedPrompts(run).suggestedPrompts;
   const concernSourceRefs = createSourceRefs(canonicalConcernSourceIds, retrieval);
   const sections: AnswerComposition["sections"] = [
     {
@@ -519,15 +521,25 @@ function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunSta
   return sections;
 }
 
-function createSuggestedPrompts(run: RunState): AnswerComposition["suggestedPrompts"] {
+function createSuggestedPrompts(run: RunState): SuggestedPromptDerivation {
   const understanding = run.understanding;
   if (!understanding || understanding.goal !== "assess_fit") {
-    return [];
+    return {
+      suggestedPrompts: [],
+      diagnostics: [],
+    };
   }
 
   const prompts: AnswerComposition["suggestedPrompts"] = [];
-  for (const contextNeed of approvedContextNeedPromptOrder) {
-    const template = approvedContextNeedPromptTemplates[contextNeed];
+  const diagnostics: string[] = [];
+
+  for (const contextNeed of understanding.contextNeeds) {
+    const template = approvedContextNeedPromptTemplates[contextNeed as ContextNeed];
+    if (!template) {
+      diagnostics.push(`suggested_prompt_unknown_context_need_${contextNeed}`);
+      continue;
+    }
+
     const promptId = `prompt_${contextNeed}`;
     if (prompts.some((prompt) => prompt.id === promptId)) {
       continue;
@@ -543,7 +555,10 @@ function createSuggestedPrompts(run: RunState): AnswerComposition["suggestedProm
     });
   }
 
-  return prompts;
+  return {
+    suggestedPrompts: prompts,
+    diagnostics,
+  };
 }
 
 function createSourcesSection(retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition["sections"][number] | null {
@@ -647,8 +662,14 @@ function createHomesicknessConcernAnswerComposition(
 }
 
 function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
+  const suggestedPromptDerivation = createSuggestedPrompts(run);
   const sections = createNeedsContextSections(run, retrieval);
-  const diagnostics = [...retrieval.diagnostics, "needs_visitor_context", "no_fit_recommendation"];
+  const diagnostics = [
+    ...retrieval.diagnostics,
+    ...suggestedPromptDerivation.diagnostics,
+    "needs_visitor_context",
+    "no_fit_recommendation",
+  ];
 
   return {
     status: "needs_context",
@@ -657,7 +678,7 @@ function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<
         ? `Age ${run.understanding.facts.child_age.value} is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.`
         : "The GuideSite needs more Visitor Context before it can honestly assess Fit.",
     sections,
-    suggestedPrompts: createSuggestedPrompts(run),
+    suggestedPrompts: suggestedPromptDerivation.suggestedPrompts,
     citations: createSourceCitationIds(sections),
     diagnostics,
   };
