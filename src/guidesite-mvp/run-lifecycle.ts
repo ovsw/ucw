@@ -4,6 +4,7 @@ import type {
   CommitSessionPatchResult,
   GuideSiteStores,
   PromptUnderstanding,
+  PromptUnderstandingProviderTrace,
   PromptUnderstandingValidationResult,
   RunState,
   RunStore,
@@ -13,6 +14,10 @@ import type {
   StartGuideSiteRunResult,
 } from "./types.js";
 import { applySessionPatchOperations } from "./patch-engine.js";
+import {
+  PromptUnderstandingProviderError,
+  type PromptUnderstandingProvider,
+} from "./openai-prompt-understanding.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 
@@ -147,6 +152,7 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
     },
     snapshot: cloneSessionState(session),
     understanding: null,
+    promptUnderstandingProvider: null,
     promptUnderstandingValidation: null,
     answerComposition: null,
     patch: null,
@@ -218,7 +224,7 @@ export function validatePromptUnderstanding(
 export function withPromptUnderstandingCandidate(
   run: RunState,
   candidate: PromptUnderstanding,
-  options: { now?: () => Date } = {},
+  options: { now?: () => Date; providerTrace?: PromptUnderstandingProviderTrace } = {},
 ): RunState {
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const validation = validatePromptUnderstanding(candidate);
@@ -228,6 +234,7 @@ export function withPromptUnderstandingCandidate(
       ...structuredClone(run),
       status: "validation_failed",
       updatedAt: timestamp,
+      promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
       understanding: null,
       promptUnderstandingValidation: validation,
       answerComposition: null,
@@ -241,6 +248,7 @@ export function withPromptUnderstandingCandidate(
     ...structuredClone(run),
     status: "composed",
     updatedAt: timestamp,
+    promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
     understanding: structuredClone(candidate),
     promptUnderstandingValidation: validation,
     answerComposition: createCanonicalAnswerComposition(),
@@ -248,6 +256,60 @@ export function withPromptUnderstandingCandidate(
     committedSessionState: null,
     diagnostics: [],
   };
+}
+
+function createProviderFailureRun(
+  run: RunState,
+  error: unknown,
+  options: { now?: () => Date } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const providerError =
+    error instanceof PromptUnderstandingProviderError
+      ? error
+      : new PromptUnderstandingProviderError(
+          `Prompt Understanding provider failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+  const diagnostics = providerError.diagnostics.map((diagnostic) => `prompt_understanding_provider_failed: ${diagnostic}`);
+
+  return {
+    ...structuredClone(run),
+    status: "prompt_understanding_failed",
+    updatedAt: timestamp,
+    promptUnderstandingProvider: {
+      provider: "openai",
+      model: "unknown",
+      rawOutput: providerError.rawOutput,
+      parsedOutput: providerError.parsedOutput,
+      diagnostics,
+    },
+    understanding: null,
+    promptUnderstandingValidation: {
+      valid: false,
+      diagnostics,
+    },
+    answerComposition: null,
+    patch: null,
+    committedSessionState: null,
+    diagnostics,
+  };
+}
+
+export async function withProviderBackedUnderstandingAndComposition(
+  run: RunState,
+  provider: PromptUnderstandingProvider,
+  options: { now?: () => Date } = {},
+): Promise<RunState> {
+  try {
+    const result = await provider.understandPrompt(run.prompt.text);
+
+    return withPromptUnderstandingCandidate(run, result.understanding, {
+      now: options.now,
+      providerTrace: result.trace,
+    });
+  } catch (error) {
+    return createProviderFailureRun(run, error, options);
+  }
 }
 
 function createCanonicalUnderstanding(): PromptUnderstanding {
@@ -388,6 +450,7 @@ export function withHardcodedUnderstandingAndComposition(
     ...structuredClone(run),
     status: isCanonicalPrompt ? "composed" : "fallback",
     updatedAt: timestamp,
+    promptUnderstandingProvider: null,
     understanding,
     promptUnderstandingValidation: validation,
     answerComposition: isCanonicalPrompt ? createCanonicalAnswerComposition() : createFallbackAnswerComposition(),
@@ -514,6 +577,8 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
 export function renderGuideSiteRunOperatorOutput(run: RunState): string {
   return [
     renderStartRunOperatorOutput(run),
+    "Prompt Understanding Provider:",
+    JSON.stringify(run.promptUnderstandingProvider, null, 2),
     "Prompt Understanding Validation:",
     JSON.stringify(run.promptUnderstandingValidation, null, 2),
     "Prompt Understanding:",

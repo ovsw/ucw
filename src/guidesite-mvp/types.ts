@@ -1,5 +1,11 @@
 export type SessionStatus = "active";
-export type RunStatus = "started" | "composed" | "fallback" | "validation_failed" | "committed";
+export type RunStatus =
+  | "started"
+  | "composed"
+  | "fallback"
+  | "validation_failed"
+  | "prompt_understanding_failed"
+  | "committed";
 export type PromptSource = "typed" | "suggested_prompt";
 export type VisitorFactSource = "explicit" | "inferred";
 export type VisitorFactStatus = "active" | "superseded" | "disputed";
@@ -67,6 +73,14 @@ export interface PromptUnderstanding {
 
 export interface PromptUnderstandingValidationResult {
   valid: boolean;
+  diagnostics: string[];
+}
+
+export interface PromptUnderstandingProviderTrace {
+  provider: "openai" | "fake";
+  model: string;
+  rawOutput: string | null;
+  parsedOutput: unknown;
   diagnostics: string[];
 }
 
@@ -158,6 +172,7 @@ export interface RunState {
   prompt: RunPrompt;
   snapshot: SessionState;
   understanding: PromptUnderstanding | null;
+  promptUnderstandingProvider: PromptUnderstandingProviderTrace | null;
   promptUnderstandingValidation: PromptUnderstandingValidationResult | null;
   answerComposition: AnswerComposition | null;
   patch: SessionPatch | null;

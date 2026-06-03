@@ -5,9 +5,15 @@ import {
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
   startGuideSiteRun,
-  withHardcodedUnderstandingAndComposition,
+  withProviderBackedUnderstandingAndComposition,
 } from "./run-lifecycle.js";
 import { createGuideSiteFileRunStore } from "./run-store.js";
+import {
+  createOpenAIPromptUnderstandingProvider,
+  readOpenAIPromptUnderstandingConfig,
+  type OpenAIPromptUnderstandingEnv,
+  type PromptUnderstandingProvider,
+} from "./openai-prompt-understanding.js";
 
 export const DEFAULT_GUIDESITE_MVP_PROMPT = "Is overnight camp right for my 8-year-old?";
 
@@ -21,6 +27,9 @@ export type RunGuideSiteMvpCliOptions = {
   now?: () => Date;
   createSessionId?: () => string;
   createRunId?: () => string;
+  env?: OpenAIPromptUnderstandingEnv;
+  fetchImpl?: typeof fetch;
+  promptUnderstandingProvider?: PromptUnderstandingProvider;
 };
 
 export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliArgs {
@@ -56,9 +65,15 @@ function renderGuideSiteMvpCliOutput(run: Parameters<typeof renderGuideSiteRunOp
     .join("\n");
 }
 
-export function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): string {
+export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): Promise<string> {
   const parsedArgs = parseGuideSiteMvpCliArgs(args);
   const runStateDirectory = options.runStateDirectory ?? parsedArgs.runStateDirectory;
+  const promptUnderstandingProvider =
+    options.promptUnderstandingProvider ??
+    createOpenAIPromptUnderstandingProvider(
+      readOpenAIPromptUnderstandingConfig(options.env),
+      options.fetchImpl,
+    );
   const stores = createGuideSiteMemoryStores(
     runStateDirectory
       ? {
@@ -73,7 +88,9 @@ export function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOp
     createSessionId: options.createSessionId,
     createRunId: options.createRunId,
   });
-  const composedRun = stores.runs.update(withHardcodedUnderstandingAndComposition(started.run, { now: options.now }));
+  const composedRun = stores.runs.update(
+    await withProviderBackedUnderstandingAndComposition(started.run, promptUnderstandingProvider, { now: options.now }),
+  );
 
   if (composedRun.answerComposition?.status !== "needs_context") {
     return renderGuideSiteMvpCliOutput(composedRun, stores.runs.inspect?.(composedRun.runId)?.path);
@@ -92,7 +109,7 @@ export function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOp
 
 export async function main(cliArgs = process.argv.slice(2)): Promise<void> {
   try {
-    console.log(runGuideSiteMvpCli(cliArgs));
+    console.log(await runGuideSiteMvpCli(cliArgs));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
