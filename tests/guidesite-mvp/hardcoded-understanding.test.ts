@@ -189,3 +189,32 @@ test("invalid Prompt Understanding candidate fails safely before composition or 
   assert.match(output, /prompt_understanding_fact_child_age_explicit_provenance_required/);
   assert.match(output, /Prompt Understanding:\nnull/);
 });
+
+test("Answer Composition source refs must map to Run State Retrieval Results before Session Patch building", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_stale_source_ref",
+    createRunId: () => "run_stale_source_ref",
+  });
+  const run = withHardcodedUnderstandingAndComposition(started.run, {
+    now: () => new Date("2026-01-01T00:02:00.000Z"),
+  });
+  const staleSourceRefRun = structuredClone(run);
+
+  staleSourceRefRun.answerComposition?.sections[0]?.sourceRefs?.push({
+    sourceId: "missing_policy",
+    sourceType: "policy",
+    title: "Missing Policy",
+    fieldPath: "summary",
+    sourceRevision: "mock_rev_missing_policy_001",
+  });
+
+  assert.throws(
+    () => buildHardcodedSessionPatch(staleSourceRefRun),
+    /answer_composition_source_ref_missing_policy_missing_retrieval_result/,
+  );
+  assert.deepEqual(stores.sessions.read("session_stale_source_ref"), started.session);
+});

@@ -99,6 +99,15 @@ export interface AnswerCompositionSection {
   title: string;
   body: string;
   items?: string[];
+  sourceRefs?: AnswerCompositionSourceRef[];
+}
+
+export interface AnswerCompositionSourceRef {
+  sourceId: string;
+  sourceType: string;
+  title: string;
+  fieldPath: string;
+  sourceRevision: string;
 }
 
 export interface AnswerComposition {

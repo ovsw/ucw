@@ -1,5 +1,6 @@
 import type {
   AnswerComposition,
+  AnswerCompositionSourceRef,
   CommitSessionPatchOptions,
   CommitSessionPatchResult,
   GuideSiteStores,
@@ -249,7 +250,9 @@ export function withPromptUnderstandingCandidate(
 
   const retrieval = retrieveGuideSiteFixtureSources(candidate);
   const answerComposition =
-    retrieval.results.length > 0 ? createCanonicalAnswerComposition() : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
+    retrieval.results.length > 0
+      ? createCanonicalAnswerComposition(retrieval)
+      : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
 
   return {
     ...structuredClone(run),
@@ -354,46 +357,78 @@ function createCanonicalUnderstanding(): PromptUnderstanding {
   };
 }
 
-function createCanonicalAnswerComposition(): AnswerComposition {
+function createSourceRef(sourceId: string, retrieval: NonNullable<RunState["retrieval"]>): AnswerCompositionSourceRef | null {
+  const result = retrieval.results.find((candidate) => candidate.sourceId === sourceId);
+  if (!result) {
+    return null;
+  }
+
+  return {
+    sourceId: result.sourceId,
+    sourceType: result.sourceType,
+    title: result.title,
+    fieldPath: result.fieldPath,
+    sourceRevision: result.sourceRevision,
+  };
+}
+
+function createSourceRefs(
+  sourceIds: string[],
+  retrieval: NonNullable<RunState["retrieval"]>,
+): AnswerCompositionSourceRef[] {
+  return sourceIds
+    .map((sourceId) => createSourceRef(sourceId, retrieval))
+    .filter((sourceRef): sourceRef is AnswerCompositionSourceRef => sourceRef !== null);
+}
+
+function createSourceCitationIds(sections: AnswerComposition["sections"]): string[] {
+  return [...new Set(sections.flatMap((section) => section.sourceRefs?.map((sourceRef) => sourceRef.sourceId) ?? []))];
+}
+
+function createCanonicalAnswerComposition(retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
+  const sections: AnswerComposition["sections"] = [
+    {
+      kind: "summary",
+      title: "Known Context",
+      body: "The Parent is asking about overnight camp for an 8-year-old Child.",
+      sourceRefs: createSourceRefs(["program_overnight"], retrieval),
+    },
+    {
+      kind: "fit_status",
+      title: "Fit Status",
+      body: "Fit cannot be assessed honestly yet because prior sleepaway experience and Child Readiness are still unknown.",
+    },
+    {
+      kind: "concerns",
+      title: "Open Concerns",
+      body: "Homesickness and Child Readiness should stay visible as open Concerns.",
+      items: ["homesickness", "child_readiness"],
+      sourceRefs: createSourceRefs(["policy_homesickness", "policy_parent_communication"], retrieval),
+    },
+    {
+      kind: "context_needs",
+      title: "Missing Visitor Context",
+      body: "The next turn should gather prior sleepaway experience and Child Readiness.",
+      items: ["prior_sleepaway_experience", "child_readiness"],
+    },
+    {
+      kind: "suggested_prompts",
+      title: "Suggested Prompts",
+      body: "Controlled prompts gather the missing Visitor Context.",
+      items: ["prompt_prior_sleepaway_experience", "prompt_child_readiness"],
+    },
+    {
+      kind: "diagnostics",
+      title: "Diagnostics",
+      body: "No source-backed Fit recommendation was attempted in this Sprint 1 slice.",
+    },
+  ];
+
   return {
     status: "needs_context",
     conversationalFraming:
       "Age 8 is relevant, but the GuideSite needs more Visitor Context before it can honestly assess Fit.",
-    sections: [
-      {
-        kind: "summary",
-        title: "Known Context",
-        body: "The Parent is asking about overnight camp for an 8-year-old Child.",
-      },
-      {
-        kind: "fit_status",
-        title: "Fit Status",
-        body: "Fit cannot be assessed honestly yet because prior sleepaway experience and Child Readiness are still unknown.",
-      },
-      {
-        kind: "concerns",
-        title: "Open Concerns",
-        body: "Homesickness and Child Readiness should stay visible as open Concerns.",
-        items: ["homesickness", "child_readiness"],
-      },
-      {
-        kind: "context_needs",
-        title: "Missing Visitor Context",
-        body: "The next turn should gather prior sleepaway experience and Child Readiness.",
-        items: ["prior_sleepaway_experience", "child_readiness"],
-      },
-      {
-        kind: "suggested_prompts",
-        title: "Suggested Prompts",
-        body: "Controlled prompts gather the missing Visitor Context.",
-        items: ["prompt_prior_sleepaway_experience", "prompt_child_readiness"],
-      },
-      {
-        kind: "diagnostics",
-        title: "Diagnostics",
-        body: "No source-backed Fit recommendation was attempted in this Sprint 1 slice.",
-      },
-    ],
+    sections,
     suggestedPrompts: [
       {
         id: "prompt_prior_sleepaway_experience",
@@ -412,7 +447,7 @@ function createCanonicalAnswerComposition(): AnswerComposition {
         templateId: "ask_child_readiness",
       },
     ],
-    citations: [],
+    citations: createSourceCitationIds(sections),
     diagnostics: ["needs_visitor_context", "no_fit_recommendation"],
   };
 }
@@ -463,6 +498,41 @@ function createInsufficientSourceAnswerComposition(diagnostics: string[]): Answe
   };
 }
 
+function validateAnswerCompositionSourceRefs(run: RunState): string[] {
+  if (!run.answerComposition) {
+    return [];
+  }
+
+  const diagnostics: string[] = [];
+  const retrievalResultsById = new Map(run.retrieval?.results.map((result) => [result.sourceId, result]) ?? []);
+  const sourceRefs = run.answerComposition.sections.flatMap((section) => section.sourceRefs ?? []);
+
+  for (const sourceRef of sourceRefs) {
+    const retrievalResult = retrievalResultsById.get(sourceRef.sourceId);
+    if (!retrievalResult) {
+      diagnostics.push(`answer_composition_source_ref_${sourceRef.sourceId}_missing_retrieval_result`);
+      continue;
+    }
+
+    if (
+      sourceRef.sourceType !== retrievalResult.sourceType ||
+      sourceRef.title !== retrievalResult.title ||
+      sourceRef.fieldPath !== retrievalResult.fieldPath ||
+      sourceRef.sourceRevision !== retrievalResult.sourceRevision
+    ) {
+      diagnostics.push(`answer_composition_source_ref_${sourceRef.sourceId}_stale_retrieval_result`);
+    }
+  }
+
+  for (const citation of run.answerComposition.citations) {
+    if (!retrievalResultsById.has(citation)) {
+      diagnostics.push(`answer_composition_citation_${citation}_missing_retrieval_result`);
+    }
+  }
+
+  return diagnostics;
+}
+
 export function withHardcodedUnderstandingAndComposition(
   run: RunState,
   options: { now?: () => Date } = {},
@@ -471,6 +541,7 @@ export function withHardcodedUnderstandingAndComposition(
   const isCanonicalPrompt = run.prompt.text === canonicalPromptText;
   const understanding = isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding();
   const validation = validatePromptUnderstanding(understanding);
+  const retrieval = validation.valid ? retrieveGuideSiteFixtureSources(understanding) : null;
 
   return {
     ...structuredClone(run),
@@ -479,8 +550,8 @@ export function withHardcodedUnderstandingAndComposition(
     promptUnderstandingProvider: null,
     understanding,
     promptUnderstandingValidation: validation,
-    retrieval: validation.valid ? retrieveGuideSiteFixtureSources(understanding) : null,
-    answerComposition: isCanonicalPrompt ? createCanonicalAnswerComposition() : createFallbackAnswerComposition(),
+    retrieval,
+    answerComposition: isCanonicalPrompt && retrieval ? createCanonicalAnswerComposition(retrieval) : createFallbackAnswerComposition(),
     patch: null,
     committedSessionState: null,
     diagnostics: isCanonicalPrompt ? [] : ["unknown_prompt_fallback"],
@@ -494,6 +565,11 @@ export function buildHardcodedSessionPatch(run: RunState): SessionPatch {
 
   if (!run.understanding || !run.answerComposition || run.answerComposition.status !== "needs_context") {
     throw new Error("Cannot build hardcoded Session Patch without a needs-context canonical run");
+  }
+
+  const sourceRefDiagnostics = validateAnswerCompositionSourceRefs(run);
+  if (sourceRefDiagnostics.length > 0) {
+    throw new Error(`Cannot build hardcoded Session Patch with unsupported Answer Composition source refs: ${sourceRefDiagnostics.join(", ")}`);
   }
 
   return {
@@ -613,11 +689,31 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     renderRetrievalOperatorOutput(run),
     "Answer Composition:",
     JSON.stringify(run.answerComposition, null, 2),
+    renderAnswerCompositionSourceRefsOperatorOutput(run),
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session State:",
     JSON.stringify(run.committedSessionState, null, 2),
   ].join("\n");
+}
+
+function renderAnswerCompositionSourceRefsOperatorOutput(run: RunState): string {
+  if (!run.answerComposition) {
+    return ["Answer Composition Source Refs:", "null"].join("\n");
+  }
+
+  const sourceRefLines = run.answerComposition.sections.flatMap((section) =>
+    (section.sourceRefs ?? []).flatMap((sourceRef) => [
+      `Section: ${section.title}`,
+      `Source Title: ${sourceRef.title}`,
+      `Source ID: ${sourceRef.sourceId}`,
+      `Source Type: ${sourceRef.sourceType}`,
+      `Field Path: ${sourceRef.fieldPath}`,
+      `Source Revision: ${sourceRef.sourceRevision}`,
+    ]),
+  );
+
+  return ["Answer Composition Source Refs:", ...(sourceRefLines.length > 0 ? sourceRefLines : ["(none)"])].join("\n");
 }
 
 function renderRetrievalOperatorOutput(run: RunState): string {

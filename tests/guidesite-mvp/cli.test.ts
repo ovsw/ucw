@@ -288,6 +288,18 @@ test("GuideSite MVP CLI retrieves canonical fixture sources after validated Prom
     assert.match(output, /Source Revision: mock_rev_program_overnight_001/);
     assert.match(output, /Source ID: policy_homesickness/);
     assert.match(output, /Source ID: policy_parent_communication/);
+    assert.match(output, /Answer Composition Source Refs:/);
+    assert.match(output, /Section: Known Context/);
+    assert.match(output, /Source Title: Overnight Camp Program/);
+    assert.match(output, /Source ID: program_overnight/);
+    assert.match(output, /Source Type: campProgram/);
+    assert.match(output, /Field Path: summary/);
+    assert.match(output, /Source Revision: mock_rev_program_overnight_001/);
+    assert.match(output, /Section: Open Concerns/);
+    assert.match(output, /Source Title: Homesickness Support Policy/);
+    assert.match(output, /Source ID: policy_homesickness/);
+    assert.match(output, /Source Title: Parent Communication Policy/);
+    assert.match(output, /Source ID: policy_parent_communication/);
 
     const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
     assert.equal(savedRun.status, "committed");
@@ -305,6 +317,17 @@ test("GuideSite MVP CLI retrieves canonical fixture sources after validated Prom
     );
     assert.equal(savedRun.retrieval.results[0].fieldPath, "summary");
     assert.equal(savedRun.retrieval.results[0].sourceRevision, "mock_rev_program_overnight_001");
+
+    const retrievalSourceIds = new Set(savedRun.retrieval.results.map((result: { sourceId: string }) => result.sourceId));
+    const sourceRefs = savedRun.answerComposition.sections.flatMap(
+      (section: { sourceRefs?: { sourceId: string }[] }) => section.sourceRefs ?? [],
+    );
+    assert.deepEqual(
+      sourceRefs.map((sourceRef: { sourceId: string }) => sourceRef.sourceId),
+      ["program_overnight", "policy_homesickness", "policy_parent_communication"],
+    );
+    assert.equal(sourceRefs.every((sourceRef: { sourceId: string }) => retrievalSourceIds.has(sourceRef.sourceId)), true);
+    assert.match(JSON.stringify(savedRun.answerComposition, null, 2), /"sourceRefs"/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }
