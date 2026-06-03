@@ -45,6 +45,25 @@ function createEmptySessionState(sessionId: string, timestamp: string): SessionS
   };
 }
 
+export class SessionPatchConflictError extends Error {
+  readonly code = "SESSION_PATCH_CONFLICT";
+  readonly runId: string;
+  readonly sessionId: string;
+  readonly baseRevision: number;
+  readonly liveRevision: number;
+
+  constructor(input: { runId: string; sessionId: string; baseRevision: number; liveRevision: number }) {
+    super(
+      `Session Patch conflict for run ${input.runId} on Session ${input.sessionId}: base revision ${input.baseRevision} does not match live revision ${input.liveRevision}`,
+    );
+    this.name = "SessionPatchConflictError";
+    this.runId = input.runId;
+    this.sessionId = input.sessionId;
+    this.baseRevision = input.baseRevision;
+    this.liveRevision = input.liveRevision;
+  }
+}
+
 export function renderStartRunOperatorOutput(run: RunState): string {
   return [
     "GuideSite Start Run",
@@ -359,9 +378,12 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
   }
 
   if (liveSession.revision !== options.patch.baseRevision) {
-    throw new Error(
-      `Cannot commit Session Patch for run ${options.patch.runId}: base revision ${options.patch.baseRevision} does not match live revision ${liveSession.revision}`,
-    );
+    throw new SessionPatchConflictError({
+      runId: options.patch.runId,
+      sessionId: options.patch.sessionId,
+      baseRevision: options.patch.baseRevision,
+      liveRevision: liveSession.revision,
+    });
   }
 
   const timestamp = (options.now ?? (() => new Date()))().toISOString();

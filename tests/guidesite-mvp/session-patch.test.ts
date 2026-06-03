@@ -5,6 +5,7 @@ import {
   commitSessionPatch,
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
+  SessionPatchConflictError,
   startGuideSiteRun,
   withHardcodedUnderstandingAndComposition,
 } from "../../src/guidesite-mvp/run-lifecycle.js";
@@ -109,4 +110,59 @@ test("duplicate commits for the same run ID do not apply the patch twice", () =>
   assert.equal(secondCommit.applied, false);
   assert.equal(secondCommit.session.revision, 2);
   assert.equal(secondCommit.session.updatedAt, "2026-01-01T00:03:00.000Z");
+});
+
+test("stale-revision commits fail with an explicit conflict and do not partially update Session State", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_conflict",
+    createRunId: () => "run_conflict",
+  });
+  const composedRun = withHardcodedUnderstandingAndComposition(started.run, {
+    now: () => new Date("2026-01-01T00:02:00.000Z"),
+  });
+  const patch = buildHardcodedSessionPatch(composedRun);
+  const concurrentSession = stores.sessions.update({
+    ...started.session,
+    revision: 2,
+    updatedAt: "2026-01-01T00:02:30.000Z",
+    visitorFacts: {
+      camp_budget: {
+        value: "under_1000",
+        source: "explicit",
+        sourceRunId: "run_concurrent",
+        status: "active",
+      },
+    },
+    summary: "Concurrent session update.",
+  });
+
+  assert.throws(
+    () =>
+      commitSessionPatch({
+        stores,
+        run: composedRun,
+        patch,
+        now: () => new Date("2026-01-01T00:03:00.000Z"),
+      }),
+    (error) => {
+      assert.ok(error instanceof SessionPatchConflictError);
+      assert.equal(error.code, "SESSION_PATCH_CONFLICT");
+      assert.equal(error.runId, "run_conflict");
+      assert.equal(error.sessionId, "session_conflict");
+      assert.equal(error.baseRevision, 1);
+      assert.equal(error.liveRevision, 2);
+      assert.match(error.message, /Session Patch conflict/);
+      assert.match(error.message, /run run_conflict/);
+      assert.match(error.message, /base revision 1/);
+      assert.match(error.message, /live revision 2/);
+      return true;
+    },
+  );
+
+  assert.deepEqual(stores.sessions.read("session_conflict"), concurrentSession);
+  assert.equal(stores.sessions.hasCommittedRun("run_conflict"), false);
 });
