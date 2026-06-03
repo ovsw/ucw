@@ -1,0 +1,213 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { createGuideSiteMemoryStores } from "../../src/guidesite-mvp/run-lifecycle.js";
+import { createGuideSiteFileRunStore } from "../../src/guidesite-mvp/run-store.js";
+import { runGuideSiteMvpTurn } from "../../src/guidesite-mvp/turn.js";
+import type { PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
+import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
+
+const canonicalPrompt = "Is overnight camp right for my 8-year-old?";
+
+const canonicalUnderstanding: PromptUnderstanding = {
+  goal: "assess_fit",
+  promptType: "fit",
+  fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+  facts: {
+    child_age: {
+      value: 8,
+      provenance: {
+        source: "explicit",
+        promptText: "8-year-old",
+      },
+    },
+  },
+  concerns: [
+    {
+      key: "homesickness",
+      label: "Homesickness",
+      status: "open",
+      provenance: "implied",
+    },
+    {
+      key: "child_readiness",
+      label: "Child Readiness",
+      status: "open",
+      provenance: "implied",
+    },
+  ],
+  retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+  contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+};
+
+function createFakePromptUnderstandingProvider(
+  understanding: PromptUnderstanding = canonicalUnderstanding,
+): PromptUnderstandingProvider {
+  return {
+    async understandPrompt() {
+      return {
+        understanding,
+        trace: {
+          provider: "fake",
+          model: "fake-guidesite-prompt-understanding",
+          rawOutput: JSON.stringify(understanding),
+          parsedOutput: understanding,
+          diagnostics: [],
+        },
+      };
+    },
+  };
+}
+
+test("GuideSite turn commits the canonical Prompt into inspectable Run State", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: canonicalPrompt,
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_canonical",
+      createRunId: () => "run_turn_canonical",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+    });
+
+    assert.equal(run.status, "committed");
+    assert.equal(run.runId, "run_turn_canonical");
+    assert.equal(run.promptUnderstandingProvider?.provider, "fake");
+    assert.equal(run.promptUnderstandingValidation?.valid, true);
+    assert.equal(run.retrieval?.coverage.status, "source_backed");
+    assert.equal(run.answerComposition?.status, "needs_context");
+    assert.ok(run.patch);
+    assert.ok(run.committedSessionState);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_canonical.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "committed");
+    assert.equal(savedRun.committedSessionState?.revision, 2);
+    assert.equal(savedRun.patch?.baseRevision, 1);
+    assert.deepEqual(savedRun.diagnostics, []);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn preserves provider failures as inspectable Run State", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: "Can you plan my whole summer?",
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_failure",
+      createRunId: () => "run_turn_failure",
+      promptUnderstandingProvider: {
+        async understandPrompt() {
+          throw new Error("provider unavailable");
+        },
+      },
+    });
+
+    assert.equal(run.status, "prompt_understanding_failed");
+    assert.equal(run.answerComposition, null);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.diagnostics, ["prompt_understanding_provider_failed: Prompt Understanding provider failed: provider unavailable"]);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_failure.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "prompt_understanding_failed");
+    assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn preserves invalid Prompt Understanding diagnostics without composition or commit", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: canonicalPrompt,
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_invalid",
+      createRunId: () => "run_turn_invalid",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider({
+        goal: "unknown",
+        promptType: "unknown",
+        fitQuestion: null,
+        facts: {},
+        concerns: [],
+        retrievalNeeds: [],
+        contextNeeds: [],
+      }),
+    });
+
+    assert.equal(run.status, "validation_failed");
+    assert.equal(run.understanding, null);
+    assert.equal(run.answerComposition, null);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.diagnostics, [
+      "prompt_understanding_goal_required",
+      "prompt_understanding_prompt_type_required",
+    ]);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_invalid.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "validation_failed");
+    assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn preserves insufficient source material as fallback Run State", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: "Do you offer camp bus pickup?",
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_empty_retrieval",
+      createRunId: () => "run_turn_empty_retrieval",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider({
+        ...canonicalUnderstanding,
+        concerns: [
+          {
+            key: "transportation",
+            label: "Transportation",
+            status: "open",
+            provenance: "explicit",
+          },
+        ],
+        retrievalNeeds: ["bus_schedule"],
+        contextNeeds: ["pickup_location"],
+      }),
+    });
+
+    assert.equal(run.status, "fallback");
+    assert.equal(run.answerComposition?.status, "fallback");
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.diagnostics, [
+      "insufficient_fixture_sources: no approved fixture sources matched retrieval needs bus_schedule or concerns transportation",
+    ]);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_empty_retrieval.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "fallback");
+    assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});

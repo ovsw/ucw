@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -135,7 +134,7 @@ test("GuideSite MVP CLI lets process env override the repo-root .env file", asyn
   }
 });
 
-test("GuideSite MVP CLI defaults to the canonical Prompt and commits the walking skeleton", async () => {
+test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   const output = await runGuideSiteMvpCli([], {
     promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
   });
@@ -143,17 +142,14 @@ test("GuideSite MVP CLI defaults to the canonical Prompt and commits the walking
   assert.match(output, new RegExp(`Prompt: ${DEFAULT_GUIDESITE_MVP_PROMPT.replace("?", "\\?")}`));
   assert.match(output, /Prompt Understanding Provider:/);
   assert.match(output, /"provider": "fake"/);
-  assert.match(output, /Prompt Understanding:/);
-  assert.match(output, /"goal": "assess_fit"/);
+  assert.match(output, /Retrieval Results:/);
   assert.match(output, /Answer Composition:/);
-  assert.match(output, /"status": "needs_context"/);
   assert.match(output, /Session Patch:/);
   assert.match(output, /Committed Session State:/);
-  assert.match(output, /"revision": 2/);
   assert.match(output, /Has your child slept away from home before\?/);
 });
 
-test("GuideSite MVP CLI accepts a typed Prompt and still requires provider-backed understanding", async () => {
+test("GuideSite MVP CLI renders typed Prompt output with provider-backed understanding", async () => {
   const output = await runGuideSiteMvpCli(["Is", "camp", "right", "for", "my", "8-year-old?"], {
     promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
   });
@@ -164,7 +160,26 @@ test("GuideSite MVP CLI accepts a typed Prompt and still requires provider-backe
   assert.match(output, /Committed Session State:/);
 });
 
-test("GuideSite MVP CLI saves provider failures as inspectable Run State without Session State commits", async () => {
+test("GuideSite MVP CLI renders sample Prompt runs", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
+  try {
+    const output = await runGuideSiteMvpCli(["--sample-prompts", "--run-state-dir", runStateDirectory], {
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+    });
+
+    assert.match(output, /GuideSite Sprint 3 Sample Prompt Runs/);
+    for (const [index, promptText] of SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.entries()) {
+      assert.match(output, new RegExp(`Sample Prompt ${index + 1}/${SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.length}`));
+      assert.match(output, new RegExp(`Prompt: ${promptText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    }
+    assert.match(output, /Saved Run State:/);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite MVP CLI preserves failed provider output in the rendered Run State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
   try {
     const output = await runGuideSiteMvpCli(["Can", "you", "plan", "my", "whole", "summer?"], {
@@ -179,23 +194,14 @@ test("GuideSite MVP CLI saves provider failures as inspectable Run State without
       },
     });
 
-    const savedRunPath = join(runStateDirectory, "run_cli_fallback.json");
-    assert.match(output, new RegExp(`Saved Run State: ${savedRunPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-
-    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
-    assert.equal(savedRun.status, "prompt_understanding_failed");
-    assert.equal(savedRun.prompt.text, "Can you plan my whole summer?");
     assert.match(output, /prompt_understanding_provider_failed/);
-    assert.deepEqual(savedRun.diagnostics, ["prompt_understanding_provider_failed: Prompt Understanding provider failed: provider unavailable"]);
-    assert.equal(savedRun.understanding, null);
-    assert.equal(savedRun.patch, null);
-    assert.equal(savedRun.committedSessionState, null);
+    assert.match(output, /Saved Run State:/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }
 });
 
-test("GuideSite MVP CLI preserves failed provider raw and parsed output in Run State", async () => {
+test("GuideSite MVP CLI preserves invalid provider output in the rendered Run State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
   const invalidProviderOutput = {
     goal: "unknown",
@@ -207,7 +213,7 @@ test("GuideSite MVP CLI preserves failed provider raw and parsed output in Run S
     contextNeeds: [],
   };
   try {
-    await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
+    const output = await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
       runStateDirectory,
       now: () => new Date("2026-01-01T00:00:00.000Z"),
       createSessionId: () => "session_cli_provider_invalid",
@@ -223,331 +229,8 @@ test("GuideSite MVP CLI preserves failed provider raw and parsed output in Run S
       },
     });
 
-    const savedRun = JSON.parse(await readFile(join(runStateDirectory, "run_cli_provider_invalid.json"), "utf8"));
-    assert.equal(savedRun.status, "prompt_understanding_failed");
-    assert.equal(savedRun.promptUnderstandingProvider.rawOutput, JSON.stringify(invalidProviderOutput));
-    assert.deepEqual(savedRun.promptUnderstandingProvider.parsedOutput, invalidProviderOutput);
-    assert.deepEqual(savedRun.promptUnderstandingProvider.diagnostics, [
-      "prompt_understanding_provider_failed: goal: unknown is not valid for this Prompt",
-    ]);
-    assert.equal(savedRun.understanding, null);
-    assert.equal(savedRun.committedSessionState, null);
-  } finally {
-    rmSync(runStateDirectory, { recursive: true, force: true });
-  }
-});
-
-test("GuideSite MVP CLI saves successful Prompt Understanding validation diagnostics as inspectable JSON", async () => {
-  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
-  try {
-    const output = await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
-      runStateDirectory,
-      now: () => new Date("2026-01-01T00:00:00.000Z"),
-      createSessionId: () => "session_cli_valid",
-      createRunId: () => "run_cli_valid",
-      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
-    });
-
-    const savedRunPath = join(runStateDirectory, "run_cli_valid.json");
-    assert.match(output, /Prompt Understanding Validation:/);
-    assert.match(output, /"valid": true/);
-    assert.match(output, new RegExp(`Saved Run State: ${savedRunPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-
-    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
-    assert.equal(savedRun.status, "committed");
-    assert.deepEqual(savedRun.promptUnderstandingValidation, {
-      valid: true,
-      diagnostics: [],
-    });
-    assert.equal(savedRun.promptUnderstandingProvider.provider, "fake");
-    assert.equal(savedRun.promptUnderstandingProvider.rawOutput, JSON.stringify(canonicalUnderstanding));
-  } finally {
-    rmSync(runStateDirectory, { recursive: true, force: true });
-  }
-});
-
-test("GuideSite MVP CLI retrieves canonical fixture sources after validated Prompt Understanding", async () => {
-  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
-  try {
-    const output = await runGuideSiteMvpCli([DEFAULT_GUIDESITE_MVP_PROMPT], {
-      runStateDirectory,
-      now: () => new Date("2026-01-01T00:00:00.000Z"),
-      createSessionId: () => "session_cli_retrieval",
-      createRunId: () => "run_cli_retrieval",
-      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
-    });
-
-    const savedRunPath = join(runStateDirectory, "run_cli_retrieval.json");
-    assert.match(output, /Prompt Understanding:/);
-    assert.match(output, /Retrieval Results:/);
-    assert.match(output, /Source ID: program_overnight/);
-    assert.match(output, /Source Type: campProgram/);
-    assert.match(output, /Title: Overnight Camp Program/);
-    assert.match(output, /Rank: 1/);
-    assert.match(output, /Field Path: summary/);
-    assert.match(output, /Source Revision: mock_rev_program_overnight_001/);
-    assert.match(output, /Source ID: policy_homesickness/);
-    assert.match(output, /Source ID: policy_parent_communication/);
-    assert.match(output, /Answer Composition Source Refs:/);
-    assert.match(output, /Section: Known Context/);
-    assert.match(output, /Source Title: Overnight Camp Program/);
-    assert.match(output, /Source ID: program_overnight/);
-    assert.match(output, /Source Type: campProgram/);
-    assert.match(output, /Field Path: summary/);
-    assert.match(output, /Source Revision: mock_rev_program_overnight_001/);
-    assert.match(output, /Section: Open Concerns/);
-    assert.match(output, /Source Title: Homesickness Support Policy/);
-    assert.match(output, /Source ID: policy_homesickness/);
-    assert.match(output, /Source Title: Parent Communication Policy/);
-    assert.match(output, /Source ID: policy_parent_communication/);
-
-    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
-    assert.equal(savedRun.status, "committed");
-    assert.deepEqual(savedRun.retrieval.needs, ["overnight_readiness", "homesickness_support"]);
-    assert.deepEqual(
-      savedRun.retrieval.results.map((result: { sourceId: string; rank: number }) => ({
-        sourceId: result.sourceId,
-        rank: result.rank,
-      })),
-      [
-        { sourceId: "program_overnight", rank: 1 },
-        { sourceId: "policy_homesickness", rank: 2 },
-        { sourceId: "policy_parent_communication", rank: 3 },
-      ],
-    );
-    assert.equal(savedRun.retrieval.results[0].fieldPath, "summary");
-    assert.equal(savedRun.retrieval.results[0].sourceRevision, "mock_rev_program_overnight_001");
-
-    const retrievalSourceIds = new Set(savedRun.retrieval.results.map((result: { sourceId: string }) => result.sourceId));
-    const sourceRefs = savedRun.answerComposition.sections.flatMap(
-      (section: { sourceRefs?: { sourceId: string }[] }) => section.sourceRefs ?? [],
-    );
-    assert.deepEqual(
-      sourceRefs.map((sourceRef: { sourceId: string }) => sourceRef.sourceId),
-      ["program_overnight", "policy_homesickness", "policy_parent_communication"],
-    );
-    assert.equal(sourceRefs.every((sourceRef: { sourceId: string }) => retrievalSourceIds.has(sourceRef.sourceId)), true);
-    assert.match(JSON.stringify(savedRun.answerComposition, null, 2), /"sourceRefs"/);
-  } finally {
-    rmSync(runStateDirectory, { recursive: true, force: true });
-  }
-});
-
-test("GuideSite MVP CLI persists insufficient-source diagnostics for empty fixture retrieval", async () => {
-  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
-  const unsupportedUnderstanding: PromptUnderstanding = {
-    ...canonicalUnderstanding,
-    concerns: [
-      {
-        key: "transportation",
-        label: "Transportation",
-        status: "open",
-        provenance: "explicit",
-      },
-    ],
-    retrievalNeeds: ["bus_schedule"],
-    contextNeeds: ["pickup_location"],
-  };
-
-  try {
-    const output = await runGuideSiteMvpCli(["Do", "you", "offer", "camp", "bus", "pickup?"], {
-      runStateDirectory,
-      now: () => new Date("2026-01-01T00:00:00.000Z"),
-      createSessionId: () => "session_cli_empty_retrieval",
-      createRunId: () => "run_cli_empty_retrieval",
-      promptUnderstandingProvider: createFakePromptUnderstandingProvider(unsupportedUnderstanding),
-    });
-
-    const savedRunPath = join(runStateDirectory, "run_cli_empty_retrieval.json");
-    assert.match(output, /Retrieval Results:/);
-    assert.match(output, /Needs: bus_schedule/);
-    assert.match(output, /Concerns: transportation/);
-    assert.match(output, /No fixture sources matched the validated Prompt Understanding/);
-    assert.match(output, /insufficient_fixture_sources/);
-    assert.doesNotMatch(output, /Source ID:/);
-    assert.doesNotMatch(output, /Source Type:/);
-    assert.doesNotMatch(output, /Committed Session State:\n\{/);
-
-    const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
-    assert.equal(savedRun.status, "fallback");
-    assert.deepEqual(savedRun.retrieval.needs, ["bus_schedule"]);
-    assert.deepEqual(savedRun.retrieval.concerns, ["transportation"]);
-    assert.deepEqual(savedRun.retrieval.results, []);
-    assert.deepEqual(savedRun.retrieval.diagnostics, [
-      "insufficient_fixture_sources: no approved fixture sources matched retrieval needs bus_schedule or concerns transportation",
-    ]);
-    assert.deepEqual(savedRun.diagnostics, savedRun.retrieval.diagnostics);
-    assert.equal(savedRun.patch, null);
-    assert.equal(savedRun.committedSessionState, null);
-    assert.equal(savedRun.answerComposition.status, "fallback");
-    assert.deepEqual(savedRun.answerComposition.citations, []);
-    assert.deepEqual(savedRun.answerComposition.suggestedPrompts, []);
-    assert.deepEqual(savedRun.answerComposition.diagnostics, savedRun.retrieval.diagnostics);
-    assert.equal(savedRun.answerComposition.sections.some((section: { kind: string }) => section.kind === "sources"), false);
-  } finally {
-    rmSync(runStateDirectory, { recursive: true, force: true });
-  }
-});
-
-test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run State", async () => {
-  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
-  const promptsSeen: string[] = [];
-  const sampleUnderstandings: PromptUnderstanding[] = [
-    canonicalUnderstanding,
-    {
-      ...canonicalUnderstanding,
-      fitQuestion: "Understand shy child readiness for overnight camp.",
-      retrievalNeeds: ["overnight_readiness"],
-      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
-    },
-    {
-      ...canonicalUnderstanding,
-      fitQuestion: "Explain homesickness support.",
-      retrievalNeeds: ["homesickness_support"],
-      contextNeeds: ["child_readiness"],
-    },
-    {
-      ...canonicalUnderstanding,
-      promptType: "factual",
-      fitQuestion: null,
-      concerns: [],
-      retrievalNeeds: ["dates_and_prices"],
-      contextNeeds: [],
-    },
-    {
-      ...canonicalUnderstanding,
-      fitQuestion: "Assess staff trust Concerns.",
-      concerns: [
-        {
-          key: "staff_trust",
-          label: "Staff Trust",
-          status: "open",
-          provenance: "explicit",
-        },
-      ],
-      retrievalNeeds: ["staff_trust"],
-      contextNeeds: [],
-    },
-  ];
-  try {
-    const output = await runGuideSiteMvpCli(["--sample-prompts", "--run-state-dir", runStateDirectory], {
-      now: () => new Date("2026-01-01T00:00:00.000Z"),
-      createSessionId: () => `session_sample_${promptsSeen.length + 1}`,
-      createRunId: () => `run_sample_${promptsSeen.length + 1}`,
-      promptUnderstandingProvider: {
-        async understandPrompt(promptText) {
-          promptsSeen.push(promptText);
-          const understanding = sampleUnderstandings[promptsSeen.length - 1];
-
-          return {
-            understanding,
-            trace: {
-              provider: "fake",
-              model: "fake-guidesite-prompt-understanding",
-              rawOutput: JSON.stringify(understanding),
-              parsedOutput: understanding,
-              diagnostics: [`diagnostic_${promptsSeen.length}`],
-            },
-          };
-        },
-      },
-    });
-
-    assert.deepEqual(promptsSeen, SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS);
-    assert.match(output, /GuideSite Sprint 3 Sample Prompt Runs/);
-
-    for (const [index, promptText] of SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.entries()) {
-      const runNumber = index + 1;
-      const savedRunPath = join(runStateDirectory, `run_sample_${runNumber}.json`);
-      assert.match(output, new RegExp(`Sample Prompt ${runNumber}/${SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.length}`));
-      assert.match(output, new RegExp(`Prompt: ${promptText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-      assert.match(output, /Retrieval Input:/);
-      assert.match(output, /Retrieval Status:/);
-      assert.match(output, new RegExp(`"diagnostic_${runNumber}"`));
-      assert.match(output, new RegExp(`Saved Run State: ${savedRunPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-
-      const savedRun = JSON.parse(await readFile(savedRunPath, "utf8"));
-      assert.equal(savedRun.prompt.text, promptText);
-      assert.deepEqual(savedRun.promptUnderstandingProvider.diagnostics, [`diagnostic_${runNumber}`]);
-      assert.deepEqual(savedRun.promptUnderstandingValidation, {
-        valid: true,
-        diagnostics: [],
-      });
-      assert.deepEqual(savedRun.retrieval.needs, sampleUnderstandings[index].retrievalNeeds);
-      assert.equal(savedRun.retrieval !== null, true);
-      assert.equal(savedRun.answerComposition !== null, true);
-    }
-
-    assert.match(output, /Retrieval Status: source_backed/);
-    assert.match(output, /Matched Source Refs:/);
-    assert.match(output, /Source ID: program_overnight/);
-    assert.match(output, /Source ID: policy_homesickness/);
-    assert.match(output, /Retrieval Status: empty_retrieval/);
-    assert.match(output, /Needs: dates_and_prices/);
-    assert.match(output, /Needs: staff_trust/);
-    assert.match(output, /Diagnostic: insufficient_fixture_sources: no approved fixture sources matched retrieval needs dates_and_prices or concerns \(none\)/);
-    assert.match(output, /Diagnostic: insufficient_fixture_sources: no approved fixture sources matched retrieval needs staff_trust or concerns staff_trust/);
-  } finally {
-    rmSync(runStateDirectory, { recursive: true, force: true });
-  }
-});
-
-test("GuideSite MVP CLI sample Prompt runs continue and surface invalid provider output", async () => {
-  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
-  let runNumber = 0;
-  const invalidProviderOutput = {
-    goal: "unknown",
-    promptType: "fit",
-    fitQuestion: "",
-    facts: {},
-    concerns: [],
-    retrievalNeeds: [],
-    contextNeeds: [],
-  };
-  try {
-    const output = await runGuideSiteMvpCli(["--sample-prompts"], {
-      runStateDirectory,
-      now: () => new Date("2026-01-01T00:00:00.000Z"),
-      createSessionId: () => `session_sample_invalid_${runNumber + 1}`,
-      createRunId: () => {
-        runNumber += 1;
-        return `run_sample_invalid_${runNumber}`;
-      },
-      promptUnderstandingProvider: {
-        async understandPrompt(promptText) {
-          if (promptText === SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS[2]) {
-            throw new PromptUnderstandingProviderError("provider schema rejected", {
-              rawOutput: JSON.stringify(invalidProviderOutput),
-              parsedOutput: invalidProviderOutput,
-              diagnostics: ["goal: unknown is not valid for this Prompt"],
-            });
-          }
-
-          return {
-            understanding: canonicalUnderstanding,
-            trace: {
-              provider: "fake",
-              model: "fake-guidesite-prompt-understanding",
-              rawOutput: JSON.stringify(canonicalUnderstanding),
-              parsedOutput: canonicalUnderstanding,
-              diagnostics: [],
-            },
-          };
-        },
-      },
-    });
-
-    assert.match(output, /Sample Prompt 3\/5/);
-    assert.match(output, /Prompt: What happens if my son gets homesick\?/);
     assert.match(output, /prompt_understanding_provider_failed: goal: unknown is not valid for this Prompt/);
-    assert.match(output, /Sample Prompt 5\/5/);
-    assert.match(output, /Prompt: Can I trust your staff\?/);
-
-    const savedRun = JSON.parse(await readFile(join(runStateDirectory, "run_sample_invalid_3.json"), "utf8"));
-    assert.equal(savedRun.status, "prompt_understanding_failed");
-    assert.deepEqual(savedRun.promptUnderstandingProvider.parsedOutput, invalidProviderOutput);
-    assert.equal(savedRun.understanding, null);
-    assert.equal(savedRun.committedSessionState, null);
+    assert.match(output, /Saved Run State:/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

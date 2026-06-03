@@ -1,11 +1,7 @@
 import { pathToFileURL } from "node:url";
 import {
-  buildHardcodedSessionPatch,
-  commitSessionPatch,
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
-  startGuideSiteRun,
-  withProviderBackedUnderstandingAndComposition,
 } from "./run-lifecycle.js";
 import { createGuideSiteFileRunStore } from "./run-store.js";
 import {
@@ -15,6 +11,7 @@ import {
   type PromptUnderstandingProvider,
 } from "./openai-prompt-understanding.js";
 import { mergeGuideSiteMvpOpenAIEnv } from "./env.js";
+import { runGuideSiteMvpTurn } from "./turn.js";
 
 export const DEFAULT_GUIDESITE_MVP_PROMPT = "Is overnight camp right for my 8-year-old?";
 export const SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS = [
@@ -92,33 +89,19 @@ async function runSingleGuideSiteMvpPrompt(
     runStateDirectory
       ? {
           runs: createGuideSiteFileRunStore(runStateDirectory),
-        }
+      }
       : undefined,
   );
-  const started = startGuideSiteRun({
+  const run = await runGuideSiteMvpTurn({
     promptText,
     stores,
+    promptUnderstandingProvider,
     now: options.now,
     createSessionId: options.createSessionId,
     createRunId: options.createRunId,
   });
-  const composedRun = stores.runs.update(
-    await withProviderBackedUnderstandingAndComposition(started.run, promptUnderstandingProvider, { now: options.now }),
-  );
 
-  if (composedRun.answerComposition?.status !== "needs_context") {
-    return renderGuideSiteMvpCliOutput(composedRun, stores.runs.inspect?.(composedRun.runId)?.path);
-  }
-
-  const patch = buildHardcodedSessionPatch(composedRun);
-  const committed = commitSessionPatch({
-    stores,
-    run: composedRun,
-    patch,
-    now: options.now,
-  });
-
-  return renderGuideSiteMvpCliOutput(committed.run, stores.runs.inspect?.(committed.run.runId)?.path);
+  return renderGuideSiteMvpCliOutput(run, stores.runs.inspect?.(run.runId)?.path);
 }
 
 export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): Promise<string> {
