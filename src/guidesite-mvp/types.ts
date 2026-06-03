@@ -1,5 +1,5 @@
 export type SessionStatus = "active";
-export type RunStatus = "started";
+export type RunStatus = "started" | "composed" | "fallback";
 export type PromptSource = "typed" | "suggested_prompt";
 export type VisitorFactSource = "explicit" | "inferred";
 export type VisitorFactStatus = "active" | "superseded" | "disputed";
@@ -40,6 +40,57 @@ export interface SuggestedPrompt {
   templateId: string;
 }
 
+export interface PromptUnderstandingFact {
+  value: string | number | boolean;
+  provenance: {
+    source: VisitorFactSource;
+    promptText: string;
+  };
+}
+
+export interface PromptUnderstandingConcern {
+  key: string;
+  label: string;
+  status: ConcernStatus;
+  provenance: "explicit" | "implied";
+}
+
+export interface PromptUnderstanding {
+  goal: FocusGoal | "unknown";
+  promptType: "fit" | "factual" | "unknown";
+  fitQuestion: string | null;
+  facts: Record<string, PromptUnderstandingFact>;
+  concerns: PromptUnderstandingConcern[];
+  retrievalNeeds: string[];
+  contextNeeds: string[];
+}
+
+export type AnswerCompositionStatus = "needs_context" | "fallback";
+export type AnswerSectionKind =
+  | "summary"
+  | "fit_status"
+  | "concerns"
+  | "context_needs"
+  | "suggested_prompts"
+  | "sources"
+  | "diagnostics";
+
+export interface AnswerCompositionSection {
+  kind: AnswerSectionKind;
+  title: string;
+  body: string;
+  items?: string[];
+}
+
+export interface AnswerComposition {
+  status: AnswerCompositionStatus;
+  conversationalFraming: string;
+  sections: AnswerCompositionSection[];
+  suggestedPrompts: SuggestedPrompt[];
+  citations: string[];
+  diagnostics: string[];
+}
+
 export interface SessionState {
   schemaVersion: 1;
   sessionId: string;
@@ -70,6 +121,8 @@ export interface RunState {
   updatedAt: string;
   prompt: RunPrompt;
   snapshot: SessionState;
+  understanding: PromptUnderstanding | null;
+  answerComposition: AnswerComposition | null;
   diagnostics: string[];
 }
 
