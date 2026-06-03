@@ -189,6 +189,10 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
     assert.match(output, /Session Revision: 1/);
     assert.match(output, /Session Revision: 2/);
     assert.match(output, /Base Revision: 2/);
+    assert.match(
+      output,
+      /Body: The Parent is asking whether overnight camp is right for an 8-year-old Child\. The Child has prior sleepaway experience with grandparents\./,
+    );
     assert.match(output, /"sourceRunId": "run_multi_turn_1"/);
     assert.match(output, /"sourceRunId": "run_multi_turn_2"/);
 
@@ -199,7 +203,21 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
     };
     const turn2Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_2.json"), "utf8")) as {
       baseSessionRevision: number;
-      committedSessionState: { revision: number } | null;
+      committedSessionState: {
+        revision: number;
+        visitorFacts: {
+          prior_sleepaway_experience?: {
+            value: string;
+            source: string;
+            sourceRunId: string;
+            status: string;
+          };
+        };
+        focus: {
+          contextNeeds: string[];
+        };
+        suggestedPrompts: Array<{ id: string }>;
+      } | null;
       snapshot: { revision: number };
     };
 
@@ -208,6 +226,11 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
     assert.equal(turn2Run.baseSessionRevision, 2);
     assert.equal(turn2Run.snapshot.revision, 2);
     assert.equal(turn2Run.committedSessionState?.revision, 3);
+    assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.value, "slept_with_grandparents");
+    assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.sourceRunId, "run_multi_turn_2");
+    assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.status, "active");
+    assert.deepEqual(turn2Run.committedSessionState?.focus.contextNeeds, ["child_readiness"]);
+    assert.deepEqual(turn2Run.committedSessionState?.suggestedPrompts.map((prompt) => prompt.id), ["prompt_child_readiness"]);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

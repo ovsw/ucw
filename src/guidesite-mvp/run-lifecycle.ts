@@ -448,8 +448,17 @@ function getIndefiniteArticleForAge(age: number): "a" | "an" {
 
 function createNeedContextSummary(run: RunState): string {
   const childAge = run.understanding?.facts.child_age?.value;
+  const priorSleepawayExperience = run.understanding?.facts.prior_sleepaway_experience?.value;
   if (typeof childAge === "number") {
-    return `The Parent is asking whether overnight camp is right for ${getIndefiniteArticleForAge(childAge)} ${childAge}-year-old Child.`;
+    const summary = `The Parent is asking whether overnight camp is right for ${getIndefiniteArticleForAge(childAge)} ${childAge}-year-old Child.`;
+    if (typeof priorSleepawayExperience === "string") {
+      return `${summary} The Child has prior sleepaway experience with grandparents.`;
+    }
+    if (priorSleepawayExperience !== undefined) {
+      return `${summary} The Child has prior sleepaway experience.`;
+    }
+
+    return summary;
   }
 
   return `The Parent is asking whether overnight camp is right for this Child: ${run.prompt.text}`;
