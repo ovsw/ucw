@@ -46,7 +46,11 @@ function createSessionSummary(run: RunState): string {
 
 function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
   const understanding = run.understanding;
+  const answerComposition = run.answerComposition;
   if (!understanding) {
+    return [];
+  }
+  if (!answerComposition) {
     return [];
   }
 
@@ -82,7 +86,7 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
     },
     {
       type: "replaceSuggestedPrompts",
-      suggestedPrompts: run.answerComposition?.suggestedPrompts ?? [],
+      suggestedPrompts: answerComposition.suggestedPrompts,
     },
     {
       type: "updateSummary",
@@ -92,15 +96,11 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
 }
 
 export function buildSessionPatchFromValidatedRun(run: RunState): SessionPatch {
-  if (!run.promptUnderstandingValidation?.valid) {
+  if (!run.promptUnderstandingValidation?.valid || !run.understanding) {
     throw new Error("Cannot build Session Patch without validated Prompt Understanding");
   }
 
-  if (!run.understanding) {
-    throw new Error("Cannot build Session Patch without validated Prompt Understanding");
-  }
-
-  if (!run.answerComposition || run.answerComposition.status !== "needs_context") {
+  if (run.answerComposition?.status !== "needs_context") {
     throw new Error("Cannot build Session Patch without a patchable Answer Composition");
   }
 
@@ -115,8 +115,4 @@ export function buildSessionPatchFromValidatedRun(run: RunState): SessionPatch {
     baseRevision: run.baseSessionRevision,
     operations: createSessionPatchOperations(run),
   };
-}
-
-export function buildHardcodedSessionPatch(run: RunState): SessionPatch {
-  return buildSessionPatchFromValidatedRun(run);
 }
