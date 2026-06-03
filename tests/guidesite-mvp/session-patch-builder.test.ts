@@ -197,6 +197,59 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
   ]);
 });
 
+test("Session Patch builder marks source-backed homesickness answers as addressed", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: "What happens if my child gets homesick?",
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_patch_builder_homesickness",
+    createRunId: () => "run_patch_builder_homesickness",
+  });
+  const run = withPromptUnderstandingCandidate(
+    started.run,
+    {
+      goal: "address_concern",
+      promptType: "factual",
+      fitQuestion: null,
+      facts: {},
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "explicit",
+        },
+      ],
+      retrievalNeeds: ["homesickness_support"],
+      contextNeeds: [],
+    },
+    { now: () => new Date("2026-01-01T00:02:00.000Z") },
+  );
+
+  assert.equal(run.status, "composed");
+  assert.equal(run.answerComposition?.status, "answered");
+
+  const patch = buildSessionPatchFromValidatedRun(run);
+  const committed = commitSessionPatch({
+    stores,
+    run,
+    patch,
+    now: () => new Date("2026-01-01T00:03:00.000Z"),
+  });
+
+  assert.deepEqual(
+    patch.operations.map((operation) => operation.type),
+    ["upsertConcern", "setFocus", "replaceSuggestedPrompts", "updateSummary"],
+  );
+  assert.deepEqual(committed.session.concerns, {
+    homesickness: {
+      status: "addressed",
+      sourceRunIds: ["run_patch_builder_homesickness"],
+    },
+  });
+});
+
 test("Session Patch builder rejects unvalidated Suggested Prompts even when invoked directly", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({

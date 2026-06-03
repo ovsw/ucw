@@ -10,6 +10,18 @@ function createSessionSummary(run: RunState): string {
   return run.answerComposition?.conversationalFraming ?? run.prompt.text;
 }
 
+function createAddressedConcernKeys(run: RunState): Set<string> {
+  if (run.answerComposition?.status !== "answered") {
+    return new Set();
+  }
+
+  return new Set(
+    run.answerComposition.sections.flatMap((section) =>
+      section.kind === "concerns" ? section.items ?? [] : [],
+    ),
+  );
+}
+
 function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
   const understanding = run.understanding;
   const answerComposition = run.answerComposition;
@@ -20,6 +32,7 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
     return [];
   }
 
+  const addressedConcernKeys = createAddressedConcernKeys(run);
   const factOperations = Object.entries(understanding.facts).map(([key, fact]) => ({
     type: "upsertFact" as const,
     key,
@@ -35,7 +48,7 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
     type: "upsertConcern" as const,
     key: concern.key,
     concern: {
-      status: concern.status,
+      status: addressedConcernKeys.has(concern.key) ? "addressed" : concern.status,
       sourceRunIds: [run.runId],
     },
   }));
@@ -66,7 +79,7 @@ export function buildSessionPatchFromValidatedRun(run: RunState): SessionPatch {
     throw new Error("Cannot build Session Patch without validated Prompt Understanding");
   }
 
-  if (run.answerComposition?.status !== "needs_context") {
+  if (run.answerComposition?.status !== "needs_context" && run.answerComposition?.status !== "answered") {
     throw new Error("Cannot build Session Patch without a patchable Answer Composition");
   }
 

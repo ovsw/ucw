@@ -279,7 +279,8 @@ test("GuideSite MVP CLI renders a source-backed homesickness Concern answer", as
   assert.match(output, /Source ID: policy_homesickness/);
   assert.match(output, /Source ID: policy_parent_communication/);
   assert.match(output, /Raw Answer Composition JSON:/);
-  assert.match(output, /Committed Session State:\nnull/);
+  assert.match(output, /Committed Session State:/);
+  assert.match(output, /"homesickness": {\n\s+"status": "addressed"/);
 });
 
 test("GuideSite MVP CLI preserves failed provider output in the rendered Run State", async () => {

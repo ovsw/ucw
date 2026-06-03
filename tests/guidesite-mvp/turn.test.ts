@@ -282,7 +282,7 @@ test("GuideSite turn preserves insufficient source material as fallback Run Stat
   }
 });
 
-test("GuideSite turn composes a source-backed homesickness Concern answer without committing Session State", async () => {
+test("GuideSite turn commits a source-backed homesickness Concern answer into Session State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
   try {
     const stores = createGuideSiteMemoryStores({
@@ -297,7 +297,7 @@ test("GuideSite turn composes a source-backed homesickness Concern answer withou
       promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
     });
 
-    assert.equal(run.status, "composed");
+    assert.equal(run.status, "committed");
     assert.equal(run.answerComposition?.status, "answered");
     assert.match(run.answerComposition?.conversationalFraming ?? "", /homesickness/i);
     assert.deepEqual(run.answerComposition?.citations, [
@@ -311,14 +311,20 @@ test("GuideSite turn composes a source-backed homesickness Concern answer withou
       "sources",
       "diagnostics",
     ]);
-    assert.equal(run.patch, null);
-    assert.equal(run.committedSessionState, null);
+    assert.equal(run.patch?.operations[0]?.type, "upsertConcern");
+    assert.equal(run.patch?.operations[0] && "concern" in run.patch.operations[0] ? run.patch.operations[0].concern.status : null, "addressed");
+    assert.equal(run.committedSessionState?.concerns.homesickness.status, "addressed");
+    assert.equal(run.committedSessionState?.concerns.child_readiness, undefined);
     assert.deepEqual(run.diagnostics, []);
 
     const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_homesickness.json"), "utf8")) as typeof run;
-    assert.equal(savedRun.status, "composed");
-    assert.equal(savedRun.committedSessionState, null);
+    assert.equal(savedRun.status, "committed");
+    assert.equal(savedRun.committedSessionState?.concerns.homesickness.status, "addressed");
     assert.match(savedRun.answerComposition?.sections[0]?.body ?? "", /homesickness/i);
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /"sourceId": "concern_homesickness"/);
+    assert.match(output, /"sourceId": "policy_homesickness"/);
+    assert.match(output, /"sourceId": "policy_parent_communication"/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

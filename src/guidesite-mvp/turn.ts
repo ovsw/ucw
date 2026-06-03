@@ -36,7 +36,7 @@ export async function runGuideSiteMvpTurn(options: RunGuideSiteMvpTurnOptions): 
   });
   const storedRun = stores.runs.update(composedRun);
 
-  if (storedRun.answerComposition?.status !== "needs_context") {
+  if (storedRun.answerComposition?.status !== "needs_context" && storedRun.answerComposition?.status !== "answered") {
     return storedRun;
   }
 
