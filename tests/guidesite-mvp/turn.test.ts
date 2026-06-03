@@ -61,6 +61,10 @@ test("GuideSite turn commits the canonical Prompt into inspectable Run State", a
       diagnostics: [],
     });
     assert.deepEqual(savedRun.diagnostics, []);
+
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Committed Session Summary:/);
+    assert.match(output, /Homesickness and Child Readiness remain open concerns/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }
@@ -324,6 +328,8 @@ test("GuideSite turn commits a source-backed homesickness Concern answer into Se
     assert.equal(savedRun.committedSessionState?.concerns.homesickness.status, "addressed");
     assert.match(savedRun.answerComposition?.sections[0]?.body ?? "", /homesickness/i);
     const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Committed Session Summary:/);
+    assert.match(output, /Homesickness has been addressed/);
     assert.match(output, /"sourceId": "concern_homesickness"/);
     assert.match(output, /"sourceId": "policy_homesickness"/);
     assert.match(output, /"sourceId": "policy_parent_communication"/);

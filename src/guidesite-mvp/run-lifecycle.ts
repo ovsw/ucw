@@ -865,6 +865,7 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
 }
 
 export function renderGuideSiteRunOperatorOutput(run: RunState): string {
+  const committedSessionSummary = run.committedSessionState?.summary ?? null;
   return [
     renderStartRunOperatorOutput(run),
     "Prompt Understanding Provider:",
@@ -879,6 +880,8 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     renderAnswerCompositionOperatorOutput(run),
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
+    "Committed Session Summary:",
+    committedSessionSummary ?? "(none)",
     "Committed Session State:",
     JSON.stringify(run.committedSessionState, null, 2),
   ].join("\n");

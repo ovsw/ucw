@@ -209,6 +209,9 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
     assert.match(output, /Session Revision: 1/);
     assert.match(output, /Session Revision: 2/);
     assert.match(output, /Base Revision: 2/);
+    assert.equal((output.match(/Committed Session Summary:/g) ?? []).length, 2);
+    assert.match(output, /Turn 1\/2[\s\S]*Committed Session Summary:[\s\S]*Homesickness and Child Readiness remain open concerns/);
+    assert.match(output, /Turn 2\/2[\s\S]*Committed Session Summary:[\s\S]*prior sleepaway experience with grandparents/);
     assert.match(
       output,
       /Body: The Parent is asking whether overnight camp is right for an 8-year-old Child\. The Child has prior sleepaway experience with grandparents\./,
