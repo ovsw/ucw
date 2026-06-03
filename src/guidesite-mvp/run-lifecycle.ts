@@ -419,6 +419,10 @@ const approvedContextNeedPromptTemplates: Record<ContextNeed, ContextNeedPromptT
   },
 };
 
+function isApprovedContextNeed(contextNeed: string): contextNeed is ContextNeed {
+  return Object.prototype.hasOwnProperty.call(approvedContextNeedPromptTemplates, contextNeed);
+}
+
 function formatList(items: string[]): string {
   if (items.length === 0) {
     return "(none)";
@@ -452,11 +456,14 @@ function createNeedContextSummary(run: RunState): string {
   return `The Parent is asking whether overnight camp is right for this Child: ${run.prompt.text}`;
 }
 
-function createNeedsContextSections(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition["sections"] {
+function createNeedsContextSections(
+  run: RunState,
+  retrieval: NonNullable<RunState["retrieval"]>,
+  suggestedPrompts: AnswerComposition["suggestedPrompts"],
+): AnswerComposition["sections"] {
   const concernLabels = run.understanding?.concerns.map((concern) => concern.label) ?? [];
   const concernKeys = run.understanding?.concerns.map((concern) => concern.key) ?? [];
   const contextNeeds = run.understanding?.contextNeeds ?? [];
-  const suggestedPrompts = createSuggestedPrompts(run).suggestedPrompts;
   const concernSourceRefs = createSourceRefs(canonicalConcernSourceIds, retrieval);
   const sections: AnswerComposition["sections"] = [
     {
@@ -534,12 +541,12 @@ function createSuggestedPrompts(run: RunState): SuggestedPromptDerivation {
   const diagnostics: string[] = [];
 
   for (const contextNeed of understanding.contextNeeds) {
-    const template = approvedContextNeedPromptTemplates[contextNeed as ContextNeed];
-    if (!template) {
+    if (!isApprovedContextNeed(contextNeed)) {
       diagnostics.push(`suggested_prompt_unknown_context_need_${contextNeed}`);
       continue;
     }
 
+    const template = approvedContextNeedPromptTemplates[contextNeed];
     const promptId = `prompt_${contextNeed}`;
     if (prompts.some((prompt) => prompt.id === promptId)) {
       continue;
@@ -663,7 +670,7 @@ function createHomesicknessConcernAnswerComposition(
 
 function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
   const suggestedPromptDerivation = createSuggestedPrompts(run);
-  const sections = createNeedsContextSections(run, retrieval);
+  const sections = createNeedsContextSections(run, retrieval, suggestedPromptDerivation.suggestedPrompts);
   const diagnostics = [
     ...retrieval.diagnostics,
     ...suggestedPromptDerivation.diagnostics,
