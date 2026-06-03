@@ -392,6 +392,43 @@ test("GuideSite MVP CLI persists insufficient-source diagnostics for empty fixtu
 test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sample-runs-"));
   const promptsSeen: string[] = [];
+  const sampleUnderstandings: PromptUnderstanding[] = [
+    canonicalUnderstanding,
+    {
+      ...canonicalUnderstanding,
+      fitQuestion: "Understand shy child readiness for overnight camp.",
+      retrievalNeeds: ["overnight_readiness"],
+      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+    },
+    {
+      ...canonicalUnderstanding,
+      fitQuestion: "Explain homesickness support.",
+      retrievalNeeds: ["homesickness_support"],
+      contextNeeds: ["child_readiness"],
+    },
+    {
+      ...canonicalUnderstanding,
+      promptType: "factual",
+      fitQuestion: null,
+      concerns: [],
+      retrievalNeeds: ["dates_and_prices"],
+      contextNeeds: [],
+    },
+    {
+      ...canonicalUnderstanding,
+      fitQuestion: "Assess staff trust Concerns.",
+      concerns: [
+        {
+          key: "staff_trust",
+          label: "Staff Trust",
+          status: "open",
+          provenance: "explicit",
+        },
+      ],
+      retrievalNeeds: ["staff_trust"],
+      contextNeeds: [],
+    },
+  ];
   try {
     const output = await runGuideSiteMvpCli(["--sample-prompts", "--run-state-dir", runStateDirectory], {
       now: () => new Date("2026-01-01T00:00:00.000Z"),
@@ -400,12 +437,7 @@ test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run
       promptUnderstandingProvider: {
         async understandPrompt(promptText) {
           promptsSeen.push(promptText);
-          const understanding: PromptUnderstanding = {
-            ...canonicalUnderstanding,
-            fitQuestion: `Understand sample Prompt: ${promptText}`,
-            retrievalNeeds: [`retrieval_need_${promptsSeen.length}`],
-            contextNeeds: [`context_need_${promptsSeen.length}`],
-          };
+          const understanding = sampleUnderstandings[promptsSeen.length - 1];
 
           return {
             understanding,
@@ -429,8 +461,8 @@ test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run
       const savedRunPath = join(runStateDirectory, `run_sample_${runNumber}.json`);
       assert.match(output, new RegExp(`Sample Prompt ${runNumber}/${SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.length}`));
       assert.match(output, new RegExp(`Prompt: ${promptText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-      assert.match(output, new RegExp(`"retrieval_need_${runNumber}"`));
-      assert.match(output, new RegExp(`"context_need_${runNumber}"`));
+      assert.match(output, /Retrieval Input:/);
+      assert.match(output, /Retrieval Status:/);
       assert.match(output, new RegExp(`"diagnostic_${runNumber}"`));
       assert.match(output, new RegExp(`Saved Run State: ${savedRunPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 
@@ -441,8 +473,20 @@ test("GuideSite MVP CLI runs the Sprint 3 sample Prompt set with inspectable Run
         valid: true,
         diagnostics: [],
       });
-      assert.equal(savedRun.understanding.fitQuestion, `Understand sample Prompt: ${promptText}`);
+      assert.deepEqual(savedRun.retrieval.needs, sampleUnderstandings[index].retrievalNeeds);
+      assert.equal(savedRun.retrieval !== null, true);
+      assert.equal(savedRun.answerComposition !== null, true);
     }
+
+    assert.match(output, /Retrieval Status: source_backed/);
+    assert.match(output, /Matched Source Refs:/);
+    assert.match(output, /Source ID: program_overnight/);
+    assert.match(output, /Source ID: policy_homesickness/);
+    assert.match(output, /Retrieval Status: empty_retrieval/);
+    assert.match(output, /Needs: dates_and_prices/);
+    assert.match(output, /Needs: staff_trust/);
+    assert.match(output, /Diagnostic: insufficient_fixture_sources: no approved fixture sources matched retrieval needs dates_and_prices or concerns \(none\)/);
+    assert.match(output, /Diagnostic: insufficient_fixture_sources: no approved fixture sources matched retrieval needs staff_trust or concerns staff_trust/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

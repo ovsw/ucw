@@ -718,7 +718,7 @@ function renderAnswerCompositionSourceRefsOperatorOutput(run: RunState): string 
 
 function renderRetrievalOperatorOutput(run: RunState): string {
   if (!run.retrieval) {
-    return ["Retrieval Results:", "null"].join("\n");
+    return ["Retrieval Results:", "Retrieval Input:", "null", "Retrieval Status: not_run"].join("\n");
   }
 
   const resultLines = run.retrieval.results.flatMap((result) => [
@@ -732,13 +732,16 @@ function renderRetrievalOperatorOutput(run: RunState): string {
 
   return [
     "Retrieval Results:",
+    "Retrieval Input:",
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
+    `Retrieval Status: ${run.retrieval.results.length > 0 ? "source_backed" : "empty_retrieval"}`,
     run.retrieval.results.length === 0
       ? "No fixture sources matched the validated Prompt Understanding."
       : null,
     ...run.retrieval.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic}`),
-    ...resultLines,
+    "Matched Source Refs:",
+    ...(resultLines.length > 0 ? resultLines : ["(none)"]),
   ]
     .filter((line) => line !== null)
     .join("\n");
