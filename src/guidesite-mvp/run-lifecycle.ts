@@ -113,6 +113,7 @@ export function renderStartRunOperatorOutput(run: RunState): string {
     `Session ID: ${run.sessionId}`,
     `Run ID: ${run.runId}`,
     `Base Revision: ${run.baseSessionRevision}`,
+    `Session Revision: ${run.snapshot.revision}`,
     "Snapshot:",
     JSON.stringify(run.snapshot, null, 2),
   ].join("\n");

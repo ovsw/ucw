@@ -27,6 +27,7 @@ export type ParsedGuideSiteMvpCliArgs = {
   promptText: string;
   runStateDirectory: string | null;
   samplePrompts: boolean;
+  turnPrompts: string[];
 };
 
 export type RunGuideSiteMvpCliOptions = {
@@ -45,6 +46,7 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
   const promptParts: string[] = [];
   let runStateDirectory: string | null = null;
   let samplePrompts = false;
+  const turnPrompts: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -63,6 +65,16 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
       continue;
     }
 
+    if (arg === "--turn") {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        throw new Error("--turn requires a prompt");
+      }
+      turnPrompts.push(value);
+      index += 1;
+      continue;
+    }
+
     promptParts.push(arg);
   }
 
@@ -72,6 +84,7 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
     promptText: promptText || DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory,
     samplePrompts,
+    turnPrompts,
   };
 }
 
@@ -100,6 +113,40 @@ async function runSingleGuideSiteMvpPrompt(
   });
 
   return renderGuideSiteMvpCliOutput(run, stores.runs.inspect?.(run.runId)?.path);
+}
+
+async function runMultiTurnGuideSiteMvpSession(
+  promptTexts: string[],
+  options: RunGuideSiteMvpCliOptions,
+  promptUnderstandingProvider: PromptUnderstandingProvider,
+): Promise<string> {
+  const runStateDirectory = options.runStateDirectory;
+  const runStore = runStateDirectory ? createGuideSiteFileRunStore(runStateDirectory) : undefined;
+  const stores = createGuideSiteMemoryStores(runStore ? { runs: runStore } : undefined);
+  const sessionId = options.createSessionId?.() ?? `session_${crypto.randomUUID()}`;
+  const runIdPrefix = options.createRunId?.() ?? `run_${crypto.randomUUID()}`;
+  const outputs: string[] = [];
+
+  for (const [index, promptText] of promptTexts.entries()) {
+    const run = await runGuideSiteMvpTurn({
+      promptText,
+      stores,
+      promptUnderstandingProvider,
+      retrievalAdapter: options.retrievalAdapter,
+      now: options.now,
+      createSessionId: () => sessionId,
+      createRunId: () => `${runIdPrefix}_${index + 1}`,
+    });
+
+    outputs.push(
+      [
+        `Turn ${index + 1}/${promptTexts.length}`,
+        renderGuideSiteMvpCliOutput(run, stores.runs.inspect?.(run.runId)?.path),
+      ].join("\n"),
+    );
+  }
+
+  return ["GuideSite Multi-Turn Session Run", ...outputs].join("\n\n");
 }
 
 export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): Promise<string> {
@@ -132,6 +179,11 @@ export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMv
     }
 
     return ["GuideSite Sprint 3 Sample Prompt Runs", ...outputs].join("\n\n");
+  }
+
+  if (parsedArgs.turnPrompts.length > 0) {
+    const promptTexts = [parsedArgs.promptText || DEFAULT_GUIDESITE_MVP_PROMPT, ...parsedArgs.turnPrompts];
+    return runMultiTurnGuideSiteMvpSession(promptTexts, runOptions, promptUnderstandingProvider);
   }
 
   return runSingleGuideSiteMvpPrompt(parsedArgs.promptText, runOptions, promptUnderstandingProvider);

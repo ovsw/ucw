@@ -17,6 +17,8 @@ import {
   createFakePromptUnderstandingProvider,
   homesicknessConcernUnderstanding,
 } from "./test-helpers.js";
+import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
+import type { PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
 
 function createProviderJsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -25,6 +27,64 @@ function createProviderJsonResponse(body: unknown): Response {
       "content-type": "application/json",
     },
   });
+}
+
+function createMultiTurnPromptUnderstandingProvider(): PromptUnderstandingProvider {
+  const followUpPrompt = "She has slept at her grandparents' house a few times.";
+  const followUpUnderstanding: PromptUnderstanding = {
+    goal: "assess_fit",
+    promptType: "fit",
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+    facts: {
+      child_age: {
+        value: 8,
+        provenance: {
+          source: "explicit",
+          promptText: "8-year-old",
+        },
+      },
+      prior_sleepaway_experience: {
+        value: "slept_with_grandparents",
+        provenance: {
+          source: "explicit",
+          promptText: followUpPrompt,
+        },
+      },
+    },
+    concerns: [
+      {
+        key: "homesickness",
+        label: "Homesickness",
+        status: "open",
+        provenance: "implied",
+      },
+      {
+        key: "child_readiness",
+        label: "Child Readiness",
+        status: "open",
+        provenance: "implied",
+      },
+    ],
+    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    contextNeeds: ["child_readiness"],
+  };
+
+  return {
+    async understandPrompt(promptText: string) {
+      const understanding = promptText === canonicalGuideSitePrompt ? canonicalGuideSiteUnderstanding : followUpUnderstanding;
+
+      return {
+        understanding,
+        trace: {
+          provider: "fake",
+          model: "fake-guidesite-prompt-understanding",
+          rawOutput: JSON.stringify(understanding),
+          parsedOutput: understanding,
+          diagnostics: [],
+        },
+      };
+    },
+  };
 }
 
 test("GuideSite MVP CLI requires OpenAI provider configuration for normal runs", async () => {
@@ -94,6 +154,7 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
 
   assert.match(output, new RegExp(`Prompt: ${canonicalGuideSitePrompt.replace("?", "\\?")}`));
   assert.match(output, /Session ID:/);
+  assert.match(output, /Session Revision: 1/);
   assert.match(output, /Run ID:/);
   assert.match(output, /Base Revision: 1/);
   assert.match(output, /Prompt Understanding Provider:/);
@@ -109,6 +170,47 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   assert.match(output, /Session Patch:/);
   assert.match(output, /Committed Session State:/);
   assert.match(output, /Has your child slept away from home before\?/);
+});
+
+test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-multi-turn-"));
+  try {
+    const output = await runGuideSiteMvpCli(["--run-state-dir", runStateDirectory, "--turn", "She has slept at her grandparents' house a few times."], {
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_multi_turn",
+      createRunId: () => "run_multi_turn",
+      promptUnderstandingProvider: createMultiTurnPromptUnderstandingProvider(),
+    });
+
+    assert.match(output, /GuideSite Multi-Turn Session Run/);
+    assert.match(output, /Turn 1\/2/);
+    assert.match(output, /Turn 2\/2/);
+    assert.match(output, /Session ID: session_multi_turn/);
+    assert.match(output, /Session Revision: 1/);
+    assert.match(output, /Session Revision: 2/);
+    assert.match(output, /Base Revision: 2/);
+    assert.match(output, /"sourceRunId": "run_multi_turn_1"/);
+    assert.match(output, /"sourceRunId": "run_multi_turn_2"/);
+
+    const turn1Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_1.json"), "utf8")) as {
+      baseSessionRevision: number;
+      committedSessionState: { revision: number } | null;
+      snapshot: { revision: number };
+    };
+    const turn2Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_2.json"), "utf8")) as {
+      baseSessionRevision: number;
+      committedSessionState: { revision: number } | null;
+      snapshot: { revision: number };
+    };
+
+    assert.equal(turn1Run.baseSessionRevision, 1);
+    assert.equal(turn1Run.committedSessionState?.revision, 2);
+    assert.equal(turn2Run.baseSessionRevision, 2);
+    assert.equal(turn2Run.snapshot.revision, 2);
+    assert.equal(turn2Run.committedSessionState?.revision, 3);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
 });
 
 test("GuideSite MVP CLI renders typed Prompt output with provider-backed understanding", async () => {
@@ -312,25 +414,36 @@ test("GuideSite MVP CLI argument parsing joins unquoted Prompt text and defaults
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["  "]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: null,
     samplePrompts: false,
+    turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--run-state-dir", ".guidesite-runs", "Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: ".guidesite-runs",
     samplePrompts: false,
+    turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--sample-prompts", "--run-state-dir", ".guidesite-runs"]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: ".guidesite-runs",
     samplePrompts: true,
+    turnPrompts: [],
+  });
+  assert.deepEqual(parseGuideSiteMvpCliArgs(["--turn", "She has slept at her grandparents' house a few times."]), {
+    promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
+    runStateDirectory: null,
+    samplePrompts: false,
+    turnPrompts: ["She has slept at her grandparents' house a few times."],
   });
 });
