@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "sandcastle": "tsx .sandcastle/main.ts",
+    "guidesite:mvp": "tsx src/guidesite-mvp/cli.ts",
     "workbench": "tsx src/retrieval-workbench/cli.ts",
     "workbench:generate": "tsx src/retrieval-workbench/generate-fixture.ts",
     "check": "npm run typecheck",
