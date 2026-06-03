@@ -363,6 +363,18 @@ test("Answer Composition contract rejects unsupported citations", () => {
   });
 });
 
+test("Answer Composition contract reports duplicate unsupported citations once", () => {
+  const invalidComposition: AnswerComposition = {
+    ...validComposition,
+    citations: ["program_overnight", "policy_homesickness", "policy_homesickness"],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_citation_policy_homesickness_unsupported_source_ref"],
+  });
+});
+
 test("Answer Composition contract rejects Suggested Prompts with unknown context needs", () => {
   const invalidComposition: AnswerComposition = {
     ...validComposition,

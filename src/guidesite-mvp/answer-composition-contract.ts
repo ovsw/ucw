@@ -62,12 +62,15 @@ function requireStringArray(value: unknown, diagnostic: string, diagnostics: str
   return true;
 }
 
-function areStringArraysEqual(left: readonly string[], right: readonly string[]): boolean {
+function areStringArraysEqualIgnoringOrder(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
 
-  return left.every((value, index) => value === right[index]);
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
 }
 
 function validateUnknownKeys(
@@ -198,7 +201,7 @@ function validateSuggestedPrompts(suggestedPrompts: unknown, diagnostics: string
       diagnostics.push(`${prefix}_purpose_mismatch`);
     }
 
-    if (!areStringArraysEqual(suggestedPrompt.concerns, template.concerns)) {
+    if (!areStringArraysEqualIgnoringOrder(suggestedPrompt.concerns, template.concerns)) {
       diagnostics.push(`${prefix}_concerns_mismatch`);
     }
   });
@@ -266,6 +269,7 @@ function validateCitations(
   }
 
   const citationSet = new Set<string>();
+  const processedCitationIds = new Set<string>();
   for (const citation of citations) {
     if (typeof citation !== "string" || citation.trim().length === 0) {
       diagnostics.push("answer_composition_citation_invalid");
@@ -273,6 +277,11 @@ function validateCitations(
     }
 
     citationSet.add(citation);
+    if (processedCitationIds.has(citation)) {
+      continue;
+    }
+    processedCitationIds.add(citation);
+
     if (retrieval && !retrievalResultsById.has(citation)) {
       diagnostics.push(`answer_composition_citation_${citation}_missing_retrieval_result`);
       continue;
