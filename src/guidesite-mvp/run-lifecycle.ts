@@ -27,6 +27,7 @@ import {
   assessPromptUnderstandingCandidate,
   validatePromptUnderstandingMeaning,
 } from "./prompt-understanding.js";
+import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 
@@ -463,41 +464,6 @@ function isSourceBackedRetrieval(retrieval: GuideSiteRetrievalResult): boolean {
   return retrieval.coverage.status === "source_backed";
 }
 
-function validateAnswerCompositionSourceRefs(run: RunState): string[] {
-  if (!run.answerComposition) {
-    return [];
-  }
-
-  const diagnostics: string[] = [];
-  const retrievalResultsById = new Map(run.retrieval?.results.map((result) => [result.sourceId, result]) ?? []);
-  const sourceRefs = run.answerComposition.sections.flatMap((section) => section.sourceRefs ?? []);
-
-  for (const sourceRef of sourceRefs) {
-    const retrievalResult = retrievalResultsById.get(sourceRef.sourceId);
-    if (!retrievalResult) {
-      diagnostics.push(`answer_composition_source_ref_${sourceRef.sourceId}_missing_retrieval_result`);
-      continue;
-    }
-
-    if (
-      sourceRef.sourceType !== retrievalResult.sourceType ||
-      sourceRef.title !== retrievalResult.title ||
-      sourceRef.fieldPath !== retrievalResult.fieldPath ||
-      sourceRef.sourceRevision !== retrievalResult.sourceRevision
-    ) {
-      diagnostics.push(`answer_composition_source_ref_${sourceRef.sourceId}_stale_retrieval_result`);
-    }
-  }
-
-  for (const citation of run.answerComposition.citations) {
-    if (!retrievalResultsById.has(citation)) {
-      diagnostics.push(`answer_composition_citation_${citation}_missing_retrieval_result`);
-    }
-  }
-
-  return diagnostics;
-}
-
 export function withHardcodedUnderstandingAndComposition(
   run: RunState,
   options: { now?: () => Date } = {},
@@ -529,67 +495,7 @@ export function withHardcodedUnderstandingAndComposition(
 }
 
 export function buildHardcodedSessionPatch(run: RunState): SessionPatch {
-  if (!run.promptUnderstandingValidation?.valid) {
-    throw new Error("Cannot build hardcoded Session Patch without validated Prompt Understanding");
-  }
-
-  if (!run.understanding || !run.answerComposition || run.answerComposition.status !== "needs_context") {
-    throw new Error("Cannot build hardcoded Session Patch without a needs-context canonical run");
-  }
-
-  const sourceRefDiagnostics = validateAnswerCompositionSourceRefs(run);
-  if (sourceRefDiagnostics.length > 0) {
-    throw new Error(`Cannot build hardcoded Session Patch with unsupported Answer Composition source refs: ${sourceRefDiagnostics.join(", ")}`);
-  }
-
-  return {
-    runId: run.runId,
-    sessionId: run.sessionId,
-    baseRevision: run.baseSessionRevision,
-    operations: [
-      {
-        type: "upsertFact",
-        key: "child_age",
-        fact: {
-          value: 8,
-          source: "explicit",
-          sourceRunId: run.runId,
-          status: "active",
-        },
-      },
-      {
-        type: "upsertConcern",
-        key: "homesickness",
-        concern: {
-          status: "open",
-          sourceRunIds: [run.runId],
-        },
-      },
-      {
-        type: "upsertConcern",
-        key: "child_readiness",
-        concern: {
-          status: "open",
-          sourceRunIds: [run.runId],
-        },
-      },
-      {
-        type: "setFocus",
-        focus: {
-          goal: "assess_fit",
-          contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
-        },
-      },
-      {
-        type: "replaceSuggestedPrompts",
-        suggestedPrompts: run.answerComposition.suggestedPrompts,
-      },
-      {
-        type: "updateSummary",
-        summary: "Parent is assessing overnight camp Fit for an 8-year-old Child.",
-      },
-    ],
-  };
+  return buildSessionPatchFromValidatedRun(run);
 }
 
 export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSessionPatchResult {
