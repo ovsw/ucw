@@ -272,7 +272,10 @@ function createProviderFailureRun(
 export async function withProviderBackedUnderstandingAndComposition(
   run: RunState,
   provider: PromptUnderstandingProvider,
-  options: { now?: () => Date } = {},
+  options: {
+    now?: () => Date;
+    retrievalAdapter?: GuideSiteRetrievalAdapter;
+  } = {},
 ): Promise<RunState> {
   try {
     const result = await provider.understandPrompt(run.prompt.text);
@@ -280,6 +283,7 @@ export async function withProviderBackedUnderstandingAndComposition(
     return withPromptUnderstandingCandidate(run, result.understanding, {
       now: options.now,
       providerTrace: result.trace,
+      retrievalAdapter: options.retrievalAdapter,
     });
   } catch (error) {
     return createProviderFailureRun(run, error, options);
