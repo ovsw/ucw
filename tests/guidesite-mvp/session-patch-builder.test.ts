@@ -59,6 +59,34 @@ test("Session Patch builder derives the canonical patch from validated Run State
   assert.equal(committed.session.summary, "Parent is assessing overnight camp Fit for an 8-year-old Child.");
 });
 
+test("Session Patch builder rejects factual Answer Composition sections without source refs", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_patch_builder_missing_source_refs",
+    createRunId: () => "run_patch_builder_missing_source_refs",
+  });
+  const composedRun = withHardcodedUnderstandingAndComposition(started.run, {
+    now: () => new Date("2026-01-01T00:02:00.000Z"),
+  });
+
+  const invalidRun = {
+    ...composedRun,
+    answerComposition: composedRun.answerComposition
+      ? {
+          ...composedRun.answerComposition,
+          sections: composedRun.answerComposition.sections.map((section, index) =>
+            index === 0 ? { ...section, sourceRefs: undefined } : section,
+          ),
+        }
+      : null,
+  } as typeof composedRun;
+
+  assert.throws(() => buildSessionPatchFromValidatedRun(invalidRun), /source_refs_required/);
+});
+
 test("Session Patch builder commits validated non-canonical Visitor Context and Concerns", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({

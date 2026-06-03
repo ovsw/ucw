@@ -300,6 +300,7 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
       "fake_invalid_answer_composition_retrieval",
       "answer_composition_section_0_source_ref_0_field_path_required",
       "answer_composition_section_5_source_ref_0_field_path_required",
+      "answer_composition_citation_program_overnight_unsupported_source_ref",
     ]);
   } finally {
     rmSync(runStateDirectory, { recursive: true });

@@ -37,6 +37,7 @@ const allowedCompositionKeys = new Set(["status", "conversationalFraming", "sect
 const allowedSectionKeys = new Set(["kind", "title", "body", "items", "sourceRefs"]);
 const allowedSourceRefKeys = new Set(["sourceId", "sourceType", "title", "fieldPath", "sourceRevision"]);
 const allowedSuggestedPromptKeys = new Set(["id", "text", "purpose", "contextNeeds", "concerns", "templateId"]);
+const factualSectionKinds = new Set<AnswerSectionKind>(["summary", "concerns", "sources"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -90,12 +91,13 @@ function validateSourceRefs(
   sourceRefs: unknown,
   retrievalResultsById: Map<string, RetrievalResults["results"][number]>,
   diagnostics: string[],
-): void {
+): string[] {
   if (!Array.isArray(sourceRefs)) {
     diagnostics.push(`answer_composition_section_${sectionIndex}_source_refs_invalid`);
-    return;
+    return [];
   }
 
+  const validSourceIds: string[] = [];
   sourceRefs.forEach((sourceRef, sourceRefIndex) => {
     const prefix = `answer_composition_section_${sectionIndex}_source_ref_${sourceRefIndex}`;
     if (!isRecord(sourceRef)) {
@@ -128,8 +130,13 @@ function validateSourceRefs(
       sourceRef.sourceRevision !== retrievalResult.sourceRevision
     ) {
       diagnostics.push(`answer_composition_source_ref_${sourceRef.sourceId}_stale_retrieval_result`);
+      return;
     }
+
+    validSourceIds.push(sourceRef.sourceId);
   });
+
+  return validSourceIds;
 }
 
 function validateSuggestedPrompts(suggestedPrompts: unknown, diagnostics: string[]): void {
@@ -196,12 +203,13 @@ function validateSections(
   sections: unknown,
   retrievalResultsById: Map<string, RetrievalResults["results"][number]>,
   diagnostics: string[],
-): void {
+): string[] {
   if (!Array.isArray(sections)) {
     diagnostics.push("answer_composition_sections_invalid");
-    return;
+    return [];
   }
 
+  const factualSourceIds: string[] = [];
   sections.forEach((section, sectionIndex) => {
     const prefix = `answer_composition_section_${sectionIndex}`;
     if (!isRecord(section)) {
@@ -228,9 +236,16 @@ function validateSections(
     }
 
     if (section.sourceRefs !== undefined) {
-      validateSourceRefs(sectionIndex, section.sourceRefs, retrievalResultsById, diagnostics);
+      const sectionSourceIds = validateSourceRefs(sectionIndex, section.sourceRefs, retrievalResultsById, diagnostics);
+      if (factualSectionKinds.has(section.kind as AnswerSectionKind)) {
+        factualSourceIds.push(...sectionSourceIds);
+      }
+    } else if (factualSectionKinds.has(section.kind as AnswerSectionKind)) {
+      diagnostics.push(`${prefix}_source_refs_required`);
     }
   });
+
+  return factualSourceIds;
 }
 
 export function validateAnswerCompositionCandidate(
@@ -255,20 +270,34 @@ export function validateAnswerCompositionCandidate(
   requireNonEmptyString(composition.conversationalFraming, "answer_composition_conversational_framing_required", diagnostics);
 
   const retrievalResultsById = normalizeRetrievalResults(retrieval);
-  validateSections(composition.sections, retrievalResultsById, diagnostics);
+  const factualSourceIds = validateSections(composition.sections, retrievalResultsById, diagnostics);
   validateSuggestedPrompts(composition.suggestedPrompts, diagnostics);
 
   if (!Array.isArray(composition.citations)) {
     diagnostics.push("answer_composition_citations_invalid");
   } else {
+    const citationSet = new Set<string>();
+    const factualSourceIdSet = new Set(factualSourceIds);
     for (const citation of composition.citations) {
       if (typeof citation !== "string" || citation.trim().length === 0) {
         diagnostics.push("answer_composition_citation_invalid");
         continue;
       }
 
+      citationSet.add(citation);
       if (retrieval && !retrievalResultsById.has(citation)) {
         diagnostics.push(`answer_composition_citation_${citation}_missing_retrieval_result`);
+        continue;
+      }
+
+      if (!factualSourceIdSet.has(citation)) {
+        diagnostics.push(`answer_composition_citation_${citation}_unsupported_source_ref`);
+      }
+    }
+
+    for (const factualSourceId of new Set(factualSourceIds)) {
+      if (!citationSet.has(factualSourceId)) {
+        diagnostics.push(`answer_composition_citation_${factualSourceId}_missing_required_citation`);
       }
     }
   }

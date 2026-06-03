@@ -114,6 +114,45 @@ test("Answer Composition contract accepts approved Suggested Prompts", () => {
   });
 });
 
+test("Answer Composition contract accepts source-less non-factual sections", () => {
+  const sourceLessComposition: AnswerComposition = {
+    status: "needs_context",
+    conversationalFraming: "The GuideSite needs more Visitor Context before it can honestly assess Fit.",
+    sections: [
+      {
+        kind: "fit_status",
+        title: "Fit Status",
+        body: "Fit cannot be assessed honestly yet because Prior Sleepaway Experience is still unknown.",
+      },
+      {
+        kind: "context_needs",
+        title: "Missing Visitor Context",
+        body: "The next turn should gather Prior Sleepaway Experience.",
+        items: ["prior_sleepaway_experience"],
+      },
+      {
+        kind: "suggested_prompts",
+        title: "Suggested Prompts",
+        body: "Approved prompts gather the missing Visitor Context.",
+        items: ["prompt_prior_sleepaway_experience"],
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: "No factual claims were made in this response.",
+      },
+    ],
+    suggestedPrompts: approvedSuggestedPrompts,
+    citations: [],
+    diagnostics: ["needs_visitor_context"],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(sourceLessComposition, retrieval), {
+    valid: true,
+    diagnostics: [],
+  });
+});
+
 test("Answer Composition contract accepts source-backed homesickness answers", () => {
   const answeredComposition: AnswerComposition = {
     status: "answered",
@@ -202,6 +241,125 @@ test("Answer Composition contract accepts source-backed homesickness answers", (
   assert.deepEqual(validateAnswerCompositionCandidate(answeredComposition, retrieval), {
     valid: true,
     diagnostics: [],
+  });
+});
+
+test("Answer Composition contract rejects factual sections without source refs", () => {
+  const invalidComposition: AnswerComposition = {
+    status: "needs_context",
+    conversationalFraming: "The GuideSite needs more Visitor Context before it can honestly assess Fit.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Known Context",
+        body: "The Parent is asking about overnight camp for an 8-year-old Child.",
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: "No recommendation was made yet.",
+      },
+    ],
+    suggestedPrompts: [],
+    citations: [],
+    diagnostics: ["needs_visitor_context"],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_section_0_source_refs_required"],
+  });
+});
+
+test("Answer Composition contract rejects stale source refs", () => {
+  const invalidComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The approved fixture material explains how the camp handles homesickness.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Homesickness Answer",
+        body: "Homesickness is a concern for first-time overnight campers.",
+        sourceRefs: [
+          {
+            sourceId: "concern_homesickness",
+            sourceType: "concern",
+            title: "Homesickness and Child Readiness",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_concern_homesickness_001",
+          },
+        ],
+      },
+      {
+        kind: "sources",
+        title: "Sources",
+        body: "Approved fixture source material was retrieved for the homesickness concern.",
+        items: ["Homesickness and Child Readiness (concern_homesickness)"],
+        sourceRefs: [
+          {
+            sourceId: "concern_homesickness",
+            sourceType: "concern",
+            title: "Homesickness and Child Readiness",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_concern_homesickness_999",
+          },
+        ],
+      },
+    ],
+    suggestedPrompts: [],
+    citations: ["concern_homesickness"],
+    diagnostics: [],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_source_ref_concern_homesickness_stale_retrieval_result"],
+  });
+});
+
+test("Answer Composition contract rejects unsupported citations", () => {
+  const invalidComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The approved fixture material explains how the camp handles homesickness.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Homesickness Answer",
+        body: "Homesickness is a concern for first-time overnight campers.",
+        sourceRefs: [
+          {
+            sourceId: "concern_homesickness",
+            sourceType: "concern",
+            title: "Homesickness and Child Readiness",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_concern_homesickness_001",
+          },
+        ],
+      },
+      {
+        kind: "sources",
+        title: "Sources",
+        body: "Approved fixture source material was retrieved for the homesickness concern.",
+        items: ["Homesickness and Child Readiness (concern_homesickness)"],
+        sourceRefs: [
+          {
+            sourceId: "concern_homesickness",
+            sourceType: "concern",
+            title: "Homesickness and Child Readiness",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_concern_homesickness_001",
+          },
+        ],
+      },
+    ],
+    suggestedPrompts: [],
+    citations: ["concern_homesickness", "policy_homesickness"],
+    diagnostics: [],
+  };
+
+  assert.deepEqual(validateAnswerCompositionCandidate(invalidComposition, retrieval), {
+    valid: false,
+    diagnostics: ["answer_composition_citation_policy_homesickness_unsupported_source_ref"],
   });
 });
 
@@ -328,6 +486,7 @@ test("Answer Composition contract rejects unknown section kinds and presentation
     diagnostics: [
       "answer_composition_section_0_unknown_field_layoutHint",
       "answer_composition_section_0_kind_invalid",
+      "answer_composition_citation_program_overnight_unsupported_source_ref",
     ],
   });
 });

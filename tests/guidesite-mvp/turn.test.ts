@@ -216,6 +216,7 @@ test("GuideSite turn falls back safely when Answer Composition validation fails"
       "fake_invalid_answer_composition_retrieval",
       "answer_composition_section_0_source_ref_0_field_path_required",
       "answer_composition_section_5_source_ref_0_field_path_required",
+      "answer_composition_citation_program_overnight_unsupported_source_ref",
     ]);
 
     const output = renderGuideSiteRunOperatorOutput(run);
