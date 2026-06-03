@@ -73,7 +73,7 @@ function createCanonicalCommittedRun() {
     now: () => new Date("2026-01-01T00:03:00.000Z"),
   });
 
-  return { stores, started, composedRun, patch, committed };
+  return { patch, committed };
 }
 
 test("Session Patch builder derives the canonical patch from validated Run State", () => {

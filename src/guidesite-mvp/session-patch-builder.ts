@@ -37,9 +37,9 @@ function formatConcernStatusClause(labels: string[], status: "open" | "addressed
   return labels.length === 1 ? `${labels[0]} remains an open concern` : `${formatList(labels)} remain open concerns`;
 }
 
-function createSessionSummary(run: RunState): string {
-  const session = run.snapshot;
+function collectActiveFacts(run: RunState): Map<string, string | number | boolean> {
   const activeFacts = new Map<string, string | number | boolean>();
+  const session = run.snapshot;
 
   for (const [factKey, fact] of Object.entries(session.visitorFacts)) {
     if (fact.status === "active") {
@@ -50,6 +50,37 @@ function createSessionSummary(run: RunState): string {
   for (const [factKey, fact] of Object.entries(run.understanding?.facts ?? {})) {
     activeFacts.set(factKey, fact.value);
   }
+
+  return activeFacts;
+}
+
+function collectConcernStatusByKey(run: RunState): Map<string, "open" | "addressed" | "deferred"> {
+  const concernStatusByKey = new Map<string, "open" | "addressed" | "deferred">();
+  const session = run.snapshot;
+
+  for (const [concernKey, concern] of Object.entries(session.concerns)) {
+    concernStatusByKey.set(concernKey, concern.status);
+  }
+
+  for (const concern of run.understanding?.concerns ?? []) {
+    concernStatusByKey.set(concern.key, concern.status);
+  }
+
+  const answerComposition = run.answerComposition;
+  if (answerComposition?.status === "answered") {
+    const addressedConcernSections = answerComposition.sections.filter((section) => section.kind === "concerns");
+    for (const addressedConcernKey of addressedConcernSections.flatMap((section) => section.items ?? [])) {
+      concernStatusByKey.set(addressedConcernKey, "addressed");
+    }
+  }
+
+  return concernStatusByKey;
+}
+
+function createSessionSummary(run: RunState): string {
+  const activeFacts = collectActiveFacts(run);
+  const concernStatusByKey = collectConcernStatusByKey(run);
+  const currentContextNeeds = run.understanding?.contextNeeds ?? [];
 
   const ageFact = activeFacts.get("child_age");
   const intro =
@@ -67,23 +98,6 @@ function createSessionSummary(run: RunState): string {
     }
   }
 
-  const concernStatusByKey = new Map<string, "open" | "addressed" | "deferred">();
-  for (const [concernKey, concern] of Object.entries(session.concerns)) {
-    concernStatusByKey.set(concernKey, concern.status);
-  }
-  for (const concern of run.understanding?.concerns ?? []) {
-    concernStatusByKey.set(concern.key, concern.status);
-  }
-
-  const addressedConcernKeys = new Set(
-    run.answerComposition?.status === "answered"
-      ? run.answerComposition.sections.flatMap((section) => (section.kind === "concerns" ? section.items ?? [] : []))
-      : [],
-  );
-  for (const addressedConcernKey of addressedConcernKeys) {
-    concernStatusByKey.set(addressedConcernKey, "addressed");
-  }
-
   const openConcernLabels = [...concernStatusByKey.entries()]
     .filter(([, status]) => status === "open")
     .map(([concernKey]) => titleCaseIdentifier(concernKey));
@@ -99,7 +113,6 @@ function createSessionSummary(run: RunState): string {
     clauses.push(formatConcernStatusClause(openConcernLabels, "open"));
   }
 
-  const currentContextNeeds = run.understanding?.contextNeeds ?? [];
   if (currentContextNeeds.length > 0) {
     clauses.push(`Remaining need: ${formatList(currentContextNeeds.map((contextNeed) => titleCaseIdentifier(contextNeed)))}`);
   }
@@ -126,13 +139,9 @@ function createAddressedConcernKeySet(run: RunState): Set<string> {
 function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
   const understanding = run.understanding;
   const answerComposition = run.answerComposition;
-  if (!understanding) {
+  if (!understanding || !answerComposition) {
     return [];
   }
-  if (!answerComposition) {
-    return [];
-  }
-
   const addressedConcernKeys = createAddressedConcernKeySet(run);
   const factOperations = Object.entries(understanding.facts).map(([key, fact]) => ({
     type: "upsertFact" as const,

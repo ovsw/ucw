@@ -60,7 +60,10 @@ test("canonical run commits a hardcoded Session Patch into compact Session State
     goal: "assess_fit",
     contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
   });
-  assert.equal(committed.session.summary, "Parent is assessing overnight camp Fit for an 8-year-old Child.");
+  assert.equal(
+    committed.session.summary,
+    "Parent is assessing overnight camp Fit for an 8-year-old Child. Homesickness and Child Readiness remain open concerns; Remaining need: Prior Sleepaway Experience and Child Readiness.",
+  );
 
   assert.equal(committed.applied, true);
   assert.equal(committed.session.revision, 2);
