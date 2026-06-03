@@ -104,8 +104,9 @@ function sourceIdsForUnderstanding(understanding: PromptUnderstanding): string[]
   const needSet = new Set(understanding.retrievalNeeds);
   const concernSet = new Set(understanding.concerns.map((concern) => concern.key));
   const sourceIds: string[] = [];
+  const needsHomesicknessSources = needSet.has("homesickness_support") || concernSet.has("homesickness");
 
-  if (needSet.has("homesickness_support") || concernSet.has("homesickness")) {
+  if (needsHomesicknessSources) {
     sourceIds.push("concern_homesickness");
   }
 
@@ -113,7 +114,7 @@ function sourceIdsForUnderstanding(understanding: PromptUnderstanding): string[]
     sourceIds.push("program_overnight");
   }
 
-  if (needSet.has("homesickness_support") || concernSet.has("homesickness")) {
+  if (needsHomesicknessSources) {
     sourceIds.push("policy_homesickness", "policy_parent_communication");
   }
 

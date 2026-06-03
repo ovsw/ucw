@@ -567,9 +567,10 @@ function createConcernAnswerSourceIds(retrieval: NonNullable<RunState["retrieval
   available: string[];
   missing: string[];
 } {
-  const required = ["concern_homesickness", "policy_homesickness", "policy_parent_communication"] as const;
-  const available = required.filter((sourceId) => retrieval.results.some((result) => result.sourceId === sourceId));
-  const missing = required.filter((sourceId) => !available.includes(sourceId));
+  const requiredSourceIds = ["concern_homesickness", "policy_homesickness", "policy_parent_communication"] as const;
+  const availableSourceIds = new Set(retrieval.results.map((result) => result.sourceId));
+  const available = requiredSourceIds.filter((sourceId) => availableSourceIds.has(sourceId));
+  const missing = requiredSourceIds.filter((sourceId) => !availableSourceIds.has(sourceId));
 
   return {
     available: [...available],
@@ -582,7 +583,6 @@ function createConcernAnswerDiagnostic(missingSourceIds: string[]): string {
 }
 
 function createHomesicknessConcernAnswerComposition(
-  run: RunState,
   retrieval: NonNullable<RunState["retrieval"]>,
 ): AnswerComposition {
   const { available, missing } = createConcernAnswerSourceIds(retrieval);
@@ -669,7 +669,7 @@ function createValidatedAnswerComposition(run: RunState, retrieval: NonNullable<
   }
 
   if (run.understanding?.concerns.some((concern) => concern.key === "homesickness")) {
-    return createHomesicknessConcernAnswerComposition(run, retrieval);
+    return createHomesicknessConcernAnswerComposition(retrieval);
   }
 
   return createInsufficientSourceAnswerComposition([...retrieval.diagnostics, "unsupported_answer_composition_goal"]);
