@@ -6,7 +6,6 @@ import type {
   GuideSiteStores,
   PromptUnderstanding,
   PromptUnderstandingProviderTrace,
-  PromptUnderstandingValidationResult,
   RunState,
   RunStore,
   SessionPatch,
@@ -20,6 +19,10 @@ import {
   PromptUnderstandingProviderError,
   type PromptUnderstandingProvider,
 } from "./openai-prompt-understanding.js";
+import {
+  assessPromptUnderstandingCandidate,
+  validatePromptUnderstandingMeaning,
+} from "./prompt-understanding.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 
@@ -169,68 +172,17 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
   };
 }
 
-export function validatePromptUnderstanding(
-  understanding: PromptUnderstanding,
-): PromptUnderstandingValidationResult {
-  const diagnostics: string[] = [];
-
-  if (understanding.goal === "unknown") {
-    diagnostics.push("prompt_understanding_goal_required");
-  }
-
-  if (understanding.promptType === "unknown") {
-    diagnostics.push("prompt_understanding_prompt_type_required");
-  }
-
-  if (understanding.promptType === "fit" && !understanding.fitQuestion?.trim()) {
-    diagnostics.push("prompt_understanding_fit_question_required");
-  }
-
-  for (const [factKey, fact] of Object.entries(understanding.facts)) {
-    if (!fact.provenance.promptText.trim()) {
-      diagnostics.push(`prompt_understanding_fact_${factKey}_prompt_text_required`);
-    }
-
-    if (fact.provenance.source !== "explicit") {
-      diagnostics.push(`prompt_understanding_fact_${factKey}_explicit_provenance_required`);
-    }
-  }
-
-  understanding.concerns.forEach((concern, index) => {
-    if (!concern.key.trim()) {
-      diagnostics.push(`prompt_understanding_concern_${index}_key_required`);
-    }
-
-    if (!concern.label.trim()) {
-      diagnostics.push(`prompt_understanding_concern_${index}_label_required`);
-    }
-  });
-
-  understanding.retrievalNeeds.forEach((need, index) => {
-    if (!need.trim()) {
-      diagnostics.push(`prompt_understanding_retrieval_need_${index}_required`);
-    }
-  });
-
-  understanding.contextNeeds.forEach((need, index) => {
-    if (!need.trim()) {
-      diagnostics.push(`prompt_understanding_context_need_${index}_required`);
-    }
-  });
-
-  return {
-    valid: diagnostics.length === 0,
-    diagnostics,
-  };
-}
-
 export function withPromptUnderstandingCandidate(
   run: RunState,
   candidate: PromptUnderstanding,
   options: { now?: () => Date; providerTrace?: PromptUnderstandingProviderTrace } = {},
 ): RunState {
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
-  const validation = validatePromptUnderstanding(candidate);
+  const assessment = assessPromptUnderstandingCandidate(candidate);
+  const validation = {
+    valid: assessment.accepted,
+    diagnostics: assessment.diagnostics,
+  };
 
   if (!validation.valid) {
     return {
@@ -540,7 +492,7 @@ export function withHardcodedUnderstandingAndComposition(
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const isCanonicalPrompt = run.prompt.text === canonicalPromptText;
   const understanding = isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding();
-  const validation = validatePromptUnderstanding(understanding);
+  const validation = validatePromptUnderstandingMeaning(understanding);
   const retrieval = validation.valid ? retrieveGuideSiteFixtureSources(understanding) : null;
 
   return {
