@@ -1,4 +1,10 @@
-import type { AnswerComposition, AnswerSectionKind, RetrievalResults, SuggestedPrompt } from "./types.js";
+import type {
+  AnswerComposition,
+  AnswerCompositionValidationResult,
+  AnswerSectionKind,
+  RetrievalResults,
+  SuggestedPrompt,
+} from "./types.js";
 
 const allowedAnswerCompositionStatuses = new Set<AnswerComposition["status"]>([
   "needs_context",
@@ -186,11 +192,6 @@ function validateSections(
     }
   });
 }
-
-export type AnswerCompositionValidationResult = {
-  valid: boolean;
-  diagnostics: string[];
-};
 
 export function validateAnswerCompositionCandidate(
   composition: AnswerComposition,

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createGuideSiteMemoryStores } from "../../src/guidesite-mvp/run-lifecycle.js";
+import { createGuideSiteMemoryStores, renderGuideSiteRunOperatorOutput } from "../../src/guidesite-mvp/run-lifecycle.js";
 import { createGuideSiteFileRunStore } from "../../src/guidesite-mvp/run-store.js";
 import { runGuideSiteMvpTurn } from "../../src/guidesite-mvp/turn.js";
 import type { GuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.js";
@@ -126,6 +126,103 @@ test("GuideSite turn preserves invalid Prompt Understanding diagnostics without 
 
     const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_invalid.json"), "utf8")) as typeof run;
     assert.equal(savedRun.status, "validation_failed");
+    assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn falls back safely when Answer Composition validation fails", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: canonicalGuideSitePrompt,
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_invalid_answer_composition",
+      createRunId: () => "run_turn_invalid_answer_composition",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+      retrievalAdapter: {
+        id: "invalid-answer-composition",
+        label: "Invalid Answer Composition Retrieval",
+        retrieve(input) {
+          return {
+            needs: [...input.retrievalNeeds],
+            concerns: input.concerns.map((concern) => concern.key),
+            results: [
+              {
+                sourceId: "program_overnight",
+                sourceType: "campProgram",
+                title: "Unsafe Secret Draft",
+                rank: 1,
+                fieldPath: "",
+                sourceRevision: "mock_rev_program_overnight_001",
+              },
+              {
+                sourceId: "policy_homesickness",
+                sourceType: "policy",
+                title: "Homesickness Support Policy",
+                rank: 2,
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_homesickness_001",
+              },
+              {
+                sourceId: "policy_parent_communication",
+                sourceType: "policy",
+                title: "Parent Communication Policy",
+                rank: 3,
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_parent_communication_001",
+              },
+              {
+                sourceId: "concern_homesickness",
+                sourceType: "concern",
+                title: "Homesickness and Child Readiness",
+                rank: 4,
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_concern_homesickness_001",
+              },
+            ],
+            diagnostics: ["fake_invalid_answer_composition_retrieval"],
+            coverage: {
+              status: "source_backed",
+              matchedSourceIds: ["program_overnight", "policy_homesickness", "policy_parent_communication", "concern_homesickness"],
+            },
+          };
+        },
+      },
+    });
+
+    assert.equal(run.status, "validation_failed");
+    assert.equal(run.answerComposition, null);
+    assert.equal(run.rejectedAnswerComposition?.sections[0]?.sourceRefs?.[0]?.title, "Unsafe Secret Draft");
+    assert.equal(run.answerCompositionValidation?.valid, false);
+    assert.match(run.answerCompositionValidation?.diagnostics.join(" ") ?? "", /field_path_required/);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(stores.sessions.read("session_turn_invalid_answer_composition"), run.snapshot);
+    assert.deepEqual(run.diagnostics, [
+      "fake_invalid_answer_composition_retrieval",
+      "answer_composition_section_0_source_ref_0_field_path_required",
+      "answer_composition_section_5_source_ref_0_field_path_required",
+    ]);
+
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Answer Composition Validation:/);
+    assert.match(output, /"valid": false/);
+    assert.match(output, /I don't have enough verified information to answer that confidently\./);
+    assert.match(output, /Answer Composition Status: validation_failed/);
+    assert.doesNotMatch(output, /Answer Composition Status: needs_context/);
+
+    const savedRun = JSON.parse(
+      readFileSync(join(runStateDirectory, "run_turn_invalid_answer_composition.json"), "utf8"),
+    ) as typeof run;
+    assert.equal(savedRun.status, "validation_failed");
+    assert.equal(savedRun.answerComposition, null);
+    assert.equal(savedRun.rejectedAnswerComposition?.sections[0]?.sourceRefs?.[0]?.title, "Unsafe Secret Draft");
     assert.equal(savedRun.committedSessionState, null);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });

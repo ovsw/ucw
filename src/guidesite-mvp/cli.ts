@@ -3,6 +3,7 @@ import {
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
 } from "./run-lifecycle.js";
+import type { GuideSiteRetrievalAdapter } from "./fixture-retrieval.js";
 import { createGuideSiteFileRunStore } from "./run-store.js";
 import {
   createOpenAIPromptUnderstandingProvider,
@@ -37,6 +38,7 @@ export type RunGuideSiteMvpCliOptions = {
   envFilePath?: string;
   fetchImpl?: typeof fetch;
   promptUnderstandingProvider?: PromptUnderstandingProvider;
+  retrievalAdapter?: GuideSiteRetrievalAdapter;
 };
 
 export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliArgs {
@@ -91,6 +93,7 @@ async function runSingleGuideSiteMvpPrompt(
     promptText,
     stores,
     promptUnderstandingProvider,
+    retrievalAdapter: options.retrievalAdapter,
     now: options.now,
     createSessionId: options.createSessionId,
     createRunId: options.createRunId,

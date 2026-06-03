@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,6 +9,7 @@ import {
   parseGuideSiteMvpCliArgs,
   runGuideSiteMvpCli,
 } from "../../src/guidesite-mvp/cli.js";
+import type { GuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.js";
 import { PromptUnderstandingProviderError } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
 import {
   canonicalGuideSitePrompt,
@@ -208,6 +209,100 @@ test("GuideSite MVP CLI preserves invalid provider output in the rendered Run St
     assert.match(output, /Saved Run State:/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite MVP CLI renders the safe fallback when Answer Composition validation fails locally", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-runs-"));
+  try {
+    const retrievalAdapter: GuideSiteRetrievalAdapter = {
+      id: "invalid-answer-composition",
+      label: "Invalid Answer Composition Retrieval",
+      retrieve(input) {
+        return {
+          needs: [...input.retrievalNeeds],
+          concerns: input.concerns.map((concern) => concern.key),
+          results: [
+            {
+              sourceId: "program_overnight",
+              sourceType: "campProgram",
+              title: "Unsafe Secret Draft",
+              rank: 1,
+              fieldPath: "",
+              sourceRevision: "mock_rev_program_overnight_001",
+            },
+            {
+              sourceId: "policy_homesickness",
+              sourceType: "policy",
+              title: "Homesickness Support Policy",
+              rank: 2,
+              fieldPath: "summary",
+              sourceRevision: "mock_rev_policy_homesickness_001",
+            },
+            {
+              sourceId: "policy_parent_communication",
+              sourceType: "policy",
+              title: "Parent Communication Policy",
+              rank: 3,
+              fieldPath: "summary",
+              sourceRevision: "mock_rev_policy_parent_communication_001",
+            },
+            {
+              sourceId: "concern_homesickness",
+              sourceType: "concern",
+              title: "Homesickness and Child Readiness",
+              rank: 4,
+              fieldPath: "summary",
+              sourceRevision: "mock_rev_concern_homesickness_001",
+            },
+          ],
+          diagnostics: ["fake_invalid_answer_composition_retrieval"],
+          coverage: {
+            status: "source_backed",
+            matchedSourceIds: ["program_overnight", "policy_homesickness", "policy_parent_communication", "concern_homesickness"],
+          },
+        };
+      },
+    };
+
+    const output = await runGuideSiteMvpCli([], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_cli_invalid_answer_composition",
+      createRunId: () => "run_cli_invalid_answer_composition",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+      retrievalAdapter,
+    });
+
+    assert.match(output, /Answer Composition Validation:/);
+    assert.match(output, /"valid": false/);
+    assert.match(output, /I don't have enough verified information to answer that confidently\./);
+    assert.match(output, /Answer Composition Status: validation_failed/);
+    assert.doesNotMatch(output, /Answer Composition Status: needs_context/);
+    assert.match(output, /Saved Run State:/);
+
+    const savedRun = JSON.parse(
+      readFileSync(join(runStateDirectory, "run_cli_invalid_answer_composition.json"), "utf8"),
+    ) as {
+      status: string;
+      answerComposition: unknown;
+      answerCompositionValidation: { valid: boolean; diagnostics: string[] } | null;
+      rejectedAnswerComposition: { sections: Array<{ sourceRefs?: Array<{ title: string }> }> } | null;
+      committedSessionState: unknown;
+      diagnostics: string[];
+    };
+    assert.equal(savedRun.status, "validation_failed");
+    assert.equal(savedRun.answerComposition, null);
+    assert.equal(savedRun.answerCompositionValidation?.valid, false);
+    assert.equal(savedRun.rejectedAnswerComposition?.sections[0]?.sourceRefs?.[0]?.title, "Unsafe Secret Draft");
+    assert.equal(savedRun.committedSessionState, null);
+    assert.deepEqual(savedRun.diagnostics, [
+      "fake_invalid_answer_composition_retrieval",
+      "answer_composition_section_0_source_ref_0_field_path_required",
+      "answer_composition_section_5_source_ref_0_field_path_required",
+    ]);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true });
   }
 });
 

@@ -119,6 +119,11 @@ export interface AnswerComposition {
   diagnostics: string[];
 }
 
+export interface AnswerCompositionValidationResult {
+  valid: boolean;
+  diagnostics: string[];
+}
+
 export interface RetrievalResult {
   sourceId: string;
   sourceType: string;
@@ -206,7 +211,9 @@ export interface RunState {
   promptUnderstandingProvider: PromptUnderstandingProviderTrace | null;
   promptUnderstandingValidation: PromptUnderstandingValidationResult | null;
   retrieval: RetrievalResults | null;
+  answerCompositionValidation: AnswerCompositionValidationResult | null;
   answerComposition: AnswerComposition | null;
+  rejectedAnswerComposition: AnswerComposition | null;
   patch: SessionPatch | null;
   committedSessionState: SessionState | null;
   diagnostics: string[];

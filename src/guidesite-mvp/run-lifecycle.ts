@@ -58,7 +58,9 @@ function cloneRunWithClearedTransientState(run: RunState): RunState {
     understanding: null,
     promptUnderstandingValidation: null,
     retrieval: null,
+    answerCompositionValidation: null,
     answerComposition: null,
+    rejectedAnswerComposition: null,
     patch: null,
     committedSessionState: null,
     diagnostics: [],
@@ -187,7 +189,9 @@ export function startGuideSiteRun(options: StartGuideSiteRunOptions): StartGuide
     promptUnderstandingProvider: null,
     promptUnderstandingValidation: null,
     retrieval: null,
+    answerCompositionValidation: null,
     answerComposition: null,
+    rejectedAnswerComposition: null,
     patch: null,
     committedSessionState: null,
     diagnostics: [],
@@ -222,6 +226,8 @@ export function withPromptUnderstandingCandidate(
       updatedAt: timestamp,
       promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
       promptUnderstandingValidation: validation,
+      answerCompositionValidation: null,
+      rejectedAnswerComposition: null,
       diagnostics: validation.diagnostics,
     };
   }
@@ -243,7 +249,9 @@ export function withPromptUnderstandingCandidate(
       understanding: structuredClone(candidate),
       promptUnderstandingValidation: validation,
       retrieval,
+      answerCompositionValidation,
       answerComposition: null,
+      rejectedAnswerComposition: answerComposition,
       diagnostics: [...retrieval.diagnostics, ...answerCompositionValidation.diagnostics],
     };
   }
@@ -256,7 +264,9 @@ export function withPromptUnderstandingCandidate(
     understanding: structuredClone(candidate),
     promptUnderstandingValidation: validation,
     retrieval,
+    answerCompositionValidation,
     answerComposition,
+    rejectedAnswerComposition: null,
     patch: null,
     committedSessionState: null,
     diagnostics: retrieval.diagnostics,
@@ -292,6 +302,9 @@ function createProviderFailureRun(
       valid: false,
       diagnostics,
     },
+    answerCompositionValidation: null,
+    answerComposition: null,
+    rejectedAnswerComposition: null,
     diagnostics,
   };
 }
@@ -777,6 +790,7 @@ export function withHardcodedUnderstandingAndComposition(
     isCanonicalPrompt && retrieval && sourceBackedRetrieval
       ? createValidatedAnswerComposition({ ...run, understanding, retrieval }, retrieval)
       : createFallbackAnswerComposition();
+  const answerCompositionValidation = retrieval ? validateAnswerCompositionCandidate(answerComposition, retrieval) : null;
 
   return {
     ...cloneRunWithClearedTransientState(run),
@@ -786,7 +800,9 @@ export function withHardcodedUnderstandingAndComposition(
     understanding,
     promptUnderstandingValidation: validation,
     retrieval,
+    answerCompositionValidation,
     answerComposition,
+    rejectedAnswerComposition: null,
     diagnostics: isCanonicalPrompt && sourceBackedRetrieval ? [] : ["unknown_prompt_fallback"],
   };
 }
@@ -861,11 +877,23 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     "Prompt Understanding:",
     JSON.stringify(run.understanding, null, 2),
     renderRetrievalOperatorOutput(run),
+    renderAnswerCompositionValidationOperatorOutput(run),
     renderAnswerCompositionOperatorOutput(run),
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session State:",
     JSON.stringify(run.committedSessionState, null, 2),
+  ].join("\n");
+}
+
+function renderAnswerCompositionValidationOperatorOutput(run: RunState): string {
+  if (!run.answerCompositionValidation) {
+    return ["Answer Composition Validation:", "null"].join("\n");
+  }
+
+  return [
+    "Answer Composition Validation:",
+    JSON.stringify(run.answerCompositionValidation, null, 2),
   ].join("\n");
 }
 
@@ -898,10 +926,13 @@ function renderPromptUnderstandingSummary(run: RunState): string {
 function renderAnswerCompositionOperatorOutput(run: RunState): string {
   const answerComposition = run.answerComposition;
   if (!answerComposition) {
+    const isAnswerCompositionValidationFailure = run.answerCompositionValidation?.valid === false;
     return [
       "Answer Composition:",
-      "Answer Composition Status: null",
-      "Conversational Framing: null",
+      `Answer Composition Status: ${isAnswerCompositionValidationFailure ? "validation_failed" : "null"}`,
+      `Conversational Framing: ${isAnswerCompositionValidationFailure
+        ? "I don't have enough verified information to answer that confidently."
+        : "null"}`,
       "Answer Composition Sections:",
       "(none)",
       "Suggested Prompts:",
@@ -909,7 +940,9 @@ function renderAnswerCompositionOperatorOutput(run: RunState): string {
       "Citations:",
       "(none)",
       "Diagnostics:",
-      "(none)",
+      ...(isAnswerCompositionValidationFailure && run.answerCompositionValidation?.diagnostics.length
+        ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
+        : ["(none)"]),
       "Raw Answer Composition JSON:",
       "null",
     ].join("\n");
