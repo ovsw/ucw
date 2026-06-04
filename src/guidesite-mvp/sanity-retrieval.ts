@@ -29,6 +29,7 @@ export type GuideSiteSanityRetrievalAdapterResolver = (
   understanding: PromptUnderstanding,
   sessionContext?: PromptUnderstandingSessionContext,
 ) => Promise<GuideSiteRetrievalAdapter>;
+type GuideSiteSanityRetrievalQueryResult = Awaited<ReturnType<typeof executeSanityRetrievalQueryPlan>>;
 
 const DEFAULT_SANITY_ADAPTER_ID = "sanityHybrid";
 const DEFAULT_SANITY_ADAPTER_LABEL = "Sanity Hybrid";
@@ -178,8 +179,8 @@ function buildGuideSiteSanityRetrievalResult(
   };
 }
 
-function collectGuideSiteSanitySourceIds(queryResult: Awaited<ReturnType<typeof executeSanityRetrievalQueryPlan>>): string[] {
-  const sourceIds: string[] = [];
+function collectOrderedGuideSiteSanitySourceIds(queryResult: GuideSiteSanityRetrievalQueryResult): string[] {
+  const orderedSourceIds: string[] = [];
   const seenSourceIds = new Set<string>();
 
   for (const candidate of [...queryResult.matchedConcerns, ...queryResult.mergedContentEntities]) {
@@ -188,10 +189,10 @@ function collectGuideSiteSanitySourceIds(queryResult: Awaited<ReturnType<typeof 
     }
 
     seenSourceIds.add(candidate._id);
-    sourceIds.push(candidate._id);
+    orderedSourceIds.push(candidate._id);
   }
 
-  return sourceIds;
+  return orderedSourceIds;
 }
 
 async function loadGuideSiteSanitySourceDocuments(
@@ -200,7 +201,7 @@ async function loadGuideSiteSanitySourceDocuments(
   fetchImpl: typeof fetch,
 ): Promise<GuideSiteSanitySourceDocument[]> {
   const queryResult = await executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(queryPrompt), config, fetchImpl);
-  const sourceIds = collectGuideSiteSanitySourceIds(queryResult);
+  const sourceIds = collectOrderedGuideSiteSanitySourceIds(queryResult);
 
   if (sourceIds.length === 0) {
     return [];
