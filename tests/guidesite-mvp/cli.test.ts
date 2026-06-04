@@ -38,15 +38,8 @@ function createMultiTurnPromptUnderstandingProvider(): {
   const followUpUnderstanding: PromptUnderstanding = {
     goal: "assess_fit",
     promptType: "fit",
-    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning about prior sleepaway experience.",
     facts: {
-      child_age: {
-        value: 8,
-        provenance: {
-          source: "explicit",
-          promptText: "8-year-old",
-        },
-      },
       prior_sleepaway_experience: {
         value: "slept_with_grandparents",
         provenance: {
@@ -102,6 +95,12 @@ type MultiTurnRunState = {
   committedSessionState: {
     revision: number;
     visitorFacts: {
+      child_age?: {
+        value: number;
+        source: string;
+        sourceRunId: string;
+        status: string;
+      };
       prior_sleepaway_experience?: {
         value: string;
         source: string;
@@ -242,6 +241,7 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
     assert.equal(turn2Run.baseSessionRevision, 2);
     assert.equal(turn2Run.snapshot.revision, 2);
     assert.equal(turn2Run.committedSessionState?.revision, 3);
+    assert.equal(turn2Run.committedSessionState?.visitorFacts.child_age?.sourceRunId, "run_multi_turn_1");
     assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.value, "slept_with_grandparents");
     assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.sourceRunId, "run_multi_turn_2");
     assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.status, "active");

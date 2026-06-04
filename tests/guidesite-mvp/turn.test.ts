@@ -256,7 +256,10 @@ test("GuideSite turn preserves insufficient source material as fallback Run Stat
       createSessionId: () => "session_turn_empty_retrieval",
       createRunId: () => "run_turn_empty_retrieval",
       promptUnderstandingProvider: createFakePromptUnderstandingProvider({
-        ...canonicalGuideSiteUnderstanding,
+        goal: "answer_factual",
+        promptType: "factual",
+        fitQuestion: null,
+        facts: {},
         concerns: [
           {
             key: "transportation",
@@ -266,7 +269,7 @@ test("GuideSite turn preserves insufficient source material as fallback Run Stat
           },
         ],
         retrievalNeeds: ["bus_schedule"],
-        contextNeeds: ["pickup_location"],
+        contextNeeds: [],
       }),
     });
 

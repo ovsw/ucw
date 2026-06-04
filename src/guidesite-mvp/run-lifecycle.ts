@@ -76,6 +76,48 @@ function cloneRunWithClearedTransientState(run: RunState): RunState {
   };
 }
 
+function normalizePromptCoverageText(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function validatePromptUnderstandingFactProvenanceAgainstPrompt(
+  promptText: string,
+  understanding: PromptUnderstanding,
+): string[] {
+  const diagnostics: string[] = [];
+  const normalizedPromptText = normalizePromptCoverageText(promptText);
+
+  for (const [factKey, fact] of Object.entries(understanding.facts)) {
+    const normalizedFactPromptText = normalizePromptCoverageText(fact.provenance.promptText);
+    if (normalizedFactPromptText.length === 0) {
+      continue;
+    }
+
+    if (!normalizedPromptText.includes(normalizedFactPromptText)) {
+      diagnostics.push(`prompt_understanding_fact_${factKey}_prompt_text_not_present_in_prompt`);
+    }
+  }
+
+  return diagnostics;
+}
+
+function collectActiveFacts(run: RunState): Map<string, string | number | boolean> {
+  const activeFacts = new Map<string, string | number | boolean>();
+  const session = run.snapshot;
+
+  for (const [factKey, fact] of Object.entries(session.visitorFacts)) {
+    if (fact.status === "active") {
+      activeFacts.set(factKey, fact.value);
+    }
+  }
+
+  for (const [factKey, fact] of Object.entries(run.understanding?.facts ?? {})) {
+    activeFacts.set(factKey, fact.value);
+  }
+
+  return activeFacts;
+}
+
 function createEmptySessionState(sessionId: string, timestamp: string): SessionState {
   return {
     schemaVersion: 1,
@@ -224,9 +266,10 @@ export function withPromptUnderstandingCandidate(
 ): RunState {
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const assessment = assessPromptUnderstandingCandidate(candidate);
+  const provenanceDiagnostics = validatePromptUnderstandingFactProvenanceAgainstPrompt(run.prompt.text, candidate);
   const validation = {
-    valid: assessment.accepted,
-    diagnostics: assessment.diagnostics,
+    valid: assessment.accepted && provenanceDiagnostics.length === 0,
+    diagnostics: [...assessment.diagnostics, ...provenanceDiagnostics],
   };
 
   if (!validation.valid) {
@@ -461,8 +504,9 @@ function createPriorSleepawayExperienceSummary(
 }
 
 function createNeedContextSummary(run: RunState): string {
-  const childAge = run.understanding?.facts.child_age?.value;
-  const priorSleepawayExperience = run.understanding?.facts.prior_sleepaway_experience?.value;
+  const activeFacts = collectActiveFacts(run);
+  const childAge = activeFacts.get("child_age");
+  const priorSleepawayExperience = activeFacts.get("prior_sleepaway_experience");
   if (typeof childAge === "number") {
     const summary = `The Parent is asking whether overnight camp is right for ${formatChildAge(childAge)} Child.`;
     const sleepawayExperienceSummary = createPriorSleepawayExperienceSummary(priorSleepawayExperience);
@@ -780,7 +824,12 @@ export function withHardcodedUnderstandingAndComposition(
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const isCanonicalPrompt = run.prompt.text === canonicalPromptText;
   const understanding = isCanonicalPrompt ? createCanonicalUnderstanding() : createFallbackUnderstanding();
-  const validation = validatePromptUnderstandingMeaning(understanding);
+  const meaningValidation = validatePromptUnderstandingMeaning(understanding);
+  const provenanceDiagnostics = validatePromptUnderstandingFactProvenanceAgainstPrompt(run.prompt.text, understanding);
+  const validation = {
+    valid: meaningValidation.valid && provenanceDiagnostics.length === 0,
+    diagnostics: [...meaningValidation.diagnostics, ...provenanceDiagnostics],
+  };
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
   const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding) : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;

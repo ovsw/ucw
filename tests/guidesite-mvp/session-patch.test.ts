@@ -142,6 +142,59 @@ test("compact Session summaries use the correct age article for a 7-year-old chi
   );
 });
 
+test("follow-up Prompt Understanding rejects carried facts whose provenance text is absent from the current Prompt", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: "She has slept at her grandparents' house a few times.",
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_follow_up_provenance",
+    createRunId: () => "run_follow_up_provenance",
+  });
+
+  const run = withPromptUnderstandingCandidate(
+    started.run,
+    {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning about prior sleepaway experience.",
+      facts: {
+        child_age: {
+          value: 8,
+          provenance: {
+            source: "explicit",
+            promptText: "8-year-old",
+          },
+        },
+        prior_sleepaway_experience: {
+          value: "slept_with_grandparents",
+          provenance: {
+            source: "explicit",
+            promptText: "She has slept at her grandparents' house a few times.",
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+      contextNeeds: ["child_readiness"],
+    },
+    { now: () => new Date("2026-01-01T00:02:00.000Z") },
+  );
+
+  assert.equal(run.status, "validation_failed");
+  assert.equal(run.understanding, null);
+  assert.deepEqual(run.diagnostics, [
+    "prompt_understanding_fact_child_age_prompt_text_not_present_in_prompt",
+  ]);
+});
+
 test("duplicate commits for the same run ID do not apply the patch twice", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({

@@ -18,15 +18,8 @@ const followUpPrompt = "She has slept at her grandparents' house a few times.";
 const followUpUnderstanding: PromptUnderstanding = {
   goal: "assess_fit",
   promptType: "fit",
-  fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+  fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning about prior sleepaway experience.",
   facts: {
-    child_age: {
-      value: 8,
-      provenance: {
-        source: "explicit",
-        promptText: "8-year-old",
-      },
-    },
     prior_sleepaway_experience: {
       value: "slept_with_grandparents",
       provenance: {
@@ -145,6 +138,18 @@ test("Session Patch builder carries the grandparents sleepaway follow-up into th
   assert.match(committed.session.summary, /prior sleepaway experience with grandparents/);
   assert.match(committed.session.summary, /Remaining need: Child Readiness/);
   assert.match(committed.session.summary, /Homesickness and Child Readiness remain open concerns/);
+  assert.deepEqual(committed.session.visitorFacts.child_age, {
+    value: 8,
+    source: "explicit",
+    sourceRunId: "run_patch_builder_canonical",
+    status: "active",
+  });
+  assert.deepEqual(committed.session.visitorFacts.prior_sleepaway_experience, {
+    value: "slept_with_grandparents",
+    source: "explicit",
+    sourceRunId: "run_patch_builder_follow_up",
+    status: "active",
+  });
 });
 
 test("Session Patch builder rejects factual Answer Composition sections without source refs", () => {
@@ -178,7 +183,7 @@ test("Session Patch builder rejects factual Answer Composition sections without 
 test("Session Patch builder commits validated non-canonical Visitor Context and Concerns", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({
-    promptText: canonicalPrompt,
+    promptText: "Is overnight camp right for my 8-year-old with budget under $1000?",
     stores,
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     createSessionId: () => "session_patch_builder_noncanonical",
@@ -189,7 +194,7 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
     {
       goal: "assess_fit",
       promptType: "fit",
-      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child with a travel constraint.",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child with a travel constraint and budget limit.",
       facts: {
         child_age: {
           value: 8,
