@@ -156,6 +156,50 @@ test("GuideSite turn commits the canonical Prompt through a Sanity-backed retrie
   }
 });
 
+test("GuideSite turn classifies Sanity retrieval failures separately from Prompt Understanding failures", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: canonicalGuideSitePrompt,
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_sanity_failure",
+      createRunId: () => "run_turn_sanity_failure",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+      sanityRetrievalAdapterResolver: async () =>
+        createSanityGuideSiteRetrievalAdapter(() => {
+          throw new Error("Sanity query failed with 500 Server Error: boom");
+        }),
+    });
+
+    assert.equal(run.status, "retrieval_failed");
+    assert.equal(run.answerComposition, null);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.understanding, canonicalGuideSiteUnderstanding);
+    assert.equal(run.promptUnderstandingProvider?.provider, "fake");
+    assert.equal(run.promptUnderstandingValidation?.valid, true);
+    assert.deepEqual(run.diagnostics, ["retrieval_failed: Sanity query failed with 500 Server Error: boom"]);
+
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Run Status: retrieval_failed/);
+    assert.match(output, /Retrieval Status: failed/);
+    assert.match(output, /retrieval_failed: Sanity query failed with 500 Server Error: boom/);
+    assert.doesNotMatch(output, /prompt_understanding_provider_failed/);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_sanity_failure.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "retrieval_failed");
+    assert.deepEqual(savedRun.understanding, canonicalGuideSiteUnderstanding);
+    assert.equal(savedRun.promptUnderstandingProvider?.provider, "fake");
+    assert.deepEqual(savedRun.diagnostics, ["retrieval_failed: Sanity query failed with 500 Server Error: boom"]);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
 test("GuideSite turn preserves provider failures as inspectable Run State", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
   try {

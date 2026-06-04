@@ -5,6 +5,7 @@ export type RunStatus =
   | "fallback"
   | "validation_failed"
   | "prompt_understanding_failed"
+  | "retrieval_failed"
   | "committed";
 export type PromptSource = "typed" | "suggested_prompt";
 export type VisitorFactSource = "explicit" | "inferred";

@@ -7,6 +7,7 @@ import type {
   PromptUnderstanding,
   PromptUnderstandingProviderTrace,
   PromptUnderstandingSessionContext,
+  PromptUnderstandingValidationResult,
   RunState,
   RunStore,
   SessionPatch,
@@ -78,6 +79,41 @@ function cloneRunWithClearedTransientState(run: RunState): RunState {
   };
 }
 
+function validatePromptUnderstandingCandidate(
+  promptText: string,
+  candidate: PromptUnderstanding,
+): PromptUnderstandingValidationResult {
+  const assessment = assessPromptUnderstandingCandidate(candidate);
+  const provenanceDiagnostics = validatePromptUnderstandingFactProvenanceAgainstPrompt(promptText, candidate);
+
+  return {
+    valid: assessment.accepted && provenanceDiagnostics.length === 0,
+    diagnostics: [...assessment.diagnostics, ...provenanceDiagnostics],
+  };
+}
+
+function createValidationFailedRun(
+  run: RunState,
+  validation: PromptUnderstandingValidationResult,
+  options: {
+    now?: () => Date;
+    providerTrace?: PromptUnderstandingProviderTrace | null;
+  } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+
+  return {
+    ...cloneRunWithClearedTransientState(run),
+    status: "validation_failed",
+    updatedAt: timestamp,
+    promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
+    promptUnderstandingValidation: validation,
+    answerCompositionValidation: null,
+    rejectedAnswerComposition: null,
+    diagnostics: validation.diagnostics,
+  };
+}
+
 function normalizePromptCoverageText(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -145,6 +181,7 @@ export function renderStartRunOperatorOutput(run: RunState): string {
   return [
     "GuideSite Start Run",
     `Prompt: ${run.prompt.text}`,
+    `Run Status: ${run.status}`,
     `Session ID: ${run.sessionId}`,
     `Run ID: ${run.runId}`,
     `Base Revision: ${run.baseSessionRevision}`,
@@ -249,25 +286,14 @@ export function withPromptUnderstandingCandidate(
     retrievalAdapter?: GuideSiteRetrievalAdapter;
   } = {},
 ): RunState {
+  const validation = validatePromptUnderstandingCandidate(run.prompt.text, candidate);
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
-  const assessment = assessPromptUnderstandingCandidate(candidate);
-  const provenanceDiagnostics = validatePromptUnderstandingFactProvenanceAgainstPrompt(run.prompt.text, candidate);
-  const validation = {
-    valid: assessment.accepted && provenanceDiagnostics.length === 0,
-    diagnostics: [...assessment.diagnostics, ...provenanceDiagnostics],
-  };
 
   if (!validation.valid) {
-    return {
-      ...cloneRunWithClearedTransientState(run),
-      status: "validation_failed",
-      updatedAt: timestamp,
-      promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
-      promptUnderstandingValidation: validation,
-      answerCompositionValidation: null,
-      rejectedAnswerComposition: null,
-      diagnostics: validation.diagnostics,
-    };
+    return createValidationFailedRun(run, validation, {
+      now: options.now,
+      providerTrace: options.providerTrace ?? null,
+    });
   }
 
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
@@ -309,6 +335,31 @@ export function withPromptUnderstandingCandidate(
     patch: null,
     committedSessionState: null,
     diagnostics: retrieval.diagnostics,
+  };
+}
+
+function createRetrievalFailureRun(
+  run: RunState,
+  promptUnderstanding: PromptUnderstanding,
+  promptUnderstandingValidation: PromptUnderstandingValidationResult,
+  providerTrace: PromptUnderstandingProviderTrace | null,
+  error: unknown,
+  options: { now?: () => Date } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const message = error instanceof Error ? error.message : String(error);
+
+  return {
+    ...cloneRunWithClearedTransientState(run),
+    status: "retrieval_failed",
+    updatedAt: timestamp,
+    promptUnderstandingProvider: providerTrace ? structuredClone(providerTrace) : null,
+    understanding: structuredClone(promptUnderstanding),
+    promptUnderstandingValidation: structuredClone(promptUnderstandingValidation),
+    answerCompositionValidation: null,
+    answerComposition: null,
+    rejectedAnswerComposition: null,
+    diagnostics: [`retrieval_failed: ${message}`],
   };
 }
 
@@ -359,14 +410,34 @@ export async function withProviderBackedUnderstandingAndComposition(
 ): Promise<RunState> {
   try {
     const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
-    const result = await provider.understandPrompt(run.prompt.text, sessionContext);
-    const retrievalAdapter = await resolveRetrievalAdapter(run.prompt.text, result.understanding, sessionContext, options);
+    const providerResult = await provider.understandPrompt(run.prompt.text, sessionContext);
+    const validation = validatePromptUnderstandingCandidate(run.prompt.text, providerResult.understanding);
 
-    return withPromptUnderstandingCandidate(run, result.understanding, {
-      now: options.now,
-      providerTrace: result.trace,
-      retrievalAdapter,
-    });
+    if (!validation.valid) {
+      return createValidationFailedRun(run, validation, {
+        now: options.now,
+        providerTrace: providerResult.trace,
+      });
+    }
+
+    try {
+      const retrievalAdapter = await resolveRetrievalAdapter(
+        run.prompt.text,
+        providerResult.understanding,
+        sessionContext,
+        options,
+      );
+
+      return withPromptUnderstandingCandidate(run, providerResult.understanding, {
+        now: options.now,
+        providerTrace: providerResult.trace,
+        retrievalAdapter,
+      });
+    } catch (error) {
+      return createRetrievalFailureRun(run, providerResult.understanding, validation, providerResult.trace, error, {
+        now: options.now,
+      });
+    }
   } catch (error) {
     return createProviderFailureRun(run, error, options);
   }
@@ -1162,7 +1233,8 @@ function renderRetrievalOperatorOutput(run: RunState): string {
       "Retrieval Results:",
       "Retrieval Input:",
       "null",
-      "Retrieval Status: not_run",
+      `Retrieval Status: ${run.status === "retrieval_failed" ? "failed" : "not_run"}`,
+      ...(run.status === "retrieval_failed" ? ["Diagnostics:", ...renderDiagnosticsList(run.diagnostics)] : []),
       "Raw Retrieval Results JSON:",
       "null",
     ].join("\n");
