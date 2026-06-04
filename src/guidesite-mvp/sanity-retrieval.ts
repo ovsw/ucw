@@ -179,14 +179,10 @@ function buildGuideSiteSanityRetrievalResult(
 }
 
 async function loadGuideSiteSanitySourceDocuments(
-  promptText: string,
-  understanding: PromptUnderstanding,
-  sessionContext: PromptUnderstandingSessionContext | null,
+  queryPrompt: string,
   config: SanityQueryConfig,
   fetchImpl: typeof fetch,
 ): Promise<GuideSiteSanitySourceDocument[]> {
-  const searchText = buildGuideSiteSanitySearchText(understanding, sessionContext);
-  const queryPrompt = `${promptText} ${searchText}`.trim();
   const queryResult = await executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(queryPrompt), config, fetchImpl);
   const sourceIds = queryResult.mergedContentEntities.map((candidate) => candidate._id);
 
@@ -218,6 +214,18 @@ async function loadGuideSiteSanitySourceDocuments(
   }
 
   return sourceIds.map((sourceId) => docsById.get(sourceId) as GuideSiteSanitySourceDocument);
+}
+
+function assertSanitySourceSearchText(
+  expectedSearchText: string,
+  actualSearchText: string,
+  promptText: string,
+): void {
+  if (actualSearchText !== expectedSearchText) {
+    throw new Error(
+      `Sanity GuideSite retrieval search text drifted for prompt ${promptText}: expected ${expectedSearchText}, got ${actualSearchText}`,
+    );
+  }
 }
 
 export function createSanityGuideSiteRetrievalAdapter(
@@ -252,22 +260,13 @@ export function createSanityGuideSiteRetrievalAdapterResolver(
   fetchImpl: typeof fetch = fetch,
 ): GuideSiteSanityRetrievalAdapterResolver {
   return async (promptText, understanding, sessionContext) => {
-    const rawSources = await loadGuideSiteSanitySourceDocuments(
-      promptText,
-      understanding,
-      sessionContext ?? null,
-      config,
-      fetchImpl,
-    );
+    const resolvedSessionContext = sessionContext ?? null;
+    const searchText = buildGuideSiteSanitySearchText(understanding, resolvedSessionContext);
+    const queryPrompt = `${promptText} ${searchText}`.trim();
+    const rawSources = await loadGuideSiteSanitySourceDocuments(queryPrompt, config, fetchImpl);
 
     return createSanityGuideSiteRetrievalAdapter((query) => {
-      const expectedSearchText = buildGuideSiteSanitySearchText(understanding, sessionContext ?? null);
-      if (query.searchText !== expectedSearchText) {
-        throw new Error(
-          `Sanity GuideSite retrieval search text drifted for prompt ${promptText}: expected ${expectedSearchText}, got ${query.searchText}`,
-        );
-      }
-
+      assertSanitySourceSearchText(searchText, query.searchText, promptText);
       return rawSources;
     });
   };

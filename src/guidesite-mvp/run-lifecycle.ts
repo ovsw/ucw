@@ -360,11 +360,7 @@ export async function withProviderBackedUnderstandingAndComposition(
   try {
     const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
     const result = await provider.understandPrompt(run.prompt.text, sessionContext);
-    const retrievalAdapter =
-      options.retrievalAdapter ??
-      (options.sanityRetrievalAdapterResolver
-        ? await options.sanityRetrievalAdapterResolver(run.prompt.text, result.understanding, sessionContext)
-        : undefined);
+    const retrievalAdapter = await resolveRetrievalAdapter(run.prompt.text, result.understanding, sessionContext, options);
 
     return withPromptUnderstandingCandidate(run, result.understanding, {
       now: options.now,
@@ -374,6 +370,26 @@ export async function withProviderBackedUnderstandingAndComposition(
   } catch (error) {
     return createProviderFailureRun(run, error, options);
   }
+}
+
+async function resolveRetrievalAdapter(
+  promptText: string,
+  understanding: PromptUnderstanding,
+  sessionContext: PromptUnderstandingSessionContext,
+  options: {
+    retrievalAdapter?: GuideSiteRetrievalAdapter;
+    sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
+  },
+): Promise<GuideSiteRetrievalAdapter | undefined> {
+  if (options.retrievalAdapter) {
+    return options.retrievalAdapter;
+  }
+
+  if (!options.sanityRetrievalAdapterResolver) {
+    return undefined;
+  }
+
+  return options.sanityRetrievalAdapterResolver(promptText, understanding, sessionContext);
 }
 
 function createCanonicalUnderstanding(): PromptUnderstanding {
