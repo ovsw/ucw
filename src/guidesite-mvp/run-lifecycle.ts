@@ -287,7 +287,6 @@ export function withPromptUnderstandingCandidate(
   } = {},
 ): RunState {
   const validation = validatePromptUnderstandingCandidate(run.prompt.text, candidate);
-  const timestamp = (options.now ?? (() => new Date()))().toISOString();
 
   if (!validation.valid) {
     return createValidationFailedRun(run, validation, {
@@ -296,6 +295,7 @@ export function withPromptUnderstandingCandidate(
     });
   }
 
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
   const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
   const retrieval = withAdapterMetadata(retrievalAdapter.retrieve(candidate, sessionContext), retrievalAdapter);
