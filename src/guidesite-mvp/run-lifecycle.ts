@@ -901,6 +901,7 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
 
 export function renderGuideSiteRunOperatorOutput(run: RunState): string {
   const committedSessionSummary = run.committedSessionState?.summary ?? null;
+  const commitStatus = run.status === "committed" ? "committed" : "not_committed";
   return [
     renderStartRunOperatorOutput(run),
     "Prompt Understanding Provider:",
@@ -913,7 +914,7 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     renderRetrievalOperatorOutput(run),
     renderAnswerCompositionValidationOperatorOutput(run),
     renderAnswerCompositionOperatorOutput(run),
-    `Commit Status: ${run.status === "committed" ? "committed" : "not_committed"}`,
+    `Commit Status: ${commitStatus}`,
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session Summary:",
@@ -925,16 +926,21 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
 
 function renderAnswerCompositionValidationOperatorOutput(run: RunState): string {
   if (!run.answerCompositionValidation) {
-    return ["Answer Composition Validation:", "Answer Composition Validation Status: null", "Diagnostics:", "(none)", "Raw Answer Composition Validation JSON:", "null"].join("\n");
+    return [
+      "Answer Composition Validation:",
+      "Answer Composition Validation Status: null",
+      "Diagnostics:",
+      "(none)",
+      "Raw Answer Composition Validation JSON:",
+      "null",
+    ].join("\n");
   }
 
   return [
     "Answer Composition Validation:",
     `Answer Composition Validation Status: ${run.answerCompositionValidation.valid ? "pass" : "fail"}`,
     "Diagnostics:",
-    ...(run.answerCompositionValidation.diagnostics.length > 0
-      ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
-      : ["(none)"]),
+    ...renderDiagnosticsList(run.answerCompositionValidation.diagnostics),
     "Raw Answer Composition Validation JSON:",
     JSON.stringify(run.answerCompositionValidation, null, 2),
   ].join("\n");
@@ -997,10 +1003,6 @@ function renderAnswerCompositionOperatorOutput(run: RunState): string {
 
 function renderMissingAnswerCompositionOperatorOutput(run: RunState): string[] {
   const validationFailed = run.answerCompositionValidation?.valid === false;
-  const diagnostics =
-    validationFailed && run.answerCompositionValidation?.diagnostics.length
-      ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
-      : ["(none)"];
 
   return [
     "Answer Composition:",
@@ -1015,7 +1017,7 @@ function renderMissingAnswerCompositionOperatorOutput(run: RunState): string[] {
     "Citations:",
     "(none)",
     "Diagnostics:",
-    ...diagnostics,
+    ...(validationFailed ? renderDiagnosticsList(run.answerCompositionValidation?.diagnostics ?? []) : ["(none)"]),
     "Raw Answer Composition JSON:",
     "null",
   ];
@@ -1122,4 +1124,8 @@ function renderRetrievalOperatorOutput(run: RunState): string {
   ]
     .filter((line) => line !== null)
     .join("\n");
+}
+
+function renderDiagnosticsList(diagnostics: string[]): string[] {
+  return diagnostics.length > 0 ? diagnostics.map((diagnostic) => `- ${diagnostic}`) : ["(none)"];
 }
