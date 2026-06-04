@@ -31,7 +31,7 @@ import {
 } from "./prompt-understanding.js";
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
-import { getIndefiniteArticleForAge } from "./age-formatting.js";
+import { formatChildAge } from "./age-formatting.js";
 import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
@@ -464,7 +464,7 @@ function createNeedContextSummary(run: RunState): string {
   const childAge = run.understanding?.facts.child_age?.value;
   const priorSleepawayExperience = run.understanding?.facts.prior_sleepaway_experience?.value;
   if (typeof childAge === "number") {
-    const summary = `The Parent is asking whether overnight camp is right for ${getIndefiniteArticleForAge(childAge)} ${childAge}-year-old Child.`;
+    const summary = `The Parent is asking whether overnight camp is right for ${formatChildAge(childAge)} Child.`;
     const sleepawayExperienceSummary = createPriorSleepawayExperienceSummary(priorSleepawayExperience);
     if (sleepawayExperienceSummary !== null) {
       return `${summary} ${sleepawayExperienceSummary}`;

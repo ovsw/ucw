@@ -6,3 +6,8 @@ export function getIndefiniteArticleForAge(age: number): "a" | "an" {
 
   return "a";
 }
+
+export function formatChildAge(age: number): string {
+  const ageValue = Math.trunc(Math.abs(age));
+  return `${getIndefiniteArticleForAge(ageValue)} ${ageValue}-year-old`;
+}
