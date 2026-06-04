@@ -180,6 +180,14 @@ function buildOpenAIPromptUnderstandingRequest(
   promptText: string,
   context?: PromptUnderstandingSessionContext,
 ): Record<string, unknown> {
+  const userPayload: Record<string, unknown> = {
+    prompt: promptText,
+  };
+
+  if (context) {
+    userPayload.session = context.session;
+  }
+
   return {
     model,
     input: [
@@ -190,10 +198,7 @@ function buildOpenAIPromptUnderstandingRequest(
       },
       {
         role: "user",
-        content: JSON.stringify({
-          prompt: promptText,
-          ...(context ? { session: context.session } : {}),
-        }),
+        content: JSON.stringify(userPayload),
       },
     ],
     text: {

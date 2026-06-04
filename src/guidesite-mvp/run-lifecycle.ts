@@ -53,6 +53,12 @@ function cloneSessionState(session: SessionState): SessionState {
   return structuredClone(session);
 }
 
+function createPromptUnderstandingSessionContext(session: SessionState): PromptUnderstandingSessionContext {
+  return {
+    session: cloneSessionState(session),
+  };
+}
+
 function cloneRunWithClearedTransientState(run: RunState): RunState {
   return {
     ...structuredClone(run),
@@ -321,10 +327,8 @@ export async function withProviderBackedUnderstandingAndComposition(
   } = {},
 ): Promise<RunState> {
   try {
-    const context: PromptUnderstandingSessionContext = {
-      session: cloneSessionState(run.snapshot),
-    };
-    const result = await provider.understandPrompt(run.prompt.text, context);
+    const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
+    const result = await provider.understandPrompt(run.prompt.text, sessionContext);
 
     return withPromptUnderstandingCandidate(run, result.understanding, {
       now: options.now,
