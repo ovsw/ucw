@@ -92,6 +92,28 @@ function validatePromptUnderstandingCandidate(
   };
 }
 
+function createValidationFailedRun(
+  run: RunState,
+  validation: PromptUnderstandingValidationResult,
+  options: {
+    now?: () => Date;
+    providerTrace?: PromptUnderstandingProviderTrace | null;
+  } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+
+  return {
+    ...cloneRunWithClearedTransientState(run),
+    status: "validation_failed",
+    updatedAt: timestamp,
+    promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
+    promptUnderstandingValidation: validation,
+    answerCompositionValidation: null,
+    rejectedAnswerComposition: null,
+    diagnostics: validation.diagnostics,
+  };
+}
+
 function normalizePromptCoverageText(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -264,20 +286,14 @@ export function withPromptUnderstandingCandidate(
     retrievalAdapter?: GuideSiteRetrievalAdapter;
   } = {},
 ): RunState {
-  const timestamp = (options.now ?? (() => new Date()))().toISOString();
   const validation = validatePromptUnderstandingCandidate(run.prompt.text, candidate);
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
 
   if (!validation.valid) {
-    return {
-      ...cloneRunWithClearedTransientState(run),
-      status: "validation_failed",
-      updatedAt: timestamp,
-      promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
-      promptUnderstandingValidation: validation,
-      answerCompositionValidation: null,
-      rejectedAnswerComposition: null,
-      diagnostics: validation.diagnostics,
-    };
+    return createValidationFailedRun(run, validation, {
+      now: options.now,
+      providerTrace: options.providerTrace ?? null,
+    });
   }
 
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
@@ -394,33 +410,31 @@ export async function withProviderBackedUnderstandingAndComposition(
 ): Promise<RunState> {
   try {
     const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
-    const result = await provider.understandPrompt(run.prompt.text, sessionContext);
-    const validation = validatePromptUnderstandingCandidate(run.prompt.text, result.understanding);
+    const providerResult = await provider.understandPrompt(run.prompt.text, sessionContext);
+    const validation = validatePromptUnderstandingCandidate(run.prompt.text, providerResult.understanding);
 
     if (!validation.valid) {
-      return {
-        ...cloneRunWithClearedTransientState(run),
-        status: "validation_failed",
-        updatedAt: (options.now ?? (() => new Date()))().toISOString(),
-        promptUnderstandingProvider: structuredClone(result.trace),
-        understanding: null,
-        promptUnderstandingValidation: validation,
-        answerCompositionValidation: null,
-        rejectedAnswerComposition: null,
-        diagnostics: validation.diagnostics,
-      };
+      return createValidationFailedRun(run, validation, {
+        now: options.now,
+        providerTrace: providerResult.trace,
+      });
     }
 
     try {
-      const retrievalAdapter = await resolveRetrievalAdapter(run.prompt.text, result.understanding, sessionContext, options);
+      const retrievalAdapter = await resolveRetrievalAdapter(
+        run.prompt.text,
+        providerResult.understanding,
+        sessionContext,
+        options,
+      );
 
-      return withPromptUnderstandingCandidate(run, result.understanding, {
+      return withPromptUnderstandingCandidate(run, providerResult.understanding, {
         now: options.now,
-        providerTrace: result.trace,
+        providerTrace: providerResult.trace,
         retrievalAdapter,
       });
     } catch (error) {
-      return createRetrievalFailureRun(run, result.understanding, validation, result.trace, error, {
+      return createRetrievalFailureRun(run, providerResult.understanding, validation, providerResult.trace, error, {
         now: options.now,
       });
     }
