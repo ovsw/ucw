@@ -427,7 +427,7 @@ test("GuideSite turn commits a source-backed homesickness Concern answer into Se
   }
 });
 
-test("GuideSite turn composes a partial homesickness Concern answer when fixture source material is missing", async () => {
+test("GuideSite turn composes a partial homesickness Concern answer when source material is missing", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
   try {
     const stores = createGuideSiteMemoryStores({
@@ -528,8 +528,9 @@ test("GuideSite turn composes a partial homesickness Concern answer with Sanity 
       run.answerComposition?.sections.find((section) => section.kind === "sources")?.body ?? "",
       /Approved source material from Sanity Hybrid \[sanityHybrid\] was retrieved for the homesickness concern\./,
     );
-    assert.match(renderGuideSiteRunOperatorOutput(run), /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
-    assert.doesNotMatch(renderGuideSiteRunOperatorOutput(run), /fixture source material/i);
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+    assert.doesNotMatch(output, /fixture source material/i);
     assert.equal(run.patch, null);
     assert.equal(run.committedSessionState, null);
     assert.deepEqual(run.diagnostics, ["fake_partial_sanity_homesickness_retrieval"]);

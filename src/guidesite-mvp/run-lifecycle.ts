@@ -493,6 +493,14 @@ function describeRetrievalAdapter(retrieval: NonNullable<RunState["retrieval"]>)
   return "retrieval adapter";
 }
 
+function renderRetrievalAdapterLine(retrieval: NonNullable<RunState["retrieval"]>): string | null {
+  if (!retrieval.adapterId && !retrieval.adapterLabel) {
+    return null;
+  }
+
+  return `Retrieval Adapter: ${retrieval.adapterLabel ?? "(unknown)"} [${retrieval.adapterId ?? "(unknown)"}]`;
+}
+
 function withAdapterMetadata(
   retrieval: GuideSiteRetrievalResult,
   adapter: GuideSiteRetrievalAdapter | undefined,
@@ -1149,9 +1157,7 @@ function renderRetrievalOperatorOutput(run: RunState): string {
   return [
     "Retrieval Results:",
     "Retrieval Input:",
-    run.retrieval.adapterId || run.retrieval.adapterLabel
-      ? `Retrieval Adapter: ${run.retrieval.adapterLabel ?? "(unknown)"} [${run.retrieval.adapterId ?? "(unknown)"}]`
-      : null,
+    renderRetrievalAdapterLine(run.retrieval),
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
     `Retrieval Status: ${run.retrieval.coverage.status}`,
