@@ -178,13 +178,29 @@ function buildGuideSiteSanityRetrievalResult(
   };
 }
 
+function collectGuideSiteSanitySourceIds(queryResult: Awaited<ReturnType<typeof executeSanityRetrievalQueryPlan>>): string[] {
+  const sourceIds: string[] = [];
+  const seenSourceIds = new Set<string>();
+
+  for (const candidate of [...queryResult.matchedConcerns, ...queryResult.mergedContentEntities]) {
+    if (seenSourceIds.has(candidate._id)) {
+      continue;
+    }
+
+    seenSourceIds.add(candidate._id);
+    sourceIds.push(candidate._id);
+  }
+
+  return sourceIds;
+}
+
 async function loadGuideSiteSanitySourceDocuments(
   queryPrompt: string,
   config: SanityQueryConfig,
   fetchImpl: typeof fetch,
 ): Promise<GuideSiteSanitySourceDocument[]> {
   const queryResult = await executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(queryPrompt), config, fetchImpl);
-  const sourceIds = queryResult.mergedContentEntities.map((candidate) => candidate._id);
+  const sourceIds = collectGuideSiteSanitySourceIds(queryResult);
 
   if (sourceIds.length === 0) {
     return [];
