@@ -7,10 +7,44 @@ import {
   renderGuideSiteRunOperatorOutput,
   SessionPatchConflictError,
   startGuideSiteRun,
+  withPromptUnderstandingCandidate,
   withHardcodedUnderstandingAndComposition,
 } from "../../src/guidesite-mvp/run-lifecycle.js";
+import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
 
 const canonicalPrompt = "Is overnight camp right for my 8-year-old?";
+const sevenYearOldPrompt = "Is overnight camp right for my 7-year-old?";
+
+const sevenYearOldUnderstanding: PromptUnderstanding = {
+  goal: "assess_fit",
+  promptType: "fit",
+  fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 7-year-old Child.",
+  facts: {
+    child_age: {
+      value: 7,
+      provenance: {
+        source: "explicit",
+        promptText: "7-year-old",
+      },
+    },
+  },
+  concerns: [
+    {
+      key: "homesickness",
+      label: "Homesickness",
+      status: "open",
+      provenance: "implied",
+    },
+    {
+      key: "child_readiness",
+      label: "Child Readiness",
+      status: "open",
+      provenance: "implied",
+    },
+  ],
+  retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+  contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+};
 
 test("canonical run commits a hardcoded Session Patch into compact Session State", () => {
   const stores = createGuideSiteMemoryStores();
@@ -80,6 +114,32 @@ test("canonical run commits a hardcoded Session Patch into compact Session State
   assert.match(output, /Committed Session State:/);
   assert.match(output, /"revision": 2/);
   assert.notEqual(committed.session.summary, canonicalPrompt);
+});
+
+test("compact Session summaries use the correct age article for a 7-year-old child", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: sevenYearOldPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_seven_year_old",
+    createRunId: () => "run_seven_year_old",
+  });
+  const run = withPromptUnderstandingCandidate(started.run, sevenYearOldUnderstanding, {
+    now: () => new Date("2026-01-01T00:02:00.000Z"),
+  });
+  const patch = buildHardcodedSessionPatch(run);
+  const committed = commitSessionPatch({
+    stores,
+    run,
+    patch,
+    now: () => new Date("2026-01-01T00:03:00.000Z"),
+  });
+
+  assert.equal(
+    committed.session.summary,
+    "Parent is assessing overnight camp Fit for a 7-year-old Child. Homesickness and Child Readiness remain open concerns; Remaining need: Prior Sleepaway Experience and Child Readiness.",
+  );
 });
 
 test("duplicate commits for the same run ID do not apply the patch twice", () => {

@@ -31,6 +31,7 @@ import {
 } from "./prompt-understanding.js";
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
+import { getIndefiniteArticleForAge } from "./age-formatting.js";
 import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.js";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
@@ -443,15 +444,6 @@ function titleCaseIdentifier(identifier: string): string {
     .filter((part) => part.length > 0)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function getIndefiniteArticleForAge(age: number): "a" | "an" {
-  const ageText = String(Math.trunc(Math.abs(age)));
-  if (ageText.startsWith("8") || ageText.startsWith("11") || ageText.startsWith("18")) {
-    return "an";
-  }
-
-  return "a";
 }
 
 function createPriorSleepawayExperienceSummary(

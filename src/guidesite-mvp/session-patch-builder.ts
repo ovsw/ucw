@@ -1,4 +1,5 @@
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
+import { getIndefiniteArticleForAge } from "./age-formatting.js";
 import type { RunState, SessionPatch, SessionPatchOperation } from "./types.js";
 
 function titleCaseIdentifier(identifier: string): string {
@@ -85,7 +86,7 @@ function createSessionSummary(run: RunState): string {
   const ageFact = activeFacts.get("child_age");
   const intro =
     typeof ageFact === "number"
-      ? `Parent is assessing overnight camp Fit for an ${ageFact}-year-old Child.`
+      ? `Parent is assessing overnight camp Fit for ${getIndefiniteArticleForAge(ageFact)} ${ageFact}-year-old Child.`
       : "Parent is assessing overnight camp Fit for the Child.";
 
   const clauses: string[] = [];
