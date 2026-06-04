@@ -21,6 +21,7 @@ import {
   type GuideSiteRetrievalAdapter,
   type GuideSiteRetrievalResult,
 } from "./fixture-retrieval.js";
+import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.js";
 import {
   PromptUnderstandingProviderError,
   type PromptUnderstandingProvider,
@@ -353,16 +354,22 @@ export async function withProviderBackedUnderstandingAndComposition(
   options: {
     now?: () => Date;
     retrievalAdapter?: GuideSiteRetrievalAdapter;
+    sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
   } = {},
 ): Promise<RunState> {
   try {
     const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
     const result = await provider.understandPrompt(run.prompt.text, sessionContext);
+    const retrievalAdapter =
+      options.retrievalAdapter ??
+      (options.sanityRetrievalAdapterResolver
+        ? await options.sanityRetrievalAdapterResolver(run.prompt.text, result.understanding, sessionContext)
+        : undefined);
 
     return withPromptUnderstandingCandidate(run, result.understanding, {
       now: options.now,
       providerTrace: result.trace,
-      retrievalAdapter: options.retrievalAdapter,
+      retrievalAdapter,
     });
   } catch (error) {
     return createProviderFailureRun(run, error, options);

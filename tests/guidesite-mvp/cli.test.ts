@@ -170,6 +170,15 @@ function readSanityCliRunState(runStateDirectory: string, runId: string): Sanity
   return JSON.parse(readFileSync(join(runStateDirectory, `${runId}.json`), "utf8")) as SanityCliRunState;
 }
 
+function createSanityCliJsonResponse(result: unknown): Response {
+  return new Response(JSON.stringify({ result }), {
+    status: 200,
+    headers: {
+      "content-type": "application/json",
+    },
+  });
+}
+
 test("GuideSite MVP CLI requires OpenAI provider configuration for normal runs", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
   await assert.rejects(
@@ -256,8 +265,9 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   assert.match(output, /Has your child slept away from home before\?/);
 });
 
-test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entrypoint", async () => {
+test("GuideSite MVP CLI explicitly selects Sanity retrieval through the real Sanity query path", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sanity-"));
+  const seenQueries: Array<{ query: string; params: Record<string, unknown> }> = [];
   try {
     const runId = "run_cli_sanity";
     const output = await runGuideSiteMvpCli(["--retrieval=sanity"], {
@@ -271,53 +281,123 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entr
         SANITY_API_VERSION: "2025-02-19",
       },
       promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
-      sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter((query) => {
-        assert.match(query.searchText, /overnight/i);
-        assert.match(query.searchText, /homesickness/i);
-        assert.match(query.searchText, /prior/i);
-        return [
-          {
-            _id: "concern_homesickness",
-            _type: "concern",
-            _rev: "mock_rev_concern_homesickness_001",
-            sourceKind: "sourceOfTruth",
-            title: "Homesickness and Child Readiness",
-            summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
-          },
-          {
-            _id: "program_overnight",
-            _type: "campProgram",
-            _rev: "mock_rev_program_overnight_001",
-            sourceKind: "sourceOfTruth",
-            title: "Overnight Camp Program",
-            body: "The overnight program is designed for children who are ready to spend several nights away from home.",
-          },
-          {
-            _id: "policy_homesickness",
-            _type: "policy",
-            _rev: "mock_rev_policy_homesickness_001",
-            sourceKind: "sourceOfTruth",
-            title: "Homesickness Support Policy",
-            summary: "Cabin staff watch for homesickness and help children settle into routines.",
-          },
-          {
-            _id: "policy_parent_communication",
-            _type: "policy",
-            _rev: "mock_rev_policy_parent_communication_001",
-            sourceKind: "sourceOfTruth",
-            title: "Parent Communication Policy",
-            summary: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
-          },
-          {
-            _id: "prompt_template_sleepaway_experience",
-            _type: "promptTemplate",
-            _rev: "mock_rev_prompt_template_sleepaway_experience_001",
-            sourceKind: "sourceOfTruth",
-            title: "Prior Sleepaway Experience Prompt Template",
-            text: "Has your child slept away from home before?",
-          },
-        ];
-      }),
+      fetchImpl: async (_input, init) => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          query?: string;
+          params?: Record<string, unknown>;
+        };
+        const query = body.query ?? "";
+        const params = body.params ?? {};
+        seenQueries.push({ query, params });
+
+        if (query.includes('_type == "concern"')) {
+          assert.match(String(params.searchQuery ?? ""), /overnight/i);
+          assert.match(String(params.searchQuery ?? ""), /homesickness/i);
+          assert.match(String(params.searchQuery ?? ""), /prior/i);
+          return createSanityCliJsonResponse([
+            {
+              _id: "concern_homesickness",
+              _type: "concern",
+              _score: 10,
+              title: "Homesickness and Child Readiness",
+            },
+          ]);
+        }
+
+        if (query.includes("relatedConcernTitles")) {
+          return createSanityCliJsonResponse([
+            {
+              _id: "concern_homesickness",
+              _type: "concern",
+              _score: 10,
+              title: "Homesickness and Child Readiness",
+            },
+            {
+              _id: "program_overnight",
+              _type: "campProgram",
+              _score: 9,
+              title: "Overnight Camp Program",
+            },
+            {
+              _id: "policy_homesickness",
+              _type: "policy",
+              _score: 8,
+              title: "Homesickness Support Policy",
+            },
+            {
+              _id: "policy_parent_communication",
+              _type: "policy",
+              _score: 7,
+              title: "Parent Communication Policy",
+            },
+            {
+              _id: "prompt_template_sleepaway_experience",
+              _type: "promptTemplate",
+              _score: 6,
+              title: "Prior Sleepaway Experience Prompt Template",
+            },
+          ]);
+        }
+
+        if (query.includes("count(relatedConcerns[_ref in $matchedConcernIds]) > 0")) {
+          return createSanityCliJsonResponse([]);
+        }
+
+        if (query.includes("_id in $ids")) {
+          assert.deepEqual(params.ids, [
+            "concern_homesickness",
+            "program_overnight",
+            "policy_homesickness",
+            "policy_parent_communication",
+            "prompt_template_sleepaway_experience",
+          ]);
+
+          return createSanityCliJsonResponse([
+            {
+              _id: "program_overnight",
+              _type: "campProgram",
+              _rev: "mock_rev_program_overnight_001",
+              sourceKind: "sourceOfTruth",
+              title: "Overnight Camp Program",
+              body: "The overnight program is designed for children who are ready to spend several nights away from home.",
+            },
+            {
+              _id: "policy_parent_communication",
+              _type: "policy",
+              _rev: "mock_rev_policy_parent_communication_001",
+              sourceKind: "sourceOfTruth",
+              title: "Parent Communication Policy",
+              summary: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
+            },
+            {
+              _id: "policy_homesickness",
+              _type: "policy",
+              _rev: "mock_rev_policy_homesickness_001",
+              sourceKind: "sourceOfTruth",
+              title: "Homesickness Support Policy",
+              summary: "Cabin staff watch for homesickness and help children settle into routines.",
+            },
+            {
+              _id: "concern_homesickness",
+              _type: "concern",
+              _rev: "mock_rev_concern_homesickness_001",
+              sourceKind: "sourceOfTruth",
+              title: "Homesickness and Child Readiness",
+              summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
+            },
+            {
+              _id: "prompt_template_sleepaway_experience",
+              _type: "promptTemplate",
+              _rev: "mock_rev_prompt_template_sleepaway_experience_001",
+              sourceKind: "sourceOfTruth",
+              title: "Prior Sleepaway Experience Prompt Template",
+              text: "Has your child slept away from home before?",
+            },
+          ]);
+        }
+
+        throw new Error(`Unexpected Sanity query: ${query}`);
+      },
     });
 
     assert.match(output, /GuideSite Start Run/);
@@ -345,6 +425,10 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entr
     assert.match(output, /Parent is assessing overnight camp Fit for an 8-year-old Child\./);
     assert.match(output, /"sessionId": "session_cli_sanity"/);
     assert.match(output, new RegExp(`"runId": "${runId}"`));
+    assert.ok(seenQueries.some((entry) => entry.query.includes('_type == "concern"')));
+    assert.ok(seenQueries.some((entry) => entry.query.includes('relatedConcernTitles')));
+    assert.ok(seenQueries.some((entry) => entry.query.includes('count(relatedConcerns[_ref in $matchedConcernIds]) > 0')));
+    assert.ok(seenQueries.some((entry) => entry.query.includes("_id in $ids")));
 
     const savedRun = readSanityCliRunState(runStateDirectory, runId);
 
@@ -382,7 +466,6 @@ test("GuideSite MVP CLI fails loudly when Sanity retrieval is selected without S
       () =>
         runGuideSiteMvpCli(["--retrieval=sanity"], {
           promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
-          sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter(() => []),
           env: {},
           envFilePath: missingEnvFilePath,
         }),

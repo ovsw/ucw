@@ -5,6 +5,7 @@ import {
   withProviderBackedUnderstandingAndComposition,
 } from "./run-lifecycle.js";
 import type { GuideSiteRetrievalAdapter } from "./fixture-retrieval.js";
+import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.js";
 import type { GuideSiteStores, RunState } from "./types.js";
 import type { PromptUnderstandingProvider } from "./openai-prompt-understanding.js";
 
@@ -13,6 +14,7 @@ export interface RunGuideSiteMvpTurnOptions {
   stores: GuideSiteStores;
   promptUnderstandingProvider: PromptUnderstandingProvider;
   retrievalAdapter?: GuideSiteRetrievalAdapter;
+  sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
   now?: () => Date;
   createSessionId?: () => string;
   createRunId?: () => string;
@@ -33,6 +35,7 @@ export async function runGuideSiteMvpTurn(options: RunGuideSiteMvpTurnOptions): 
   const composedRun = await withProviderBackedUnderstandingAndComposition(started.run, promptUnderstandingProvider, {
     now,
     retrievalAdapter,
+    sanityRetrievalAdapterResolver: options.sanityRetrievalAdapterResolver,
   });
   const storedRun = stores.runs.update(composedRun);
 
