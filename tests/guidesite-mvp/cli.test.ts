@@ -324,14 +324,17 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entr
     assert.match(output, /Prompt: Is overnight camp right for my 8-year-old\?/);
     assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
     assert.match(output, /Retrieval Status: source_backed/);
+    assert.match(output, /Raw Retrieval Results JSON:/);
     assert.match(output, /Source Title: Homesickness and Child Readiness/);
     assert.match(output, /Source ID: concern_homesickness/);
     assert.match(output, /Source Type: concern/);
     assert.match(output, /Field Path: summary/);
     assert.match(output, /Source Revision: mock_rev_concern_homesickness_001/);
     assert.match(output, /Answer Composition Status: needs_context/);
+    assert.match(output, /Answer Composition Validation Status: pass/);
     assert.match(output, /Raw Answer Composition JSON:/);
     assert.match(output, /Session Patch:/);
+    assert.match(output, /Commit Status: committed/);
     assert.match(output, /Committed Session State:/);
     assert.match(output, /Committed Session Summary:/);
     assert.match(output, /Parent is assessing overnight camp Fit for an 8-year-old Child\./);
@@ -596,9 +599,11 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
     });
 
     assert.match(output, /Answer Composition Validation:/);
+    assert.match(output, /Answer Composition Validation Status: fail/);
     assert.match(output, /"valid": false/);
     assert.match(output, /I don't have enough verified information to answer that confidently\./);
     assert.match(output, /Answer Composition Status: validation_failed/);
+    assert.match(output, /Commit Status: not_committed/);
     assert.doesNotMatch(output, /Answer Composition Status: needs_context/);
     assert.match(output, /Saved Run State:/);
 

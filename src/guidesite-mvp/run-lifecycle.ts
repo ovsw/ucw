@@ -913,6 +913,7 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     renderRetrievalOperatorOutput(run),
     renderAnswerCompositionValidationOperatorOutput(run),
     renderAnswerCompositionOperatorOutput(run),
+    `Commit Status: ${run.status === "committed" ? "committed" : "not_committed"}`,
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session Summary:",
@@ -924,10 +925,19 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
 
 function renderAnswerCompositionValidationOperatorOutput(run: RunState): string {
   if (!run.answerCompositionValidation) {
-    return ["Answer Composition Validation:", "null"].join("\n");
+    return ["Answer Composition Validation:", "Answer Composition Validation Status: null", "Diagnostics:", "(none)", "Raw Answer Composition Validation JSON:", "null"].join("\n");
   }
 
-  return ["Answer Composition Validation:", JSON.stringify(run.answerCompositionValidation, null, 2)].join("\n");
+  return [
+    "Answer Composition Validation:",
+    `Answer Composition Validation Status: ${run.answerCompositionValidation.valid ? "pass" : "fail"}`,
+    "Diagnostics:",
+    ...(run.answerCompositionValidation.diagnostics.length > 0
+      ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
+      : ["(none)"]),
+    "Raw Answer Composition Validation JSON:",
+    JSON.stringify(run.answerCompositionValidation, null, 2),
+  ].join("\n");
 }
 
 function renderPromptUnderstandingSummary(run: RunState): string {
@@ -1073,7 +1083,14 @@ function renderAnswerCompositionCitations(citations: string[], retrieval: RunSta
 
 function renderRetrievalOperatorOutput(run: RunState): string {
   if (!run.retrieval) {
-    return ["Retrieval Results:", "Retrieval Input:", "null", "Retrieval Status: not_run"].join("\n");
+    return [
+      "Retrieval Results:",
+      "Retrieval Input:",
+      "null",
+      "Retrieval Status: not_run",
+      "Raw Retrieval Results JSON:",
+      "null",
+    ].join("\n");
   }
 
   const resultLines = run.retrieval.results.flatMap((result) => [
@@ -1100,6 +1117,8 @@ function renderRetrievalOperatorOutput(run: RunState): string {
     ...run.retrieval.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic}`),
     "Matched Source Refs:",
     ...(resultLines.length > 0 ? resultLines : ["(none)"]),
+    "Raw Retrieval Results JSON:",
+    JSON.stringify(run.retrieval, null, 2),
   ]
     .filter((line) => line !== null)
     .join("\n");
