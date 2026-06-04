@@ -216,48 +216,142 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
 });
 
 test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entrypoint", async () => {
-  const output = await runGuideSiteMvpCli(["--retrieval=sanity"], {
-    env: {
-      SANITY_PROJECT_ID: "demo-project",
-      SANITY_DATASET: "production",
-      SANITY_API_VERSION: "2025-02-19",
-    },
-    promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
-    sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter((query) => {
-      assert.match(query.searchText, /overnight/i);
-      assert.match(query.searchText, /homesickness/i);
-      return [
-        {
-          _id: "concern_homesickness",
-          _type: "concern",
-          _rev: "mock_rev_concern_homesickness_001",
-          sourceKind: "sourceOfTruth",
-          title: "Homesickness and Child Readiness",
-          summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
-        },
-        {
-          _id: "program_overnight",
-          _type: "campProgram",
-          _rev: "mock_rev_program_overnight_001",
-          sourceKind: "sourceOfTruth",
-          title: "Overnight Camp Program",
-          body: "The overnight program is designed for children who are ready to spend several nights away from home.",
-        },
-        {
-          _id: "policy_homesickness",
-          _type: "policy",
-          _rev: "mock_rev_policy_homesickness_001",
-          sourceKind: "sourceOfTruth",
-          title: "Homesickness Support Policy",
-          summary: "Cabin staff watch for homesickness and help children settle into routines.",
-        },
-      ];
-    }),
-  });
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sanity-"));
+  try {
+    const output = await runGuideSiteMvpCli(["--retrieval=sanity"], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_cli_sanity",
+      createRunId: () => "run_cli_sanity",
+      env: {
+        SANITY_PROJECT_ID: "demo-project",
+        SANITY_DATASET: "production",
+        SANITY_API_VERSION: "2025-02-19",
+      },
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+      sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter((query) => {
+        assert.match(query.searchText, /overnight/i);
+        assert.match(query.searchText, /homesickness/i);
+        assert.match(query.searchText, /prior/i);
+        return [
+          {
+            _id: "concern_homesickness",
+            _type: "concern",
+            _rev: "mock_rev_concern_homesickness_001",
+            sourceKind: "sourceOfTruth",
+            title: "Homesickness and Child Readiness",
+            summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
+          },
+          {
+            _id: "program_overnight",
+            _type: "campProgram",
+            _rev: "mock_rev_program_overnight_001",
+            sourceKind: "sourceOfTruth",
+            title: "Overnight Camp Program",
+            body: "The overnight program is designed for children who are ready to spend several nights away from home.",
+          },
+          {
+            _id: "policy_homesickness",
+            _type: "policy",
+            _rev: "mock_rev_policy_homesickness_001",
+            sourceKind: "sourceOfTruth",
+            title: "Homesickness Support Policy",
+            summary: "Cabin staff watch for homesickness and help children settle into routines.",
+          },
+          {
+            _id: "policy_parent_communication",
+            _type: "policy",
+            _rev: "mock_rev_policy_parent_communication_001",
+            sourceKind: "sourceOfTruth",
+            title: "Parent Communication Policy",
+            summary: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
+          },
+          {
+            _id: "prompt_template_sleepaway_experience",
+            _type: "promptTemplate",
+            _rev: "mock_rev_prompt_template_sleepaway_experience_001",
+            sourceKind: "sourceOfTruth",
+            title: "Prior Sleepaway Experience Prompt Template",
+            text: "Has your child slept away from home before?",
+          },
+        ];
+      }),
+    });
 
-  assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
-  assert.match(output, /Source Title: Homesickness and Child Readiness/);
-  assert.match(output, /Source Revision: mock_rev_concern_homesickness_001/);
+    assert.match(output, /GuideSite Start Run/);
+    assert.match(output, /Prompt: Is overnight camp right for my 8-year-old\?/);
+    assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+    assert.match(output, /Retrieval Status: source_backed/);
+    assert.match(output, /Source Title: Homesickness and Child Readiness/);
+    assert.match(output, /Source ID: concern_homesickness/);
+    assert.match(output, /Source Type: concern/);
+    assert.match(output, /Field Path: summary/);
+    assert.match(output, /Source Revision: mock_rev_concern_homesickness_001/);
+    assert.match(output, /Answer Composition Status: needs_context/);
+    assert.match(output, /Raw Answer Composition JSON:/);
+    assert.match(output, /Session Patch:/);
+    assert.match(output, /Committed Session State:/);
+    assert.match(output, /Committed Session Summary:/);
+    assert.match(output, /Parent is assessing overnight camp Fit for an 8-year-old Child\./);
+    assert.match(output, /"sessionId": "session_cli_sanity"/);
+    assert.match(output, /"runId": "run_cli_sanity"/);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_cli_sanity.json"), "utf8")) as {
+      status: string;
+      retrieval: {
+        adapterId?: string;
+        adapterLabel?: string;
+        coverage: { status: string };
+        results: Array<{
+          sourceId: string;
+          sourceType: string;
+          title: string;
+          fieldPath: string;
+          sourceRevision: string;
+        }>;
+      } | null;
+      answerComposition: { status: string; diagnostics: string[] } | null;
+      patch: { operations: Array<{ type: string }> } | null;
+      committedSessionState: {
+        revision: number;
+        visitorFacts: { child_age?: { value: number } };
+        concerns: Record<string, { status: string }>;
+        focus: { contextNeeds: string[] };
+        suggestedPrompts: Array<{ id: string }>;
+        summary: string;
+      } | null;
+    };
+
+    assert.equal(savedRun.status, "committed");
+    assert.equal(savedRun.retrieval?.adapterId, "sanityHybrid");
+    assert.equal(savedRun.retrieval?.adapterLabel, "Sanity Hybrid");
+    assert.equal(savedRun.retrieval?.coverage.status, "source_backed");
+    assert.deepEqual(savedRun.retrieval?.results.map((result) => result.sourceId), [
+      "concern_homesickness",
+      "program_overnight",
+      "policy_homesickness",
+      "policy_parent_communication",
+      "prompt_template_sleepaway_experience",
+    ]);
+    assert.equal(savedRun.answerComposition?.status, "needs_context");
+    assert.deepEqual(savedRun.answerComposition?.diagnostics, ["needs_visitor_context", "no_fit_recommendation"]);
+    assert.ok(savedRun.patch);
+    assert.equal(savedRun.patch?.operations.some((operation) => operation.type === "updateSummary"), true);
+    assert.ok(savedRun.committedSessionState);
+    assert.equal(savedRun.committedSessionState?.revision, 2);
+    assert.equal(savedRun.committedSessionState?.visitorFacts.child_age?.value, 8);
+    assert.deepEqual(savedRun.committedSessionState?.focus.contextNeeds, ["prior_sleepaway_experience", "child_readiness"]);
+    assert.deepEqual(savedRun.committedSessionState?.suggestedPrompts.map((prompt) => prompt.id), [
+      "prompt_prior_sleepaway_experience",
+      "prompt_child_readiness",
+    ]);
+    assert.match(
+      savedRun.committedSessionState?.summary ?? "",
+      /Parent is assessing overnight camp Fit for an 8-year-old Child\. Homesickness and Child Readiness remain open concerns/,
+    );
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
 });
 
 test("GuideSite MVP CLI fails loudly when Sanity retrieval is selected without Sanity config", async () => {
