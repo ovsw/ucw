@@ -528,36 +528,42 @@ test("GuideSite MVP CLI argument parsing joins unquoted Prompt text and defaults
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["  "]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--run-state-dir", ".guidesite-runs", "Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: ".guidesite-runs",
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--sample-prompts", "--run-state-dir", ".guidesite-runs"]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: ".guidesite-runs",
     samplePrompts: true,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--turn", "She has slept at her grandparents' house a few times."]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: ["She has slept at her grandparents' house a few times."],
   });
 });

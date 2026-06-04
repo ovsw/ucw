@@ -50,6 +50,14 @@ export type RunGuideSiteMvpCliOptions = {
   retrievalMode?: GuideSiteRetrievalMode;
 };
 
+function parseGuideSiteRetrievalMode(value: string): GuideSiteRetrievalMode {
+  if (value === "fixture" || value === "sanity") {
+    return value;
+  }
+
+  throw new Error(`Unknown GuideSite retrieval mode: ${value}. Use fixture or sanity.`);
+}
+
 export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliArgs {
   const promptParts: string[] = [];
   let runStateDirectory: string | null = null;
@@ -90,11 +98,7 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
         throw new Error("--retrieval requires fixture or sanity");
       }
 
-      if (value !== "fixture" && value !== "sanity") {
-        throw new Error(`Unknown GuideSite retrieval mode: ${value}. Use fixture or sanity.`);
-      }
-
-      retrievalMode = value;
+      retrievalMode = parseGuideSiteRetrievalMode(value);
 
       if (arg === "--retrieval") {
         index += 1;
@@ -151,7 +155,7 @@ async function runSingleGuideSiteMvpPrompt(
   return renderGuideSiteMvpCliOutput(run, stores.runs.inspect?.(run.runId)?.path);
 }
 
-function selectGuideSiteRetrievalAdapter(
+function resolveGuideSiteRetrievalAdapter(
   parsedArgs: ParsedGuideSiteMvpCliArgs,
   options: RunGuideSiteMvpCliOptions,
 ): GuideSiteRetrievalAdapter {
@@ -209,11 +213,12 @@ async function runMultiTurnGuideSiteMvpSession(
 
 export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): Promise<string> {
   const parsedArgs = parseGuideSiteMvpCliArgs(args);
+  const retrievalAdapter = resolveGuideSiteRetrievalAdapter(parsedArgs, options);
   const runOptions = {
     ...options,
     runStateDirectory: options.runStateDirectory ?? parsedArgs.runStateDirectory ?? undefined,
+    retrievalAdapter,
   } satisfies RunGuideSiteMvpCliOptions;
-  const retrievalAdapter = selectGuideSiteRetrievalAdapter(parsedArgs, runOptions);
   const promptUnderstandingProvider =
     runOptions.promptUnderstandingProvider ??
     createOpenAIPromptUnderstandingProvider(
@@ -232,7 +237,7 @@ export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMv
       outputs.push(
         [
           `Sample Prompt ${index + 1}/${SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS.length}`,
-          await runSingleGuideSiteMvpPrompt(promptText, { ...runOptions, retrievalAdapter }, promptUnderstandingProvider),
+          await runSingleGuideSiteMvpPrompt(promptText, runOptions, promptUnderstandingProvider),
         ].join("\n"),
       );
     }
@@ -242,10 +247,10 @@ export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMv
 
   if (parsedArgs.turnPrompts.length > 0) {
     const promptTexts = [parsedArgs.promptText, ...parsedArgs.turnPrompts];
-    return runMultiTurnGuideSiteMvpSession(promptTexts, { ...runOptions, retrievalAdapter }, promptUnderstandingProvider);
+    return runMultiTurnGuideSiteMvpSession(promptTexts, runOptions, promptUnderstandingProvider);
   }
 
-  return runSingleGuideSiteMvpPrompt(parsedArgs.promptText, { ...runOptions, retrievalAdapter }, promptUnderstandingProvider);
+  return runSingleGuideSiteMvpPrompt(parsedArgs.promptText, runOptions, promptUnderstandingProvider);
 }
 
 export async function main(cliArgs = process.argv.slice(2)): Promise<void> {

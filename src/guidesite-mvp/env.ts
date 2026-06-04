@@ -81,9 +81,10 @@ export function mergeGuideSiteMvpOpenAIEnv(options: {
   envFilePath?: string;
 }): OpenAIPromptUnderstandingEnv {
   const mergedEnv = mergeGuideSiteMvpEnv(options);
+  const { OPENAI_API_KEY, OPENAI_PROMPT_UNDERSTANDING_MODEL } = mergedEnv;
 
   return {
-    OPENAI_API_KEY: mergedEnv.OPENAI_API_KEY,
-    OPENAI_PROMPT_UNDERSTANDING_MODEL: mergedEnv.OPENAI_PROMPT_UNDERSTANDING_MODEL,
+    OPENAI_API_KEY,
+    OPENAI_PROMPT_UNDERSTANDING_MODEL,
   };
 }
