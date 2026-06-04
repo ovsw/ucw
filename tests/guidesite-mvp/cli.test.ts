@@ -11,6 +11,7 @@ import {
 } from "../../src/guidesite-mvp/cli.js";
 import type { GuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.js";
 import { PromptUnderstandingProviderError } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
+import { createSanityGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/sanity-retrieval.js";
 import {
   canonicalGuideSitePrompt,
   canonicalGuideSiteUnderstanding,
@@ -89,6 +90,18 @@ function createMultiTurnPromptUnderstandingProvider(): {
     seenContexts,
   };
 }
+
+test("GuideSite MVP CLI parsing accepts explicit retrieval selection", () => {
+  assert.deepEqual(parseGuideSiteMvpCliArgs(["--retrieval=sanity"]), {
+    promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
+    runStateDirectory: null,
+    samplePrompts: false,
+    retrievalMode: "sanity",
+    turnPrompts: [],
+  });
+
+  assert.throws(() => parseGuideSiteMvpCliArgs(["--retrieval=invalid"]), /Unknown GuideSite retrieval mode: invalid/);
+});
 
 type MultiTurnRunState = {
   baseSessionRevision: number;
@@ -188,6 +201,7 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   assert.match(output, /Base Revision: 1/);
   assert.match(output, /Prompt Understanding Provider:/);
   assert.match(output, /Prompt Understanding Summary:/);
+  assert.match(output, /Retrieval Adapter: Canonical Fixture \[fixture\]/);
   assert.match(output, /Retrieval Status: source_backed/);
   assert.match(output, /"provider": "fake"/);
   assert.match(output, /Retrieval Results:/);
@@ -199,6 +213,63 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   assert.match(output, /Session Patch:/);
   assert.match(output, /Committed Session State:/);
   assert.match(output, /Has your child slept away from home before\?/);
+});
+
+test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entrypoint", async () => {
+  const output = await runGuideSiteMvpCli(["--retrieval=sanity"], {
+    env: {
+      SANITY_PROJECT_ID: "demo-project",
+      SANITY_DATASET: "production",
+      SANITY_API_VERSION: "2025-02-19",
+    },
+    promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+    sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter((query) => {
+      assert.match(query.searchText, /overnight/i);
+      assert.match(query.searchText, /homesickness/i);
+      return [
+        {
+          _id: "concern_homesickness",
+          _type: "concern",
+          _rev: "mock_rev_concern_homesickness_001",
+          sourceKind: "sourceOfTruth",
+          title: "Homesickness and Child Readiness",
+          summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
+        },
+        {
+          _id: "program_overnight",
+          _type: "campProgram",
+          _rev: "mock_rev_program_overnight_001",
+          sourceKind: "sourceOfTruth",
+          title: "Overnight Camp Program",
+          body: "The overnight program is designed for children who are ready to spend several nights away from home.",
+        },
+        {
+          _id: "policy_homesickness",
+          _type: "policy",
+          _rev: "mock_rev_policy_homesickness_001",
+          sourceKind: "sourceOfTruth",
+          title: "Homesickness Support Policy",
+          summary: "Cabin staff watch for homesickness and help children settle into routines.",
+        },
+      ];
+    }),
+  });
+
+  assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+  assert.match(output, /Source Title: Homesickness and Child Readiness/);
+  assert.match(output, /Source Revision: mock_rev_concern_homesickness_001/);
+});
+
+test("GuideSite MVP CLI fails loudly when Sanity retrieval is selected without Sanity config", async () => {
+  await assert.rejects(
+    () =>
+      runGuideSiteMvpCli(["--retrieval=sanity"], {
+        promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+        sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter(() => []),
+        env: {},
+      }),
+    /Missing required Sanity config for query workflow: SANITY_PROJECT_ID, SANITY_DATASET, SANITY_API_VERSION/,
+  );
 });
 
 test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
