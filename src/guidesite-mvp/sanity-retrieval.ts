@@ -33,24 +33,25 @@ function formatList(values: string[]): string {
 
 function collectSearchTerms(understanding: PromptUnderstanding, sessionContext: PromptUnderstandingSessionContext | null): string[] {
   const session = sessionContext?.session;
-  const factValues = Object.values(understanding.facts).map((fact) => String(fact.value));
-  const sessionFactValues = session ? Object.values(session.visitorFacts).map((fact) => String(fact.value)) : [];
-  const sessionConcernKeys = session ? Object.entries(session.concerns).map(([key, concern]) => `${key} ${concern.status}`) : [];
-  const sessionFocus = session?.focus.contextNeeds ?? [];
-
-  return [
+  const promptTerms = [
     understanding.goal,
     understanding.promptType,
     understanding.fitQuestion ?? "",
-    ...factValues,
-    ...sessionFactValues,
+    ...Object.values(understanding.facts).map((fact) => String(fact.value)),
     ...understanding.retrievalNeeds,
     ...understanding.contextNeeds,
     ...understanding.concerns.map((concern) => `${concern.key} ${concern.label}`),
-    ...sessionConcernKeys,
-    ...sessionFocus,
-    session?.summary ?? "",
-  ].filter((term) => term.trim().length > 0);
+  ];
+  const sessionTerms = session
+    ? [
+        ...Object.values(session.visitorFacts).map((fact) => String(fact.value)),
+        ...Object.entries(session.concerns).map(([key, concern]) => `${key} ${concern.status}`),
+        ...session.focus.contextNeeds,
+        session.summary,
+      ]
+    : [];
+
+  return [...promptTerms, ...sessionTerms].filter((term) => term.trim().length > 0);
 }
 
 export function buildGuideSiteSanitySearchText(

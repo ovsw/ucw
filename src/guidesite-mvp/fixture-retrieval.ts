@@ -186,7 +186,7 @@ export function createFixtureGuideSiteRetrievalAdapter(
   return {
     id: "fixture",
     label: "Canonical Fixture",
-    retrieve(input: GuideSiteRetrievalInput): GuideSiteRetrievalResult {
+    retrieve(input: GuideSiteRetrievalInput, _context?: PromptUnderstandingSessionContext): GuideSiteRetrievalResult {
       return retrieveGuideSiteFixtureSourcesFromPack(input, sourcePack);
     },
   };

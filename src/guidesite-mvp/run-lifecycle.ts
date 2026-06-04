@@ -270,7 +270,8 @@ export function withPromptUnderstandingCandidate(
   }
 
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
-  const retrieval = retrievalAdapter.retrieve(candidate, createPromptUnderstandingSessionContext(run.snapshot));
+  const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
+  const retrieval = retrievalAdapter.retrieve(candidate, sessionContext);
   const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
   const answerComposition = sourceBackedRetrieval
     ? createValidatedAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
@@ -815,9 +816,8 @@ export function withHardcodedUnderstandingAndComposition(
     diagnostics: [...meaningValidation.diagnostics, ...provenanceDiagnostics],
   };
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
-  const retrieval = validation.valid
-    ? retrievalAdapter.retrieve(understanding, createPromptUnderstandingSessionContext(run.snapshot))
-    : null;
+  const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
+  const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding, sessionContext) : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
   const answerComposition =
     isCanonicalPrompt && retrieval && sourceBackedRetrieval
