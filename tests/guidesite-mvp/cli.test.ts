@@ -129,6 +129,47 @@ type MultiTurnRunState = {
   snapshot: { revision: number };
 };
 
+type SanityCliRunState = {
+  status: string;
+  retrieval: {
+    adapterId?: string;
+    adapterLabel?: string;
+    coverage: { status: string };
+    results: Array<{
+      sourceId: string;
+      sourceType: string;
+      title: string;
+      fieldPath: string;
+      sourceRevision: string;
+    }>;
+  } | null;
+  answerComposition: { status: string; diagnostics: string[] } | null;
+  patch: { operations: Array<{ type: string }> } | null;
+  committedSessionState: {
+    revision: number;
+    visitorFacts: { child_age?: { value: number } };
+    concerns: Record<string, { status: string }>;
+    focus: { contextNeeds: string[] };
+    suggestedPrompts: Array<{ id: string }>;
+    summary: string;
+  } | null;
+};
+
+const SANITY_CLI_EXPECTED_SOURCE_IDS = [
+  "concern_homesickness",
+  "program_overnight",
+  "policy_homesickness",
+  "policy_parent_communication",
+  "prompt_template_sleepaway_experience",
+] as const;
+
+const SANITY_CLI_EXPECTED_CONTEXT_NEEDS = ["prior_sleepaway_experience", "child_readiness"] as const;
+const SANITY_CLI_EXPECTED_PROMPT_IDS = ["prompt_prior_sleepaway_experience", "prompt_child_readiness"] as const;
+
+function readSanityCliRunState(runStateDirectory: string, runId: string): SanityCliRunState {
+  return JSON.parse(readFileSync(join(runStateDirectory, `${runId}.json`), "utf8")) as SanityCliRunState;
+}
+
 test("GuideSite MVP CLI requires OpenAI provider configuration for normal runs", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
   await assert.rejects(
@@ -218,11 +259,12 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
 test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entrypoint", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sanity-"));
   try {
+    const runId = "run_cli_sanity";
     const output = await runGuideSiteMvpCli(["--retrieval=sanity"], {
       runStateDirectory,
       now: () => new Date("2026-01-01T00:00:00.000Z"),
       createSessionId: () => "session_cli_sanity",
-      createRunId: () => "run_cli_sanity",
+      createRunId: () => runId,
       env: {
         SANITY_PROJECT_ID: "demo-project",
         SANITY_DATASET: "production",
@@ -294,56 +336,25 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entr
     assert.match(output, /Committed Session Summary:/);
     assert.match(output, /Parent is assessing overnight camp Fit for an 8-year-old Child\./);
     assert.match(output, /"sessionId": "session_cli_sanity"/);
-    assert.match(output, /"runId": "run_cli_sanity"/);
+    assert.match(output, new RegExp(`"runId": "${runId}"`));
 
-    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_cli_sanity.json"), "utf8")) as {
-      status: string;
-      retrieval: {
-        adapterId?: string;
-        adapterLabel?: string;
-        coverage: { status: string };
-        results: Array<{
-          sourceId: string;
-          sourceType: string;
-          title: string;
-          fieldPath: string;
-          sourceRevision: string;
-        }>;
-      } | null;
-      answerComposition: { status: string; diagnostics: string[] } | null;
-      patch: { operations: Array<{ type: string }> } | null;
-      committedSessionState: {
-        revision: number;
-        visitorFacts: { child_age?: { value: number } };
-        concerns: Record<string, { status: string }>;
-        focus: { contextNeeds: string[] };
-        suggestedPrompts: Array<{ id: string }>;
-        summary: string;
-      } | null;
-    };
+    const savedRun = readSanityCliRunState(runStateDirectory, runId);
 
     assert.equal(savedRun.status, "committed");
     assert.equal(savedRun.retrieval?.adapterId, "sanityHybrid");
     assert.equal(savedRun.retrieval?.adapterLabel, "Sanity Hybrid");
     assert.equal(savedRun.retrieval?.coverage.status, "source_backed");
-    assert.deepEqual(savedRun.retrieval?.results.map((result) => result.sourceId), [
-      "concern_homesickness",
-      "program_overnight",
-      "policy_homesickness",
-      "policy_parent_communication",
-      "prompt_template_sleepaway_experience",
-    ]);
+    assert.deepEqual(savedRun.retrieval?.results.map((result) => result.sourceId), [...SANITY_CLI_EXPECTED_SOURCE_IDS]);
     assert.equal(savedRun.answerComposition?.status, "needs_context");
     assert.deepEqual(savedRun.answerComposition?.diagnostics, ["needs_visitor_context", "no_fit_recommendation"]);
     assert.ok(savedRun.patch);
-    assert.equal(savedRun.patch?.operations.some((operation) => operation.type === "updateSummary"), true);
+    assert.ok(savedRun.patch?.operations.some((operation) => operation.type === "updateSummary"));
     assert.ok(savedRun.committedSessionState);
     assert.equal(savedRun.committedSessionState?.revision, 2);
     assert.equal(savedRun.committedSessionState?.visitorFacts.child_age?.value, 8);
-    assert.deepEqual(savedRun.committedSessionState?.focus.contextNeeds, ["prior_sleepaway_experience", "child_readiness"]);
+    assert.deepEqual(savedRun.committedSessionState?.focus.contextNeeds, [...SANITY_CLI_EXPECTED_CONTEXT_NEEDS]);
     assert.deepEqual(savedRun.committedSessionState?.suggestedPrompts.map((prompt) => prompt.id), [
-      "prompt_prior_sleepaway_experience",
-      "prompt_child_readiness",
+      ...SANITY_CLI_EXPECTED_PROMPT_IDS,
     ]);
     assert.match(
       savedRun.committedSessionState?.summary ?? "",
