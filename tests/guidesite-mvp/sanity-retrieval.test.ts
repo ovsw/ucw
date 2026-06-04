@@ -207,3 +207,32 @@ test("Sanity GuideSite retrieval adapter reports insufficient source diagnostics
   assert.match(retrieval.diagnostics.join(" "), /insufficient_sanity_sources/);
   assert.match(retrieval.diagnostics.join(" "), /sanity_retrieval_rejected_unapproved_sources/);
 });
+
+test("Sanity GuideSite retrieval adapter excludes approved-looking documents that are missing the sourceOfTruth marker", () => {
+  const adapter = createSanityGuideSiteRetrievalAdapter(() => [
+    {
+      _id: "policy_parent_communication",
+      _type: "policy",
+      _rev: "mock_rev_policy_parent_communication_001",
+      title: "Parent Communication Policy",
+      summary: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
+    },
+    {
+      _id: "prompt_template_child_readiness",
+      _type: "promptTemplate",
+      _rev: "mock_rev_prompt_template_child_readiness_001",
+      sourceKind: "sourceOfTruth",
+      title: "Child Readiness Prompt Template",
+      text: "How does your child usually handle new routines or time away from you?",
+    },
+  ]);
+
+  const retrieval = adapter.retrieve(canonicalGuideSiteUnderstanding);
+
+  assert.deepEqual(retrieval.results.map((result) => result.sourceId), ["prompt_template_child_readiness"]);
+  assert.deepEqual(retrieval.coverage, {
+    status: "source_backed",
+    matchedSourceIds: ["prompt_template_child_readiness"],
+  });
+  assert.deepEqual(retrieval.diagnostics, []);
+});

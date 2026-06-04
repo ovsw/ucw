@@ -97,7 +97,7 @@ function isApprovedSanitySourceDocument(source: GuideSiteSanitySourceDocument): 
     return false;
   }
 
-  if (source.sourceKind && source.sourceKind !== APPROVED_SOURCE_KIND) {
+  if (source.sourceKind?.trim() !== APPROVED_SOURCE_KIND) {
     return false;
   }
 
