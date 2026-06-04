@@ -7,6 +7,7 @@ import type {
   PromptUnderstanding,
   PromptUnderstandingProviderTrace,
   PromptUnderstandingSessionContext,
+  PromptUnderstandingValidationResult,
   RunState,
   RunStore,
   SessionPatch,
@@ -78,6 +79,19 @@ function cloneRunWithClearedTransientState(run: RunState): RunState {
   };
 }
 
+function validatePromptUnderstandingCandidate(
+  promptText: string,
+  candidate: PromptUnderstanding,
+): PromptUnderstandingValidationResult {
+  const assessment = assessPromptUnderstandingCandidate(candidate);
+  const provenanceDiagnostics = validatePromptUnderstandingFactProvenanceAgainstPrompt(promptText, candidate);
+
+  return {
+    valid: assessment.accepted && provenanceDiagnostics.length === 0,
+    diagnostics: [...assessment.diagnostics, ...provenanceDiagnostics],
+  };
+}
+
 function normalizePromptCoverageText(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -145,6 +159,7 @@ export function renderStartRunOperatorOutput(run: RunState): string {
   return [
     "GuideSite Start Run",
     `Prompt: ${run.prompt.text}`,
+    `Run Status: ${run.status}`,
     `Session ID: ${run.sessionId}`,
     `Run ID: ${run.runId}`,
     `Base Revision: ${run.baseSessionRevision}`,
@@ -250,12 +265,7 @@ export function withPromptUnderstandingCandidate(
   } = {},
 ): RunState {
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
-  const assessment = assessPromptUnderstandingCandidate(candidate);
-  const provenanceDiagnostics = validatePromptUnderstandingFactProvenanceAgainstPrompt(run.prompt.text, candidate);
-  const validation = {
-    valid: assessment.accepted && provenanceDiagnostics.length === 0,
-    diagnostics: [...assessment.diagnostics, ...provenanceDiagnostics],
-  };
+  const validation = validatePromptUnderstandingCandidate(run.prompt.text, candidate);
 
   if (!validation.valid) {
     return {
@@ -312,6 +322,31 @@ export function withPromptUnderstandingCandidate(
   };
 }
 
+function createRetrievalFailureRun(
+  run: RunState,
+  promptUnderstanding: PromptUnderstanding,
+  promptUnderstandingValidation: PromptUnderstandingValidationResult,
+  providerTrace: PromptUnderstandingProviderTrace | null,
+  error: unknown,
+  options: { now?: () => Date } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const message = error instanceof Error ? error.message : String(error);
+
+  return {
+    ...cloneRunWithClearedTransientState(run),
+    status: "retrieval_failed",
+    updatedAt: timestamp,
+    promptUnderstandingProvider: providerTrace ? structuredClone(providerTrace) : null,
+    understanding: structuredClone(promptUnderstanding),
+    promptUnderstandingValidation: structuredClone(promptUnderstandingValidation),
+    answerCompositionValidation: null,
+    answerComposition: null,
+    rejectedAnswerComposition: null,
+    diagnostics: [`retrieval_failed: ${message}`],
+  };
+}
+
 function createProviderFailureRun(
   run: RunState,
   error: unknown,
@@ -360,13 +395,35 @@ export async function withProviderBackedUnderstandingAndComposition(
   try {
     const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
     const result = await provider.understandPrompt(run.prompt.text, sessionContext);
-    const retrievalAdapter = await resolveRetrievalAdapter(run.prompt.text, result.understanding, sessionContext, options);
+    const validation = validatePromptUnderstandingCandidate(run.prompt.text, result.understanding);
 
-    return withPromptUnderstandingCandidate(run, result.understanding, {
-      now: options.now,
-      providerTrace: result.trace,
-      retrievalAdapter,
-    });
+    if (!validation.valid) {
+      return {
+        ...cloneRunWithClearedTransientState(run),
+        status: "validation_failed",
+        updatedAt: (options.now ?? (() => new Date()))().toISOString(),
+        promptUnderstandingProvider: structuredClone(result.trace),
+        understanding: null,
+        promptUnderstandingValidation: validation,
+        answerCompositionValidation: null,
+        rejectedAnswerComposition: null,
+        diagnostics: validation.diagnostics,
+      };
+    }
+
+    try {
+      const retrievalAdapter = await resolveRetrievalAdapter(run.prompt.text, result.understanding, sessionContext, options);
+
+      return withPromptUnderstandingCandidate(run, result.understanding, {
+        now: options.now,
+        providerTrace: result.trace,
+        retrievalAdapter,
+      });
+    } catch (error) {
+      return createRetrievalFailureRun(run, result.understanding, validation, result.trace, error, {
+        now: options.now,
+      });
+    }
   } catch (error) {
     return createProviderFailureRun(run, error, options);
   }
@@ -1162,7 +1219,8 @@ function renderRetrievalOperatorOutput(run: RunState): string {
       "Retrieval Results:",
       "Retrieval Input:",
       "null",
-      "Retrieval Status: not_run",
+      `Retrieval Status: ${run.status === "retrieval_failed" ? "failed" : "not_run"}`,
+      ...(run.status === "retrieval_failed" ? ["Diagnostics:", ...renderDiagnosticsList(run.diagnostics)] : []),
       "Raw Retrieval Results JSON:",
       "null",
     ].join("\n");
