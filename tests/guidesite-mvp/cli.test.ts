@@ -375,17 +375,22 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entr
 
 test("GuideSite MVP CLI fails loudly when Sanity retrieval is selected without Sanity config", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sanity-missing-env-"));
-  await assert.rejects(
-    () =>
-      runGuideSiteMvpCli(["--retrieval=sanity"], {
-        promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
-        sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter(() => []),
-        env: {},
-        envFilePath: join(runStateDirectory, ".missing.env"),
-      }),
-    /Missing required Sanity config for query workflow: SANITY_PROJECT_ID, SANITY_DATASET, SANITY_API_VERSION/,
-  );
-  rmSync(runStateDirectory, { recursive: true, force: true });
+  const missingEnvFilePath = join(runStateDirectory, ".missing.env");
+
+  try {
+    await assert.rejects(
+      () =>
+        runGuideSiteMvpCli(["--retrieval=sanity"], {
+          promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+          sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter(() => []),
+          env: {},
+          envFilePath: missingEnvFilePath,
+        }),
+      /Missing required Sanity config for query workflow: SANITY_PROJECT_ID, SANITY_DATASET, SANITY_API_VERSION/,
+    );
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
 });
 
 test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
