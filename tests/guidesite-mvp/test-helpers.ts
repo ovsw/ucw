@@ -1,5 +1,5 @@
 import type { PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
-import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
+import type { PromptUnderstanding, PromptUnderstandingSessionContext } from "../../src/guidesite-mvp/types.js";
 
 export const canonicalGuideSitePrompt = "Is overnight camp right for my 8-year-old?";
 
@@ -55,7 +55,7 @@ export function createFakePromptUnderstandingProvider(
   understanding: PromptUnderstanding = canonicalGuideSiteUnderstanding,
 ): PromptUnderstandingProvider {
   return {
-    async understandPrompt() {
+    async understandPrompt(_promptText: string, _context?: PromptUnderstandingSessionContext) {
       return {
         understanding,
         trace: {

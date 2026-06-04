@@ -71,6 +71,10 @@ export interface PromptUnderstanding {
   contextNeeds: string[];
 }
 
+export interface PromptUnderstandingSessionContext {
+  session: SessionState;
+}
+
 export interface PromptUnderstandingValidationResult {
   valid: boolean;
   diagnostics: string[];

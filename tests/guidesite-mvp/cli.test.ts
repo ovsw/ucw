@@ -17,7 +17,7 @@ import {
   createFakePromptUnderstandingProvider,
   homesicknessConcernUnderstanding,
 } from "./test-helpers.js";
-import type { PromptUnderstanding } from "../../src/guidesite-mvp/types.js";
+import type { PromptUnderstanding, PromptUnderstandingSessionContext, SessionState } from "../../src/guidesite-mvp/types.js";
 import type { PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
 
 function createProviderJsonResponse(body: unknown): Response {
@@ -29,8 +29,12 @@ function createProviderJsonResponse(body: unknown): Response {
   });
 }
 
-function createMultiTurnPromptUnderstandingProvider(): PromptUnderstandingProvider {
+function createMultiTurnPromptUnderstandingProvider(): {
+  provider: PromptUnderstandingProvider;
+  seenContexts: Array<PromptUnderstandingSessionContext>;
+} {
   const followUpPrompt = "She has slept at her grandparents' house a few times.";
+  const seenContexts: Array<PromptUnderstandingSessionContext> = [];
   const followUpUnderstanding: PromptUnderstanding = {
     goal: "assess_fit",
     promptType: "fit",
@@ -70,20 +74,26 @@ function createMultiTurnPromptUnderstandingProvider(): PromptUnderstandingProvid
   };
 
   return {
-    async understandPrompt(promptText: string) {
-      const understanding = promptText === canonicalGuideSitePrompt ? canonicalGuideSiteUnderstanding : followUpUnderstanding;
+    provider: {
+      async understandPrompt(promptText: string, context?: PromptUnderstandingSessionContext) {
+        if (context) {
+          seenContexts.push(structuredClone(context));
+        }
+        const understanding = promptText === canonicalGuideSitePrompt ? canonicalGuideSiteUnderstanding : followUpUnderstanding;
 
-      return {
-        understanding,
-        trace: {
-          provider: "fake",
-          model: "fake-guidesite-prompt-understanding",
-          rawOutput: JSON.stringify(understanding),
-          parsedOutput: understanding,
-          diagnostics: [],
-        },
-      };
+        return {
+          understanding,
+          trace: {
+            provider: "fake",
+            model: "fake-guidesite-prompt-understanding",
+            rawOutput: JSON.stringify(understanding),
+            parsedOutput: understanding,
+            diagnostics: [],
+          },
+        };
+      },
     },
+    seenContexts,
   };
 }
 
@@ -195,11 +205,12 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
 test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-multi-turn-"));
   try {
+    const { provider, seenContexts } = createMultiTurnPromptUnderstandingProvider();
     const output = await runGuideSiteMvpCli(["--run-state-dir", runStateDirectory, "--turn", "She has slept at her grandparents' house a few times."], {
       now: () => new Date("2026-01-01T00:00:00.000Z"),
       createSessionId: () => "session_multi_turn",
       createRunId: () => "run_multi_turn",
-      promptUnderstandingProvider: createMultiTurnPromptUnderstandingProvider(),
+      promptUnderstandingProvider: provider,
     });
 
     assert.match(output, /GuideSite Multi-Turn Session Run/);
@@ -221,7 +232,7 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
 
     const turn1Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_1.json"), "utf8")) as {
       baseSessionRevision: number;
-      committedSessionState: { revision: number } | null;
+      committedSessionState: SessionState | null;
       snapshot: { revision: number };
     };
     const turn2Run = JSON.parse(readFileSync(join(runStateDirectory, "run_multi_turn_2.json"), "utf8")) as MultiTurnRunState;
@@ -236,6 +247,9 @@ test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
     assert.equal(turn2Run.committedSessionState?.visitorFacts.prior_sleepaway_experience?.status, "active");
     assert.deepEqual(turn2Run.committedSessionState?.focus.contextNeeds, ["child_readiness"]);
     assert.deepEqual(turn2Run.committedSessionState?.suggestedPrompts.map((prompt) => prompt.id), ["prompt_child_readiness"]);
+    assert.equal(seenContexts.length, 2);
+    assert.equal(seenContexts[0]?.session.revision, 1);
+    assert.deepEqual(seenContexts[1]?.session, turn1Run.committedSessionState);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }
@@ -295,7 +309,7 @@ test("GuideSite MVP CLI preserves failed provider output in the rendered Run Sta
       createSessionId: () => "session_cli_fallback",
       createRunId: () => "run_cli_fallback",
       promptUnderstandingProvider: {
-        async understandPrompt() {
+        async understandPrompt(_promptText: string) {
           throw new Error("provider unavailable");
         },
       },
@@ -326,7 +340,7 @@ test("GuideSite MVP CLI preserves invalid provider output in the rendered Run St
       createSessionId: () => "session_cli_provider_invalid",
       createRunId: () => "run_cli_provider_invalid",
       promptUnderstandingProvider: {
-        async understandPrompt() {
+        async understandPrompt(_promptText: string) {
           throw new PromptUnderstandingProviderError("provider schema rejected", {
             rawOutput: JSON.stringify(invalidProviderOutput),
             parsedOutput: invalidProviderOutput,

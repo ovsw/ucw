@@ -6,6 +6,7 @@ import type {
   GuideSiteStores,
   PromptUnderstanding,
   PromptUnderstandingProviderTrace,
+  PromptUnderstandingSessionContext,
   RunState,
   RunStore,
   SessionPatch,
@@ -320,7 +321,10 @@ export async function withProviderBackedUnderstandingAndComposition(
   } = {},
 ): Promise<RunState> {
   try {
-    const result = await provider.understandPrompt(run.prompt.text);
+    const context: PromptUnderstandingSessionContext = {
+      session: cloneSessionState(run.snapshot),
+    };
+    const result = await provider.understandPrompt(run.prompt.text, context);
 
     return withPromptUnderstandingCandidate(run, result.understanding, {
       now: options.now,

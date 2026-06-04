@@ -6,6 +6,7 @@ import {
   createOpenAIPromptUnderstandingProvider,
   readOpenAIPromptUnderstandingConfig,
 } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
+import type { PromptUnderstandingSessionContext } from "../../src/guidesite-mvp/types.js";
 
 const validUnderstanding = {
   goal: "assess_fit",
@@ -30,6 +31,46 @@ const validUnderstanding = {
   ],
   retrievalNeeds: ["overnight_readiness"],
   contextNeeds: ["prior_sleepaway_experience"],
+};
+
+const sessionContext: PromptUnderstandingSessionContext = {
+  session: {
+    schemaVersion: 1,
+    sessionId: "session_openai_context",
+    revision: 2,
+    status: "active",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    visitorFacts: {
+      child_age: {
+        value: 8,
+        source: "explicit",
+        sourceRunId: "run_turn_1",
+        status: "active",
+      },
+    },
+    concerns: {
+      homesickness: {
+        status: "open",
+        sourceRunIds: ["run_turn_1"],
+      },
+    },
+    focus: {
+      goal: "assess_fit",
+      contextNeeds: ["prior_sleepaway_experience"],
+    },
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        text: "Has your child slept away from home before?",
+        purpose: "gather_fit_context",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+    ],
+    summary: "Parent is assessing overnight camp Fit for an 8-year-old Child.",
+  },
 };
 
 function createJsonResponse(body: unknown, status = 200, statusText = "OK"): Response {
@@ -93,13 +134,16 @@ test("OpenAI Prompt Understanding uses fetch, Structured Outputs, and local sche
     },
   );
 
-  const result = await provider.understandPrompt("Is overnight camp right for my 8-year-old?");
+  const result = await provider.understandPrompt("Is overnight camp right for my 8-year-old?", sessionContext);
   const requestBody = JSON.parse(String(capturedInit?.body ?? "{}")) as {
     model?: string;
     input?: Array<{ role: string; content: string }>;
     text?: { format?: { type?: string; strict?: boolean; schema?: { required?: string[] } } };
   };
-  const userPayload = JSON.parse(requestBody.input?.[1]?.content ?? "{}") as { prompt?: string };
+  const userPayload = JSON.parse(requestBody.input?.[1]?.content ?? "{}") as {
+    prompt?: string;
+    session?: typeof sessionContext.session;
+  };
 
   assert.equal(capturedInput, "https://api.openai.com/v1/responses");
   assert.equal(capturedInit?.method, "POST");
@@ -109,6 +153,7 @@ test("OpenAI Prompt Understanding uses fetch, Structured Outputs, and local sche
   assert.equal(requestBody.text?.format?.strict, true);
   assert.ok(requestBody.text?.format?.schema?.required?.includes("contextNeeds"));
   assert.equal(userPayload.prompt, "Is overnight camp right for my 8-year-old?");
+  assert.deepEqual(userPayload.session, sessionContext.session);
   assert.deepEqual(result.understanding, validUnderstanding);
   assert.deepEqual(result.trace, {
     provider: "openai",

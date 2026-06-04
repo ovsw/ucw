@@ -83,7 +83,7 @@ test("GuideSite turn preserves provider failures as inspectable Run State", asyn
       createSessionId: () => "session_turn_failure",
       createRunId: () => "run_turn_failure",
       promptUnderstandingProvider: {
-        async understandPrompt() {
+        async understandPrompt(_promptText: string) {
           throw new Error("provider unavailable");
         },
       },

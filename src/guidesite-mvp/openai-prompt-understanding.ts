@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { PromptUnderstanding, PromptUnderstandingProviderTrace } from "./types.js";
+import type {
+  PromptUnderstanding,
+  PromptUnderstandingProviderTrace,
+  PromptUnderstandingSessionContext,
+} from "./types.js";
 
 export const DEFAULT_OPENAI_PROMPT_UNDERSTANDING_MODEL = "gpt-4o-mini";
 
@@ -19,7 +23,10 @@ export type PromptUnderstandingProviderResult = {
 };
 
 export type PromptUnderstandingProvider = {
-  understandPrompt(promptText: string): Promise<PromptUnderstandingProviderResult>;
+  understandPrompt(
+    promptText: string,
+    context?: PromptUnderstandingSessionContext,
+  ): Promise<PromptUnderstandingProviderResult>;
 };
 
 type OpenAIResponseContentItem = {
@@ -168,19 +175,24 @@ export function readOpenAIPromptUnderstandingConfig(
   };
 }
 
-function buildOpenAIPromptUnderstandingRequest(model: string, promptText: string): Record<string, unknown> {
+function buildOpenAIPromptUnderstandingRequest(
+  model: string,
+  promptText: string,
+  context?: PromptUnderstandingSessionContext,
+): Record<string, unknown> {
   return {
     model,
     input: [
       {
         role: "system",
         content:
-          "You perform only GuideSite Prompt Understanding. Return structured Prompt Understanding for the typed Prompt. Do not compose final answers, invent source-backed claims, mutate Session State, or produce Session Patch operations.",
+          "You perform only GuideSite Prompt Understanding. Return structured Prompt Understanding for the typed Prompt and the supplied Session context. Do not compose final answers, invent source-backed claims, mutate Session State, or produce Session Patch operations.",
       },
       {
         role: "user",
         content: JSON.stringify({
           prompt: promptText,
+          ...(context ? { session: context.session } : {}),
         }),
       },
     ],
@@ -273,14 +285,17 @@ export function createOpenAIPromptUnderstandingProvider(
   fetchImpl: typeof fetch = fetch,
 ): PromptUnderstandingProvider {
   return {
-    async understandPrompt(promptText: string): Promise<PromptUnderstandingProviderResult> {
+    async understandPrompt(
+      promptText: string,
+      context?: PromptUnderstandingSessionContext,
+    ): Promise<PromptUnderstandingProviderResult> {
       const response = await fetchImpl("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${config.apiKey}`,
         },
-        body: JSON.stringify(buildOpenAIPromptUnderstandingRequest(config.model, promptText)),
+        body: JSON.stringify(buildOpenAIPromptUnderstandingRequest(config.model, promptText, context)),
       });
       const payload = await readOpenAIResponseJson(response);
       const rawOutput = extractOutputText(payload);
