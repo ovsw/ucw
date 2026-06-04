@@ -323,6 +323,11 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entr
     assert.match(output, /GuideSite Start Run/);
     assert.match(output, /Prompt: Is overnight camp right for my 8-year-old\?/);
     assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+    assert.match(
+      output,
+      /Approved source material from Sanity Hybrid \[sanityHybrid\] was retrieved for the validated Prompt Understanding\./,
+    );
+    assert.doesNotMatch(output, /fixture source material/i);
     assert.match(output, /Retrieval Status: source_backed/);
     assert.match(output, /Raw Retrieval Results JSON:/);
     assert.match(output, /Source Title: Homesickness and Child Readiness/);
