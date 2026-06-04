@@ -31,6 +31,7 @@ import {
 } from "./prompt-understanding.js";
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
+import { collectActiveFacts } from "./fact-state.js";
 import { formatChildAge } from "./age-formatting.js";
 import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.js";
 
@@ -99,23 +100,6 @@ function validatePromptUnderstandingFactProvenanceAgainstPrompt(
   }
 
   return diagnostics;
-}
-
-function collectActiveFacts(run: RunState): Map<string, string | number | boolean> {
-  const activeFacts = new Map<string, string | number | boolean>();
-  const session = run.snapshot;
-
-  for (const [factKey, fact] of Object.entries(session.visitorFacts)) {
-    if (fact.status === "active") {
-      activeFacts.set(factKey, fact.value);
-    }
-  }
-
-  for (const [factKey, fact] of Object.entries(run.understanding?.facts ?? {})) {
-    activeFacts.set(factKey, fact.value);
-  }
-
-  return activeFacts;
 }
 
 function createEmptySessionState(sessionId: string, timestamp: string): SessionState {

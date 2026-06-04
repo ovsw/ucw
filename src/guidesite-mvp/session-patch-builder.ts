@@ -1,5 +1,6 @@
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
 import { formatChildAge } from "./age-formatting.js";
+import { collectActiveFacts } from "./fact-state.js";
 import type { RunState, SessionPatch, SessionPatchOperation } from "./types.js";
 
 function titleCaseIdentifier(identifier: string): string {
@@ -36,23 +37,6 @@ function formatConcernStatusClause(labels: string[], status: "open" | "addressed
   }
 
   return labels.length === 1 ? `${labels[0]} remains an open concern` : `${formatList(labels)} remain open concerns`;
-}
-
-function collectActiveFacts(run: RunState): Map<string, string | number | boolean> {
-  const activeFacts = new Map<string, string | number | boolean>();
-  const session = run.snapshot;
-
-  for (const [factKey, fact] of Object.entries(session.visitorFacts)) {
-    if (fact.status === "active") {
-      activeFacts.set(factKey, fact.value);
-    }
-  }
-
-  for (const [factKey, fact] of Object.entries(run.understanding?.facts ?? {})) {
-    activeFacts.set(factKey, fact.value);
-  }
-
-  return activeFacts;
 }
 
 function collectConcernStatusByKey(run: RunState): Map<string, "open" | "addressed" | "deferred"> {
