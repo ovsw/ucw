@@ -1,4 +1,7 @@
 import { shapeSanitySearchQuery } from "../retrieval-workbench/search-query-shaping.js";
+import { executeSanityQuery, executeSanityRetrievalQueryPlan } from "../retrieval-workbench/sanity-client.js";
+import { buildSanityHybridQueryPlan } from "../retrieval-workbench/sanity-retrieval.js";
+import type { SanityQueryConfig } from "../retrieval-workbench/sanity-config.js";
 import type { PromptUnderstanding, PromptUnderstandingSessionContext, RetrievalResult, RetrievalResults } from "./types.js";
 import type { GuideSiteRetrievalAdapter, GuideSiteRetrievalInput, GuideSiteRetrievalResult } from "./fixture-retrieval.js";
 
@@ -21,6 +24,11 @@ export type GuideSiteSanityRetrievalQuery = {
 };
 
 export type GuideSiteSanityRetrievalQueryRunner = (query: GuideSiteSanityRetrievalQuery) => GuideSiteSanitySourceDocument[];
+export type GuideSiteSanityRetrievalAdapterResolver = (
+  promptText: string,
+  understanding: PromptUnderstanding,
+  sessionContext?: PromptUnderstandingSessionContext,
+) => Promise<GuideSiteRetrievalAdapter>;
 
 const DEFAULT_SANITY_ADAPTER_ID = "sanityHybrid";
 const DEFAULT_SANITY_ADAPTER_LABEL = "Sanity Hybrid";
@@ -170,6 +178,56 @@ function buildGuideSiteSanityRetrievalResult(
   };
 }
 
+async function loadGuideSiteSanitySourceDocuments(
+  queryPrompt: string,
+  config: SanityQueryConfig,
+  fetchImpl: typeof fetch,
+): Promise<GuideSiteSanitySourceDocument[]> {
+  const queryResult = await executeSanityRetrievalQueryPlan(buildSanityHybridQueryPlan(queryPrompt), config, fetchImpl);
+  const sourceIds = queryResult.mergedContentEntities.map((candidate) => candidate._id);
+
+  if (sourceIds.length === 0) {
+    return [];
+  }
+
+  const docs = await executeSanityQuery<GuideSiteSanitySourceDocument[]>(
+    config,
+    `*[_id in $ids]{
+      _id,
+      _type,
+      _rev,
+      sourceKind,
+      title,
+      summary,
+      body,
+      contentMap,
+      text
+    }`,
+    { ids: sourceIds },
+    fetchImpl,
+  );
+  const docsById = new Map(docs.map((doc) => [doc._id, doc] as const));
+  const missingIds = sourceIds.filter((sourceId) => !docsById.has(sourceId));
+
+  if (missingIds.length > 0) {
+    throw new Error(`Sanity GuideSite retrieval missing source documents for IDs: ${missingIds.join(", ")}`);
+  }
+
+  return sourceIds.map((sourceId) => docsById.get(sourceId) as GuideSiteSanitySourceDocument);
+}
+
+function assertSanitySourceSearchText(
+  expectedSearchText: string,
+  actualSearchText: string,
+  promptText: string,
+): void {
+  if (actualSearchText !== expectedSearchText) {
+    throw new Error(
+      `Sanity GuideSite retrieval search text drifted for prompt ${promptText}: expected ${expectedSearchText}, got ${actualSearchText}`,
+    );
+  }
+}
+
 export function createSanityGuideSiteRetrievalAdapter(
   runner: GuideSiteSanityRetrievalQueryRunner,
   options: {
@@ -194,5 +252,22 @@ export function createSanityGuideSiteRetrievalAdapter(
 
       return buildGuideSiteSanityRetrievalResult(input, sessionContext, rawSources, adapterId, adapterLabel);
     },
+  };
+}
+
+export function createSanityGuideSiteRetrievalAdapterResolver(
+  config: SanityQueryConfig,
+  fetchImpl: typeof fetch = fetch,
+): GuideSiteSanityRetrievalAdapterResolver {
+  return async (promptText, understanding, sessionContext) => {
+    const resolvedSessionContext = sessionContext ?? null;
+    const searchText = buildGuideSiteSanitySearchText(understanding, resolvedSessionContext);
+    const queryPrompt = `${promptText} ${searchText}`.trim();
+    const rawSources = await loadGuideSiteSanitySourceDocuments(queryPrompt, config, fetchImpl);
+
+    return createSanityGuideSiteRetrievalAdapter((query) => {
+      assertSanitySourceSearchText(searchText, query.searchText, promptText);
+      return rawSources;
+    });
   };
 }

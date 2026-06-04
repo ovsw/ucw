@@ -21,6 +21,7 @@ import {
   type GuideSiteRetrievalAdapter,
   type GuideSiteRetrievalResult,
 } from "./fixture-retrieval.js";
+import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.js";
 import {
   PromptUnderstandingProviderError,
   type PromptUnderstandingProvider,
@@ -271,11 +272,11 @@ export function withPromptUnderstandingCandidate(
 
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
   const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
-  const retrieval = retrievalAdapter.retrieve(candidate, sessionContext);
+  const retrieval = withAdapterMetadata(retrievalAdapter.retrieve(candidate, sessionContext), retrievalAdapter);
   const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
   const answerComposition = sourceBackedRetrieval
     ? createValidatedAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
-    : createInsufficientSourceAnswerComposition(retrieval.diagnostics);
+    : createInsufficientSourceAnswerComposition(retrieval, retrieval.diagnostics);
   const answerCompositionValidation = validateAnswerCompositionCandidate(answerComposition, retrieval);
 
   if (!answerCompositionValidation.valid) {
@@ -353,20 +354,42 @@ export async function withProviderBackedUnderstandingAndComposition(
   options: {
     now?: () => Date;
     retrievalAdapter?: GuideSiteRetrievalAdapter;
+    sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
   } = {},
 ): Promise<RunState> {
   try {
     const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
     const result = await provider.understandPrompt(run.prompt.text, sessionContext);
+    const retrievalAdapter = await resolveRetrievalAdapter(run.prompt.text, result.understanding, sessionContext, options);
 
     return withPromptUnderstandingCandidate(run, result.understanding, {
       now: options.now,
       providerTrace: result.trace,
-      retrievalAdapter: options.retrievalAdapter,
+      retrievalAdapter,
     });
   } catch (error) {
     return createProviderFailureRun(run, error, options);
   }
+}
+
+async function resolveRetrievalAdapter(
+  promptText: string,
+  understanding: PromptUnderstanding,
+  sessionContext: PromptUnderstandingSessionContext,
+  options: {
+    retrievalAdapter?: GuideSiteRetrievalAdapter;
+    sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
+  },
+): Promise<GuideSiteRetrievalAdapter | undefined> {
+  if (options.retrievalAdapter) {
+    return options.retrievalAdapter;
+  }
+
+  if (!options.sanityRetrievalAdapterResolver) {
+    return undefined;
+  }
+
+  return options.sanityRetrievalAdapterResolver(promptText, understanding, sessionContext);
 }
 
 function createCanonicalUnderstanding(): PromptUnderstanding {
@@ -472,6 +495,51 @@ function titleCaseIdentifier(identifier: string): string {
     .filter((part) => part.length > 0)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function describeRetrievalAdapter(retrieval: NonNullable<RunState["retrieval"]>): string {
+  const label = retrieval.adapterLabel?.trim();
+  const adapterId = retrieval.adapterId?.trim();
+
+  if (label && adapterId) {
+    return `${label} [${adapterId}]`;
+  }
+
+  if (label) {
+    return label;
+  }
+
+  if (adapterId) {
+    return adapterId;
+  }
+
+  return "retrieval adapter";
+}
+
+function renderRetrievalAdapterLine(retrieval: NonNullable<RunState["retrieval"]>): string | null {
+  if (!retrieval.adapterId && !retrieval.adapterLabel) {
+    return null;
+  }
+
+  return `Retrieval Adapter: ${retrieval.adapterLabel ?? "(unknown)"} [${retrieval.adapterId ?? "(unknown)"}]`;
+}
+
+function withAdapterMetadata(
+  retrieval: GuideSiteRetrievalResult,
+  adapter: GuideSiteRetrievalAdapter | undefined,
+): GuideSiteRetrievalResult {
+  const adapterId = retrieval.adapterId?.trim() || adapter?.id?.trim() || undefined;
+  const adapterLabel = retrieval.adapterLabel?.trim() || adapter?.label?.trim() || undefined;
+
+  if (adapterId === retrieval.adapterId && adapterLabel === retrieval.adapterLabel) {
+    return retrieval;
+  }
+
+  return {
+    ...retrieval,
+    adapterId,
+    adapterLabel,
+  };
 }
 
 function createPriorSleepawayExperienceSummary(
@@ -625,7 +693,7 @@ function createSourcesSection(retrieval: NonNullable<RunState["retrieval"]>): An
   return {
     kind: "sources",
     title: "Sources",
-    body: "Approved fixture source material was retrieved for the validated Prompt Understanding.",
+    body: `Approved source material from ${describeRetrievalAdapter(retrieval)} was retrieved for the validated Prompt Understanding.`,
     items: retrieval.results.map((result) => `${result.title} (${result.sourceId})`),
     sourceRefs: createSourceRefs(
       retrieval.results.map((result) => result.sourceId),
@@ -658,6 +726,7 @@ function createHomesicknessConcernAnswerComposition(
 ): AnswerComposition {
   const { available, missing } = createConcernAnswerSourceIds(retrieval);
   const sourceRefs = createSourceRefs(available, retrieval);
+  const retrievalDescriptor = describeRetrievalAdapter(retrieval);
   const concernSummary = getCanonicalGuideSiteSourceText("concern_homesickness");
   const homesicknessPolicySummary = getCanonicalGuideSiteSourceText("policy_homesickness");
   const parentCommunicationSummary = getCanonicalGuideSiteSourceText("policy_parent_communication");
@@ -670,15 +739,15 @@ function createHomesicknessConcernAnswerComposition(
   return {
     status: answered ? "answered" : "partial",
     conversationalFraming: answered
-      ? "The approved fixture material explains how the camp handles homesickness."
-      : "The approved fixture material supports a partial homesickness answer, but some source material was unavailable.",
+      ? `The approved source material from ${retrievalDescriptor} explains how the camp handles homesickness.`
+      : `The approved source material from ${retrievalDescriptor} supports a partial homesickness answer, but some source material was unavailable.`,
     sections: [
       {
         kind: "summary",
         title: "Homesickness Answer",
         body:
           availableText ||
-          "Approved fixture source material for the homesickness concern was not available in full.",
+          `Approved source material from ${retrievalDescriptor} for the homesickness concern was not available in full.`,
         sourceRefs,
       },
       {
@@ -696,7 +765,7 @@ function createHomesicknessConcernAnswerComposition(
       {
         kind: "sources",
         title: "Sources",
-        body: "Approved fixture source material was retrieved for the homesickness concern.",
+        body: `Approved source material from ${retrievalDescriptor} was retrieved for the homesickness concern.`,
         items: available.map((sourceId) => {
           const source = getCanonicalGuideSiteSource(sourceId);
           return source ? `${source.title} (${sourceId})` : sourceId;
@@ -749,7 +818,7 @@ function createValidatedAnswerComposition(run: RunState, retrieval: NonNullable<
     return createHomesicknessConcernAnswerComposition(retrieval);
   }
 
-  return createInsufficientSourceAnswerComposition([...retrieval.diagnostics, "unsupported_answer_composition_goal"]);
+  return createInsufficientSourceAnswerComposition(retrieval, [...retrieval.diagnostics, "unsupported_answer_composition_goal"]);
 }
 
 function createFallbackUnderstanding(): PromptUnderstanding {
@@ -781,15 +850,19 @@ function createFallbackAnswerComposition(): AnswerComposition {
   };
 }
 
-function createInsufficientSourceAnswerComposition(diagnostics: string[]): AnswerComposition {
+function createInsufficientSourceAnswerComposition(
+  retrieval: NonNullable<RunState["retrieval"]>,
+  diagnostics: string[],
+): AnswerComposition {
+  const retrievalDescriptor = describeRetrievalAdapter(retrieval);
   return {
     status: "fallback",
-    conversationalFraming: "The GuideSite fixture retrieval did not find approved source material for this Prompt.",
+    conversationalFraming: `The GuideSite ${retrievalDescriptor} retrieval did not find approved source material for this Prompt.`,
     sections: [
       {
         kind: "diagnostics",
         title: "Insufficient Source Material",
-        body: "No fixture sources matched the validated Prompt Understanding, so no source-backed answer material was composed.",
+        body: `No approved source material from ${retrievalDescriptor} matched the validated Prompt Understanding, so no source-backed answer material was composed.`,
       },
     ],
     suggestedPrompts: [],
@@ -817,7 +890,7 @@ export function withHardcodedUnderstandingAndComposition(
   };
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
   const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
-  const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding, sessionContext) : null;
+  const retrieval = validation.valid ? withAdapterMetadata(retrievalAdapter.retrieve(understanding, sessionContext), retrievalAdapter) : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
   const answerComposition =
     isCanonicalPrompt && retrieval && sourceBackedRetrieval
@@ -1107,14 +1180,12 @@ function renderRetrievalOperatorOutput(run: RunState): string {
   return [
     "Retrieval Results:",
     "Retrieval Input:",
-    run.retrieval.adapterId || run.retrieval.adapterLabel
-      ? `Retrieval Adapter: ${run.retrieval.adapterLabel ?? "(unknown)"} [${run.retrieval.adapterId ?? "(unknown)"}]`
-      : null,
+    renderRetrievalAdapterLine(run.retrieval),
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
     `Retrieval Status: ${run.retrieval.coverage.status}`,
     !isSourceBackedRetrieval(run.retrieval)
-      ? "No fixture sources matched the validated Prompt Understanding."
+      ? `No approved source material from ${describeRetrievalAdapter(run.retrieval)} matched the validated Prompt Understanding.`
       : null,
     ...run.retrieval.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic}`),
     "Matched Source Refs:",

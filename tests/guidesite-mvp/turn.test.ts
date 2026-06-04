@@ -427,7 +427,7 @@ test("GuideSite turn commits a source-backed homesickness Concern answer into Se
   }
 });
 
-test("GuideSite turn composes a partial homesickness Concern answer when fixture source material is missing", async () => {
+test("GuideSite turn composes a partial homesickness Concern answer when source material is missing", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
   try {
     const stores = createGuideSiteMemoryStores({
@@ -473,6 +473,67 @@ test("GuideSite turn composes a partial homesickness Concern answer when fixture
     assert.equal(run.patch, null);
     assert.equal(run.committedSessionState, null);
     assert.deepEqual(run.diagnostics, ["fake_partial_homesickness_retrieval"]);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn composes a partial homesickness Concern answer with Sanity source wording", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: "What happens if my child gets homesick?",
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_homesickness_partial_sanity",
+      createRunId: () => "run_turn_homesickness_partial_sanity",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
+      retrievalAdapter: {
+        id: "sanityHybrid",
+        label: "Sanity Hybrid",
+        retrieve(input) {
+          return {
+            needs: [...input.retrievalNeeds],
+            concerns: input.concerns.map((concern) => concern.key),
+            results: [
+              {
+                sourceId: "policy_homesickness",
+                sourceType: "policy",
+                title: "Homesickness Support Policy",
+                rank: 1,
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_homesickness_001",
+              },
+            ],
+            diagnostics: ["fake_partial_sanity_homesickness_retrieval"],
+            coverage: {
+              status: "source_backed",
+              matchedSourceIds: ["policy_homesickness"],
+            },
+          };
+        },
+      },
+    });
+
+    assert.equal(run.status, "composed");
+    assert.equal(run.answerComposition?.status, "partial");
+    assert.match(
+      run.answerComposition?.conversationalFraming ?? "",
+      /The approved source material from Sanity Hybrid \[sanityHybrid\] supports a partial homesickness answer/,
+    );
+    assert.match(
+      run.answerComposition?.sections.find((section) => section.kind === "sources")?.body ?? "",
+      /Approved source material from Sanity Hybrid \[sanityHybrid\] was retrieved for the homesickness concern\./,
+    );
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+    assert.doesNotMatch(output, /fixture source material/i);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
+    assert.deepEqual(run.diagnostics, ["fake_partial_sanity_homesickness_retrieval"]);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

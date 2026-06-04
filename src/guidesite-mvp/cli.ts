@@ -15,6 +15,10 @@ import {
 } from "./openai-prompt-understanding.js";
 import { mergeGuideSiteMvpEnv, type GuideSiteMvpEnv } from "./env.js";
 import { readSanityQueryConfig } from "../retrieval-workbench/sanity-config.js";
+import {
+  createSanityGuideSiteRetrievalAdapterResolver,
+  type GuideSiteSanityRetrievalAdapterResolver,
+} from "./sanity-retrieval.js";
 import { runGuideSiteMvpTurn } from "./turn.js";
 
 export const DEFAULT_GUIDESITE_MVP_PROMPT = "Is overnight camp right for my 8-year-old?";
@@ -47,6 +51,7 @@ export type RunGuideSiteMvpCliOptions = {
   promptUnderstandingProvider?: PromptUnderstandingProvider;
   retrievalAdapter?: GuideSiteRetrievalAdapter;
   sanityRetrievalAdapter?: GuideSiteRetrievalAdapter;
+  sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
   retrievalMode?: GuideSiteRetrievalMode;
 };
 
@@ -147,6 +152,7 @@ async function runSingleGuideSiteMvpPrompt(
     stores,
     promptUnderstandingProvider,
     retrievalAdapter: options.retrievalAdapter,
+    sanityRetrievalAdapterResolver: options.sanityRetrievalAdapterResolver,
     now: options.now,
     createSessionId: options.createSessionId,
     createRunId: options.createRunId,
@@ -155,10 +161,13 @@ async function runSingleGuideSiteMvpPrompt(
   return renderGuideSiteMvpCliOutput(run, stores.runs.inspect?.(run.runId)?.path);
 }
 
-function resolveGuideSiteRetrievalAdapter(
+function resolveGuideSiteRetrievalConfiguration(
   parsedArgs: ParsedGuideSiteMvpCliArgs,
   options: RunGuideSiteMvpCliOptions,
-): GuideSiteRetrievalAdapter {
+): {
+  retrievalAdapter?: GuideSiteRetrievalAdapter;
+  sanityRetrievalAdapterResolver?: GuideSiteSanityRetrievalAdapterResolver;
+} {
   const retrievalMode = options.retrievalMode ?? parsedArgs.retrievalMode;
 
   if (retrievalMode === "sanity") {
@@ -166,17 +175,25 @@ function resolveGuideSiteRetrievalAdapter(
       env: options.env,
       envFilePath: options.envFilePath,
     });
-    readSanityQueryConfig(mergedEnv);
+    const sanityQueryConfig = readSanityQueryConfig(mergedEnv);
 
     const sanityRetrievalAdapter = options.sanityRetrievalAdapter ?? options.retrievalAdapter;
     if (!sanityRetrievalAdapter) {
-      throw new Error("Sanity retrieval mode requires a sanityRetrievalAdapter in this synchronous MVP slice.");
+      return {
+        sanityRetrievalAdapterResolver:
+          options.sanityRetrievalAdapterResolver ??
+          createSanityGuideSiteRetrievalAdapterResolver(sanityQueryConfig, options.fetchImpl),
+      };
     }
 
-    return sanityRetrievalAdapter;
+    return {
+      retrievalAdapter: sanityRetrievalAdapter,
+    };
   }
 
-  return options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
+  return {
+    retrievalAdapter: options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter(),
+  };
 }
 
 async function runMultiTurnGuideSiteMvpSession(
@@ -195,6 +212,7 @@ async function runMultiTurnGuideSiteMvpSession(
       stores,
       promptUnderstandingProvider,
       retrievalAdapter: options.retrievalAdapter,
+      sanityRetrievalAdapterResolver: options.sanityRetrievalAdapterResolver,
       now: options.now,
       createSessionId: () => sessionId,
       createRunId: () => `${runIdPrefix}_${index + 1}`,
@@ -213,11 +231,12 @@ async function runMultiTurnGuideSiteMvpSession(
 
 export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): Promise<string> {
   const parsedArgs = parseGuideSiteMvpCliArgs(args);
-  const retrievalAdapter = resolveGuideSiteRetrievalAdapter(parsedArgs, options);
+  const retrievalConfiguration = resolveGuideSiteRetrievalConfiguration(parsedArgs, options);
   const runOptions = {
     ...options,
     runStateDirectory: options.runStateDirectory ?? parsedArgs.runStateDirectory ?? undefined,
-    retrievalAdapter,
+    retrievalAdapter: retrievalConfiguration.retrievalAdapter,
+    sanityRetrievalAdapterResolver: retrievalConfiguration.sanityRetrievalAdapterResolver,
   } satisfies RunGuideSiteMvpCliOptions;
   const promptUnderstandingProvider =
     runOptions.promptUnderstandingProvider ??
