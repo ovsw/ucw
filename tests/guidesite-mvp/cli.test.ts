@@ -307,12 +307,6 @@ test("GuideSite MVP CLI explicitly selects Sanity retrieval through the real San
         if (query.includes("relatedConcernTitles")) {
           return createSanityCliJsonResponse([
             {
-              _id: "concern_homesickness",
-              _type: "concern",
-              _score: 10,
-              title: "Homesickness and Child Readiness",
-            },
-            {
               _id: "program_overnight",
               _type: "campProgram",
               _score: 9,
