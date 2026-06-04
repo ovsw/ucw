@@ -1,0 +1,195 @@
+import { shapeSanitySearchQuery } from "../retrieval-workbench/search-query-shaping.js";
+import type { PromptUnderstanding, PromptUnderstandingSessionContext, RetrievalResult, RetrievalResults } from "./types.js";
+import type { GuideSiteRetrievalAdapter, GuideSiteRetrievalInput, GuideSiteRetrievalResult } from "./fixture-retrieval.js";
+
+export type GuideSiteSanitySourceDocument = {
+  _id: string;
+  _type: string;
+  _rev?: string;
+  sourceKind?: string;
+  title: string;
+  summary?: string;
+  body?: string;
+  contentMap?: string;
+  text?: string;
+};
+
+export type GuideSiteSanityRetrievalQuery = {
+  searchText: string;
+  understanding: PromptUnderstanding;
+  sessionContext: PromptUnderstandingSessionContext | null;
+};
+
+export type GuideSiteSanityRetrievalQueryRunner = (query: GuideSiteSanityRetrievalQuery) => GuideSiteSanitySourceDocument[];
+
+const DEFAULT_SANITY_ADAPTER_ID = "sanityHybrid";
+const DEFAULT_SANITY_ADAPTER_LABEL = "Sanity Hybrid";
+const APPROVED_SOURCE_KIND = "sourceOfTruth";
+const APPROVED_SOURCE_TYPES = new Set(["campProgram", "policy", "concern", "promptTemplate"]);
+
+function formatList(values: string[]): string {
+  return values.length === 0 ? "(none)" : values.join(", ");
+}
+
+function collectSearchTerms(understanding: PromptUnderstanding, sessionContext: PromptUnderstandingSessionContext | null): string[] {
+  const session = sessionContext?.session;
+  const factValues = Object.values(understanding.facts).map((fact) => String(fact.value));
+  const sessionFactValues = session ? Object.values(session.visitorFacts).map((fact) => String(fact.value)) : [];
+  const sessionConcernKeys = session ? Object.entries(session.concerns).map(([key, concern]) => `${key} ${concern.status}`) : [];
+  const sessionFocus = session?.focus.contextNeeds ?? [];
+
+  return [
+    understanding.goal,
+    understanding.promptType,
+    understanding.fitQuestion ?? "",
+    ...factValues,
+    ...sessionFactValues,
+    ...understanding.retrievalNeeds,
+    ...understanding.contextNeeds,
+    ...understanding.concerns.map((concern) => `${concern.key} ${concern.label}`),
+    ...sessionConcernKeys,
+    ...sessionFocus,
+    session?.summary ?? "",
+  ].filter((term) => term.trim().length > 0);
+}
+
+export function buildGuideSiteSanitySearchText(
+  understanding: PromptUnderstanding,
+  sessionContext: PromptUnderstandingSessionContext | null = null,
+): string {
+  return shapeSanitySearchQuery(collectSearchTerms(understanding, sessionContext).join(" "));
+}
+
+function chooseFieldPath(source: GuideSiteSanitySourceDocument): string {
+  if (source.summary?.trim()) {
+    return "summary";
+  }
+
+  if (source.body?.trim()) {
+    return "body";
+  }
+
+  if (source.text?.trim()) {
+    return "text";
+  }
+
+  return "contentMap";
+}
+
+function chooseSourceRevision(source: GuideSiteSanitySourceDocument): string {
+  return source._rev?.trim() || "unknown";
+}
+
+function normalizeSanitySourceDocument(source: GuideSiteSanitySourceDocument, rank: number): RetrievalResult {
+  return {
+    sourceId: source._id,
+    sourceType: source._type,
+    title: source.title,
+    rank,
+    fieldPath: chooseFieldPath(source),
+    sourceRevision: chooseSourceRevision(source),
+  };
+}
+
+function isApprovedSanitySourceDocument(source: GuideSiteSanitySourceDocument): boolean {
+  if (source._id.startsWith("_")) {
+    return false;
+  }
+
+  if (source.sourceKind && source.sourceKind !== APPROVED_SOURCE_KIND) {
+    return false;
+  }
+
+  return APPROVED_SOURCE_TYPES.has(source._type);
+}
+
+function createInsufficientSanitySourceDiagnostic(
+  understanding: PromptUnderstanding,
+  sessionContext: PromptUnderstandingSessionContext | null,
+): string {
+  const needs = understanding.retrievalNeeds.join(", ") || "(none)";
+  const concerns = understanding.concerns.map((concern) => concern.key).join(", ") || "(none)";
+  const sessionSummary = sessionContext?.session.summary?.trim();
+
+  return sessionSummary
+    ? `insufficient_sanity_sources: no approved Sanity sources matched retrieval needs ${needs} or concerns ${concerns}; session summary: ${sessionSummary}`
+    : `insufficient_sanity_sources: no approved Sanity sources matched retrieval needs ${needs} or concerns ${concerns}`;
+}
+
+function createSanityDiagnostics(
+  understanding: PromptUnderstanding,
+  sessionContext: PromptUnderstandingSessionContext | null,
+  rawSources: GuideSiteSanitySourceDocument[],
+  approvedSources: GuideSiteSanitySourceDocument[],
+): string[] {
+  if (approvedSources.length > 0) {
+    return [];
+  }
+
+  const diagnostics = [createInsufficientSanitySourceDiagnostic(understanding, sessionContext)];
+  const rejectedSourceIds = rawSources
+    .filter((source) => !isApprovedSanitySourceDocument(source))
+    .map((source) => source._id);
+
+  if (rejectedSourceIds.length > 0) {
+    diagnostics.push(`sanity_retrieval_rejected_unapproved_sources: ${formatList(rejectedSourceIds)}`);
+  }
+
+  return diagnostics;
+}
+
+function normalizeApprovedSources(sources: GuideSiteSanitySourceDocument[]): RetrievalResults["results"] {
+  return sources.map((source, index) => normalizeSanitySourceDocument(source, index + 1));
+}
+
+function buildGuideSiteSanityRetrievalResult(
+  understanding: PromptUnderstanding,
+  sessionContext: PromptUnderstandingSessionContext | null,
+  rawSources: GuideSiteSanitySourceDocument[],
+  adapterId: string,
+  adapterLabel: string,
+): GuideSiteRetrievalResult {
+  const approvedSources = rawSources.filter(isApprovedSanitySourceDocument);
+  const results = normalizeApprovedSources(approvedSources);
+  const diagnostics = createSanityDiagnostics(understanding, sessionContext, rawSources, approvedSources);
+
+  return {
+    adapterId,
+    adapterLabel,
+    needs: [...understanding.retrievalNeeds],
+    concerns: understanding.concerns.map((concern) => concern.key),
+    results,
+    diagnostics,
+    coverage: {
+      status: results.length > 0 ? "source_backed" : "empty_retrieval",
+      matchedSourceIds: results.map((result) => result.sourceId),
+    },
+  };
+}
+
+export function createSanityGuideSiteRetrievalAdapter(
+  runner: GuideSiteSanityRetrievalQueryRunner,
+  options: {
+    id?: string;
+    label?: string;
+  } = {},
+): GuideSiteRetrievalAdapter {
+  const adapterId = options.id ?? DEFAULT_SANITY_ADAPTER_ID;
+  const adapterLabel = options.label ?? DEFAULT_SANITY_ADAPTER_LABEL;
+
+  return {
+    id: adapterId,
+    label: adapterLabel,
+    retrieve(input: GuideSiteRetrievalInput, context?: PromptUnderstandingSessionContext): GuideSiteRetrievalResult {
+      const sessionContext = context ?? null;
+      const searchText = buildGuideSiteSanitySearchText(input, sessionContext);
+      const rawSources = runner({
+        searchText,
+        understanding: input,
+        sessionContext,
+      });
+
+      return buildGuideSiteSanityRetrievalResult(input, sessionContext, rawSources, adapterId, adapterLabel);
+    },
+  };
+}

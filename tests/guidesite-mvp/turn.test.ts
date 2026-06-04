@@ -6,6 +6,7 @@ import test from "node:test";
 import { createGuideSiteMemoryStores, renderGuideSiteRunOperatorOutput } from "../../src/guidesite-mvp/run-lifecycle.js";
 import { createGuideSiteFileRunStore } from "../../src/guidesite-mvp/run-store.js";
 import { runGuideSiteMvpTurn } from "../../src/guidesite-mvp/turn.js";
+import { createSanityGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/sanity-retrieval.js";
 import type { GuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.js";
 import {
   canonicalGuideSitePrompt,
@@ -65,6 +66,91 @@ test("GuideSite turn commits the canonical Prompt into inspectable Run State", a
     const output = renderGuideSiteRunOperatorOutput(run);
     assert.match(output, /Committed Session Summary:/);
     assert.match(output, /Homesickness and Child Readiness remain open concerns/);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn commits the canonical Prompt through a Sanity-backed retrieval adapter", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const retrievalAdapter = createSanityGuideSiteRetrievalAdapter((query) => {
+      assert.match(query.searchText, /overnight/i);
+      assert.match(query.searchText, /homesickness/i);
+      assert.equal(query.sessionContext?.session.revision, 1);
+      assert.equal(query.sessionContext?.session.summary, "");
+
+      return [
+        {
+          _id: "concern_homesickness",
+          _type: "concern",
+          _rev: "mock_rev_concern_homesickness_001",
+          sourceKind: "sourceOfTruth",
+          title: "Homesickness and Child Readiness",
+          summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
+        },
+        {
+          _id: "program_overnight",
+          _type: "campProgram",
+          _rev: "mock_rev_program_overnight_001",
+          sourceKind: "sourceOfTruth",
+          title: "Overnight Camp Program",
+          summary: "The overnight Camp Program gives children a residential camp experience with cabin life.",
+        },
+        {
+          _id: "policy_homesickness",
+          _type: "policy",
+          _rev: "mock_rev_policy_homesickness_001",
+          sourceKind: "sourceOfTruth",
+          title: "Homesickness Support Policy",
+          summary: "Cabin staff watch for homesickness and help children settle into routines.",
+        },
+        {
+          _id: "policy_parent_communication",
+          _type: "policy",
+          _rev: "mock_rev_policy_parent_communication_001",
+          sourceKind: "sourceOfTruth",
+          title: "Parent Communication Policy",
+          summary: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
+        },
+        {
+          _id: "prompt_template_sleepaway_experience",
+          _type: "promptTemplate",
+          _rev: "mock_rev_prompt_template_sleepaway_experience_001",
+          sourceKind: "sourceOfTruth",
+          title: "Prior Sleepaway Experience Prompt Template",
+          text: "Has your child slept away from home before?",
+        },
+      ];
+    });
+
+    const run = await runGuideSiteMvpTurn({
+      promptText: canonicalGuideSitePrompt,
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_sanity_canonical",
+      createRunId: () => "run_turn_sanity_canonical",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+      retrievalAdapter,
+    });
+
+    assert.equal(run.status, "committed");
+    assert.equal(run.retrieval?.adapterId, "sanityHybrid");
+    assert.equal(run.retrieval?.coverage.status, "source_backed");
+    assert.equal(run.answerComposition?.status, "needs_context");
+    assert.deepEqual(run.answerCompositionValidation, {
+      valid: true,
+      diagnostics: [],
+    });
+    assert.equal(run.committedSessionState?.summary, "Parent is assessing overnight camp Fit for an 8-year-old Child. Homesickness and Child Readiness remain open concerns; Remaining need: Prior Sleepaway Experience and Child Readiness.");
+    assert.equal(run.answerComposition?.citations.includes("prompt_template_sleepaway_experience"), true);
+
+    const output = renderGuideSiteRunOperatorOutput(run);
+    assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+    assert.match(output, /"sourceId": "prompt_template_sleepaway_experience"/);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

@@ -270,7 +270,7 @@ export function withPromptUnderstandingCandidate(
   }
 
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
-  const retrieval = retrievalAdapter.retrieve(candidate);
+  const retrieval = retrievalAdapter.retrieve(candidate, createPromptUnderstandingSessionContext(run.snapshot));
   const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
   const answerComposition = sourceBackedRetrieval
     ? createValidatedAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
@@ -815,7 +815,9 @@ export function withHardcodedUnderstandingAndComposition(
     diagnostics: [...meaningValidation.diagnostics, ...provenanceDiagnostics],
   };
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
-  const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding) : null;
+  const retrieval = validation.valid
+    ? retrievalAdapter.retrieve(understanding, createPromptUnderstandingSessionContext(run.snapshot))
+    : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
   const answerComposition =
     isCanonicalPrompt && retrieval && sourceBackedRetrieval
@@ -1086,6 +1088,9 @@ function renderRetrievalOperatorOutput(run: RunState): string {
   return [
     "Retrieval Results:",
     "Retrieval Input:",
+    run.retrieval.adapterId || run.retrieval.adapterLabel
+      ? `Retrieval Adapter: ${run.retrieval.adapterLabel ?? "(unknown)"} [${run.retrieval.adapterId ?? "(unknown)"}]`
+      : null,
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
     `Retrieval Status: ${run.retrieval.coverage.status}`,
