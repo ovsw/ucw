@@ -270,7 +270,8 @@ export function withPromptUnderstandingCandidate(
   }
 
   const retrievalAdapter = options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
-  const retrieval = retrievalAdapter.retrieve(candidate);
+  const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
+  const retrieval = retrievalAdapter.retrieve(candidate, sessionContext);
   const sourceBackedRetrieval = isSourceBackedRetrieval(retrieval);
   const answerComposition = sourceBackedRetrieval
     ? createValidatedAnswerComposition({ ...run, understanding: candidate, retrieval }, retrieval)
@@ -815,7 +816,8 @@ export function withHardcodedUnderstandingAndComposition(
     diagnostics: [...meaningValidation.diagnostics, ...provenanceDiagnostics],
   };
   const retrievalAdapter = createFixtureGuideSiteRetrievalAdapter();
-  const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding) : null;
+  const sessionContext = createPromptUnderstandingSessionContext(run.snapshot);
+  const retrieval = validation.valid ? retrievalAdapter.retrieve(understanding, sessionContext) : null;
   const sourceBackedRetrieval = retrieval ? isSourceBackedRetrieval(retrieval) : false;
   const answerComposition =
     isCanonicalPrompt && retrieval && sourceBackedRetrieval
@@ -899,6 +901,7 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
 
 export function renderGuideSiteRunOperatorOutput(run: RunState): string {
   const committedSessionSummary = run.committedSessionState?.summary ?? null;
+  const commitStatus = run.status === "committed" ? "committed" : "not_committed";
   return [
     renderStartRunOperatorOutput(run),
     "Prompt Understanding Provider:",
@@ -911,6 +914,7 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
     renderRetrievalOperatorOutput(run),
     renderAnswerCompositionValidationOperatorOutput(run),
     renderAnswerCompositionOperatorOutput(run),
+    `Commit Status: ${commitStatus}`,
     "Session Patch:",
     JSON.stringify(run.patch, null, 2),
     "Committed Session Summary:",
@@ -922,10 +926,24 @@ export function renderGuideSiteRunOperatorOutput(run: RunState): string {
 
 function renderAnswerCompositionValidationOperatorOutput(run: RunState): string {
   if (!run.answerCompositionValidation) {
-    return ["Answer Composition Validation:", "null"].join("\n");
+    return [
+      "Answer Composition Validation:",
+      "Answer Composition Validation Status: null",
+      "Diagnostics:",
+      "(none)",
+      "Raw Answer Composition Validation JSON:",
+      "null",
+    ].join("\n");
   }
 
-  return ["Answer Composition Validation:", JSON.stringify(run.answerCompositionValidation, null, 2)].join("\n");
+  return [
+    "Answer Composition Validation:",
+    `Answer Composition Validation Status: ${run.answerCompositionValidation.valid ? "pass" : "fail"}`,
+    "Diagnostics:",
+    ...renderDiagnosticsList(run.answerCompositionValidation.diagnostics),
+    "Raw Answer Composition Validation JSON:",
+    JSON.stringify(run.answerCompositionValidation, null, 2),
+  ].join("\n");
 }
 
 function renderPromptUnderstandingSummary(run: RunState): string {
@@ -985,10 +1003,6 @@ function renderAnswerCompositionOperatorOutput(run: RunState): string {
 
 function renderMissingAnswerCompositionOperatorOutput(run: RunState): string[] {
   const validationFailed = run.answerCompositionValidation?.valid === false;
-  const diagnostics =
-    validationFailed && run.answerCompositionValidation?.diagnostics.length
-      ? run.answerCompositionValidation.diagnostics.map((diagnostic) => `- ${diagnostic}`)
-      : ["(none)"];
 
   return [
     "Answer Composition:",
@@ -1003,7 +1017,7 @@ function renderMissingAnswerCompositionOperatorOutput(run: RunState): string[] {
     "Citations:",
     "(none)",
     "Diagnostics:",
-    ...diagnostics,
+    ...(validationFailed ? renderDiagnosticsList(run.answerCompositionValidation?.diagnostics ?? []) : ["(none)"]),
     "Raw Answer Composition JSON:",
     "null",
   ];
@@ -1071,7 +1085,14 @@ function renderAnswerCompositionCitations(citations: string[], retrieval: RunSta
 
 function renderRetrievalOperatorOutput(run: RunState): string {
   if (!run.retrieval) {
-    return ["Retrieval Results:", "Retrieval Input:", "null", "Retrieval Status: not_run"].join("\n");
+    return [
+      "Retrieval Results:",
+      "Retrieval Input:",
+      "null",
+      "Retrieval Status: not_run",
+      "Raw Retrieval Results JSON:",
+      "null",
+    ].join("\n");
   }
 
   const resultLines = run.retrieval.results.flatMap((result) => [
@@ -1086,6 +1107,9 @@ function renderRetrievalOperatorOutput(run: RunState): string {
   return [
     "Retrieval Results:",
     "Retrieval Input:",
+    run.retrieval.adapterId || run.retrieval.adapterLabel
+      ? `Retrieval Adapter: ${run.retrieval.adapterLabel ?? "(unknown)"} [${run.retrieval.adapterId ?? "(unknown)"}]`
+      : null,
     `Needs: ${run.retrieval.needs.join(", ") || "(none)"}`,
     `Concerns: ${run.retrieval.concerns.join(", ") || "(none)"}`,
     `Retrieval Status: ${run.retrieval.coverage.status}`,
@@ -1095,7 +1119,13 @@ function renderRetrievalOperatorOutput(run: RunState): string {
     ...run.retrieval.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic}`),
     "Matched Source Refs:",
     ...(resultLines.length > 0 ? resultLines : ["(none)"]),
+    "Raw Retrieval Results JSON:",
+    JSON.stringify(run.retrieval, null, 2),
   ]
     .filter((line) => line !== null)
     .join("\n");
+}
+
+function renderDiagnosticsList(diagnostics: string[]): string[] {
+  return diagnostics.length > 0 ? diagnostics.map((diagnostic) => `- ${diagnostic}`) : ["(none)"];
 }

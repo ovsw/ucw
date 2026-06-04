@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { OpenAIPromptUnderstandingEnv } from "./openai-prompt-understanding.js";
+import type { SanityConfigEnv } from "../retrieval-workbench/sanity-config.js";
 
 export const DEFAULT_GUIDESITE_MVP_ENV_FILE_PATH = ".env";
 
@@ -17,8 +18,10 @@ function parseDotenvValue(value: string): string {
   return trimmed;
 }
 
-export function parseGuideSiteMvpDotenv(contents: string): OpenAIPromptUnderstandingEnv {
-  const env: OpenAIPromptUnderstandingEnv = {};
+export type GuideSiteMvpEnv = OpenAIPromptUnderstandingEnv & SanityConfigEnv;
+
+export function parseGuideSiteMvpDotenv(contents: string): GuideSiteMvpEnv {
+  const env: GuideSiteMvpEnv = {};
 
   for (const line of contents.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -37,7 +40,15 @@ export function parseGuideSiteMvpDotenv(contents: string): OpenAIPromptUnderstan
     const key = assignment.slice(0, separatorIndex).trim();
     const value = parseDotenvValue(assignment.slice(separatorIndex + 1));
 
-    if (key === "OPENAI_API_KEY" || key === "OPENAI_PROMPT_UNDERSTANDING_MODEL") {
+    if (
+      key === "OPENAI_API_KEY" ||
+      key === "OPENAI_PROMPT_UNDERSTANDING_MODEL" ||
+      key === "SANITY_PROJECT_ID" ||
+      key === "SANITY_DATASET" ||
+      key === "SANITY_API_VERSION" ||
+      key === "SANITY_READ_TOKEN" ||
+      key === "SANITY_WRITE_TOKEN"
+    ) {
       env[key] = value;
     }
   }
@@ -45,7 +56,7 @@ export function parseGuideSiteMvpDotenv(contents: string): OpenAIPromptUnderstan
   return env;
 }
 
-export function readGuideSiteMvpDotenv(path = DEFAULT_GUIDESITE_MVP_ENV_FILE_PATH): OpenAIPromptUnderstandingEnv {
+export function readGuideSiteMvpDotenv(path = DEFAULT_GUIDESITE_MVP_ENV_FILE_PATH): GuideSiteMvpEnv {
   const resolvedPath = resolve(path);
 
   if (!existsSync(resolvedPath)) {
@@ -55,12 +66,25 @@ export function readGuideSiteMvpDotenv(path = DEFAULT_GUIDESITE_MVP_ENV_FILE_PAT
   return parseGuideSiteMvpDotenv(readFileSync(resolvedPath, "utf8"));
 }
 
+export function mergeGuideSiteMvpEnv(options: {
+  env?: GuideSiteMvpEnv;
+  envFilePath?: string;
+}): GuideSiteMvpEnv {
+  return {
+    ...readGuideSiteMvpDotenv(options.envFilePath),
+    ...(options.env ?? process.env),
+  };
+}
+
 export function mergeGuideSiteMvpOpenAIEnv(options: {
   env?: OpenAIPromptUnderstandingEnv;
   envFilePath?: string;
 }): OpenAIPromptUnderstandingEnv {
+  const mergedEnv = mergeGuideSiteMvpEnv(options);
+  const { OPENAI_API_KEY, OPENAI_PROMPT_UNDERSTANDING_MODEL } = mergedEnv;
+
   return {
-    ...readGuideSiteMvpDotenv(options.envFilePath),
-    ...(options.env ?? process.env),
+    OPENAI_API_KEY,
+    OPENAI_PROMPT_UNDERSTANDING_MODEL,
   };
 }

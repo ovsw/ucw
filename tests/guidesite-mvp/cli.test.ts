@@ -11,6 +11,7 @@ import {
 } from "../../src/guidesite-mvp/cli.js";
 import type { GuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.js";
 import { PromptUnderstandingProviderError } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
+import { createSanityGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/sanity-retrieval.js";
 import {
   canonicalGuideSitePrompt,
   canonicalGuideSiteUnderstanding,
@@ -90,6 +91,18 @@ function createMultiTurnPromptUnderstandingProvider(): {
   };
 }
 
+test("GuideSite MVP CLI parsing accepts explicit retrieval selection", () => {
+  assert.deepEqual(parseGuideSiteMvpCliArgs(["--retrieval=sanity"]), {
+    promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
+    runStateDirectory: null,
+    samplePrompts: false,
+    retrievalMode: "sanity",
+    turnPrompts: [],
+  });
+
+  assert.throws(() => parseGuideSiteMvpCliArgs(["--retrieval=invalid"]), /Unknown GuideSite retrieval mode: invalid/);
+});
+
 type MultiTurnRunState = {
   baseSessionRevision: number;
   committedSessionState: {
@@ -115,6 +128,47 @@ type MultiTurnRunState = {
   } | null;
   snapshot: { revision: number };
 };
+
+type SanityCliRunState = {
+  status: string;
+  retrieval: {
+    adapterId?: string;
+    adapterLabel?: string;
+    coverage: { status: string };
+    results: Array<{
+      sourceId: string;
+      sourceType: string;
+      title: string;
+      fieldPath: string;
+      sourceRevision: string;
+    }>;
+  } | null;
+  answerComposition: { status: string; diagnostics: string[] } | null;
+  patch: { operations: Array<{ type: string }> } | null;
+  committedSessionState: {
+    revision: number;
+    visitorFacts: { child_age?: { value: number } };
+    concerns: Record<string, { status: string }>;
+    focus: { contextNeeds: string[] };
+    suggestedPrompts: Array<{ id: string }>;
+    summary: string;
+  } | null;
+};
+
+const SANITY_CLI_EXPECTED_SOURCE_IDS = [
+  "concern_homesickness",
+  "program_overnight",
+  "policy_homesickness",
+  "policy_parent_communication",
+  "prompt_template_sleepaway_experience",
+] as const;
+
+const SANITY_CLI_EXPECTED_CONTEXT_NEEDS = ["prior_sleepaway_experience", "child_readiness"] as const;
+const SANITY_CLI_EXPECTED_PROMPT_IDS = ["prompt_prior_sleepaway_experience", "prompt_child_readiness"] as const;
+
+function readSanityCliRunState(runStateDirectory: string, runId: string): SanityCliRunState {
+  return JSON.parse(readFileSync(join(runStateDirectory, `${runId}.json`), "utf8")) as SanityCliRunState;
+}
 
 test("GuideSite MVP CLI requires OpenAI provider configuration for normal runs", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-env-"));
@@ -188,6 +242,7 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   assert.match(output, /Base Revision: 1/);
   assert.match(output, /Prompt Understanding Provider:/);
   assert.match(output, /Prompt Understanding Summary:/);
+  assert.match(output, /Retrieval Adapter: Canonical Fixture \[fixture\]/);
   assert.match(output, /Retrieval Status: source_backed/);
   assert.match(output, /"provider": "fake"/);
   assert.match(output, /Retrieval Results:/);
@@ -199,6 +254,130 @@ test("GuideSite MVP CLI renders the canonical Prompt turn output", async () => {
   assert.match(output, /Session Patch:/);
   assert.match(output, /Committed Session State:/);
   assert.match(output, /Has your child slept away from home before\?/);
+});
+
+test("GuideSite MVP CLI explicitly selects Sanity retrieval through the run entrypoint", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-cli-sanity-"));
+  try {
+    const runId = "run_cli_sanity";
+    const output = await runGuideSiteMvpCli(["--retrieval=sanity"], {
+      runStateDirectory,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_cli_sanity",
+      createRunId: () => runId,
+      env: {
+        SANITY_PROJECT_ID: "demo-project",
+        SANITY_DATASET: "production",
+        SANITY_API_VERSION: "2025-02-19",
+      },
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+      sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter((query) => {
+        assert.match(query.searchText, /overnight/i);
+        assert.match(query.searchText, /homesickness/i);
+        assert.match(query.searchText, /prior/i);
+        return [
+          {
+            _id: "concern_homesickness",
+            _type: "concern",
+            _rev: "mock_rev_concern_homesickness_001",
+            sourceKind: "sourceOfTruth",
+            title: "Homesickness and Child Readiness",
+            summary: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
+          },
+          {
+            _id: "program_overnight",
+            _type: "campProgram",
+            _rev: "mock_rev_program_overnight_001",
+            sourceKind: "sourceOfTruth",
+            title: "Overnight Camp Program",
+            body: "The overnight program is designed for children who are ready to spend several nights away from home.",
+          },
+          {
+            _id: "policy_homesickness",
+            _type: "policy",
+            _rev: "mock_rev_policy_homesickness_001",
+            sourceKind: "sourceOfTruth",
+            title: "Homesickness Support Policy",
+            summary: "Cabin staff watch for homesickness and help children settle into routines.",
+          },
+          {
+            _id: "policy_parent_communication",
+            _type: "policy",
+            _rev: "mock_rev_policy_parent_communication_001",
+            sourceKind: "sourceOfTruth",
+            title: "Parent Communication Policy",
+            summary: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
+          },
+          {
+            _id: "prompt_template_sleepaway_experience",
+            _type: "promptTemplate",
+            _rev: "mock_rev_prompt_template_sleepaway_experience_001",
+            sourceKind: "sourceOfTruth",
+            title: "Prior Sleepaway Experience Prompt Template",
+            text: "Has your child slept away from home before?",
+          },
+        ];
+      }),
+    });
+
+    assert.match(output, /GuideSite Start Run/);
+    assert.match(output, /Prompt: Is overnight camp right for my 8-year-old\?/);
+    assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
+    assert.match(output, /Retrieval Status: source_backed/);
+    assert.match(output, /Raw Retrieval Results JSON:/);
+    assert.match(output, /Source Title: Homesickness and Child Readiness/);
+    assert.match(output, /Source ID: concern_homesickness/);
+    assert.match(output, /Source Type: concern/);
+    assert.match(output, /Field Path: summary/);
+    assert.match(output, /Source Revision: mock_rev_concern_homesickness_001/);
+    assert.match(output, /Answer Composition Status: needs_context/);
+    assert.match(output, /Answer Composition Validation Status: pass/);
+    assert.match(output, /Raw Answer Composition JSON:/);
+    assert.match(output, /Session Patch:/);
+    assert.match(output, /Commit Status: committed/);
+    assert.match(output, /Committed Session State:/);
+    assert.match(output, /Committed Session Summary:/);
+    assert.match(output, /Parent is assessing overnight camp Fit for an 8-year-old Child\./);
+    assert.match(output, /"sessionId": "session_cli_sanity"/);
+    assert.match(output, new RegExp(`"runId": "${runId}"`));
+
+    const savedRun = readSanityCliRunState(runStateDirectory, runId);
+
+    assert.equal(savedRun.status, "committed");
+    assert.equal(savedRun.retrieval?.adapterId, "sanityHybrid");
+    assert.equal(savedRun.retrieval?.adapterLabel, "Sanity Hybrid");
+    assert.equal(savedRun.retrieval?.coverage.status, "source_backed");
+    assert.deepEqual(savedRun.retrieval?.results.map((result) => result.sourceId), [...SANITY_CLI_EXPECTED_SOURCE_IDS]);
+    assert.equal(savedRun.answerComposition?.status, "needs_context");
+    assert.deepEqual(savedRun.answerComposition?.diagnostics, ["needs_visitor_context", "no_fit_recommendation"]);
+    assert.ok(savedRun.patch);
+    assert.ok(savedRun.patch?.operations.some((operation) => operation.type === "updateSummary"));
+    assert.ok(savedRun.committedSessionState);
+    assert.equal(savedRun.committedSessionState?.revision, 2);
+    assert.equal(savedRun.committedSessionState?.visitorFacts.child_age?.value, 8);
+    assert.deepEqual(savedRun.committedSessionState?.focus.contextNeeds, [...SANITY_CLI_EXPECTED_CONTEXT_NEEDS]);
+    assert.deepEqual(savedRun.committedSessionState?.suggestedPrompts.map((prompt) => prompt.id), [
+      ...SANITY_CLI_EXPECTED_PROMPT_IDS,
+    ]);
+    assert.match(
+      savedRun.committedSessionState?.summary ?? "",
+      /Parent is assessing overnight camp Fit for an 8-year-old Child\. Homesickness and Child Readiness remain open concerns/,
+    );
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite MVP CLI fails loudly when Sanity retrieval is selected without Sanity config", async () => {
+  await assert.rejects(
+    () =>
+      runGuideSiteMvpCli(["--retrieval=sanity"], {
+        promptUnderstandingProvider: createFakePromptUnderstandingProvider(),
+        sanityRetrievalAdapter: createSanityGuideSiteRetrievalAdapter(() => []),
+        env: {},
+      }),
+    /Missing required Sanity config for query workflow: SANITY_PROJECT_ID, SANITY_DATASET, SANITY_API_VERSION/,
+  );
 });
 
 test("GuideSite MVP CLI runs multiple prompts in one session", async () => {
@@ -420,9 +599,11 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
     });
 
     assert.match(output, /Answer Composition Validation:/);
+    assert.match(output, /Answer Composition Validation Status: fail/);
     assert.match(output, /"valid": false/);
     assert.match(output, /I don't have enough verified information to answer that confidently\./);
     assert.match(output, /Answer Composition Status: validation_failed/);
+    assert.match(output, /Commit Status: not_committed/);
     assert.doesNotMatch(output, /Answer Composition Status: needs_context/);
     assert.match(output, /Saved Run State:/);
 
@@ -457,36 +638,42 @@ test("GuideSite MVP CLI argument parsing joins unquoted Prompt text and defaults
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["  "]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--run-state-dir", ".guidesite-runs", "Is", "overnight", "camp", "right?"]), {
     promptText: "Is overnight camp right?",
     runStateDirectory: ".guidesite-runs",
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--sample-prompts", "--run-state-dir", ".guidesite-runs"]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: ".guidesite-runs",
     samplePrompts: true,
+    retrievalMode: "fixture",
     turnPrompts: [],
   });
   assert.deepEqual(parseGuideSiteMvpCliArgs(["--turn", "She has slept at her grandparents' house a few times."]), {
     promptText: DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory: null,
     samplePrompts: false,
+    retrievalMode: "fixture",
     turnPrompts: ["She has slept at her grandparents' house a few times."],
   });
 });

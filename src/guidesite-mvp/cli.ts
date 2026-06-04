@@ -3,15 +3,18 @@ import {
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
 } from "./run-lifecycle.js";
-import type { GuideSiteRetrievalAdapter } from "./fixture-retrieval.js";
+import {
+  createFixtureGuideSiteRetrievalAdapter,
+  type GuideSiteRetrievalAdapter,
+} from "./fixture-retrieval.js";
 import { createGuideSiteFileRunStore } from "./run-store.js";
 import {
   createOpenAIPromptUnderstandingProvider,
   readOpenAIPromptUnderstandingConfig,
-  type OpenAIPromptUnderstandingEnv,
   type PromptUnderstandingProvider,
 } from "./openai-prompt-understanding.js";
-import { mergeGuideSiteMvpOpenAIEnv } from "./env.js";
+import { mergeGuideSiteMvpEnv, type GuideSiteMvpEnv } from "./env.js";
+import { readSanityQueryConfig } from "../retrieval-workbench/sanity-config.js";
 import { runGuideSiteMvpTurn } from "./turn.js";
 
 export const DEFAULT_GUIDESITE_MVP_PROMPT = "Is overnight camp right for my 8-year-old?";
@@ -23,10 +26,13 @@ export const SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS = [
   "Can I trust your staff?",
 ];
 
+export type GuideSiteRetrievalMode = "fixture" | "sanity";
+
 export type ParsedGuideSiteMvpCliArgs = {
   promptText: string;
   runStateDirectory: string | null;
   samplePrompts: boolean;
+  retrievalMode: GuideSiteRetrievalMode;
   turnPrompts: string[];
 };
 
@@ -35,17 +41,28 @@ export type RunGuideSiteMvpCliOptions = {
   now?: () => Date;
   createSessionId?: () => string;
   createRunId?: () => string;
-  env?: OpenAIPromptUnderstandingEnv;
+  env?: GuideSiteMvpEnv;
   envFilePath?: string;
   fetchImpl?: typeof fetch;
   promptUnderstandingProvider?: PromptUnderstandingProvider;
   retrievalAdapter?: GuideSiteRetrievalAdapter;
+  sanityRetrievalAdapter?: GuideSiteRetrievalAdapter;
+  retrievalMode?: GuideSiteRetrievalMode;
 };
+
+function parseGuideSiteRetrievalMode(value: string): GuideSiteRetrievalMode {
+  if (value === "fixture" || value === "sanity") {
+    return value;
+  }
+
+  throw new Error(`Unknown GuideSite retrieval mode: ${value}. Use fixture or sanity.`);
+}
 
 export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliArgs {
   const promptParts: string[] = [];
   let runStateDirectory: string | null = null;
   let samplePrompts = false;
+  let retrievalMode: GuideSiteRetrievalMode = "fixture";
   const turnPrompts: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -75,6 +92,21 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
       continue;
     }
 
+    if (arg === "--retrieval" || arg.startsWith("--retrieval=")) {
+      const value = arg === "--retrieval" ? args[index + 1]?.trim() : arg.split("=", 2)[1]?.trim();
+      if (!value) {
+        throw new Error("--retrieval requires fixture or sanity");
+      }
+
+      retrievalMode = parseGuideSiteRetrievalMode(value);
+
+      if (arg === "--retrieval") {
+        index += 1;
+      }
+
+      continue;
+    }
+
     promptParts.push(arg);
   }
 
@@ -84,6 +116,7 @@ export function parseGuideSiteMvpCliArgs(args: string[]): ParsedGuideSiteMvpCliA
     promptText: promptText || DEFAULT_GUIDESITE_MVP_PROMPT,
     runStateDirectory,
     samplePrompts,
+    retrievalMode,
     turnPrompts,
   };
 }
@@ -122,6 +155,30 @@ async function runSingleGuideSiteMvpPrompt(
   return renderGuideSiteMvpCliOutput(run, stores.runs.inspect?.(run.runId)?.path);
 }
 
+function resolveGuideSiteRetrievalAdapter(
+  parsedArgs: ParsedGuideSiteMvpCliArgs,
+  options: RunGuideSiteMvpCliOptions,
+): GuideSiteRetrievalAdapter {
+  const retrievalMode = options.retrievalMode ?? parsedArgs.retrievalMode;
+
+  if (retrievalMode === "sanity") {
+    const mergedEnv = mergeGuideSiteMvpEnv({
+      env: options.env,
+      envFilePath: options.envFilePath,
+    });
+    readSanityQueryConfig(mergedEnv);
+
+    const sanityRetrievalAdapter = options.sanityRetrievalAdapter ?? options.retrievalAdapter;
+    if (!sanityRetrievalAdapter) {
+      throw new Error("Sanity retrieval mode requires a sanityRetrievalAdapter in this synchronous MVP slice.");
+    }
+
+    return sanityRetrievalAdapter;
+  }
+
+  return options.retrievalAdapter ?? createFixtureGuideSiteRetrievalAdapter();
+}
+
 async function runMultiTurnGuideSiteMvpSession(
   promptTexts: string[],
   options: RunGuideSiteMvpCliOptions,
@@ -156,15 +213,17 @@ async function runMultiTurnGuideSiteMvpSession(
 
 export async function runGuideSiteMvpCli(args: string[], options: RunGuideSiteMvpCliOptions = {}): Promise<string> {
   const parsedArgs = parseGuideSiteMvpCliArgs(args);
+  const retrievalAdapter = resolveGuideSiteRetrievalAdapter(parsedArgs, options);
   const runOptions = {
     ...options,
     runStateDirectory: options.runStateDirectory ?? parsedArgs.runStateDirectory ?? undefined,
+    retrievalAdapter,
   } satisfies RunGuideSiteMvpCliOptions;
   const promptUnderstandingProvider =
     runOptions.promptUnderstandingProvider ??
     createOpenAIPromptUnderstandingProvider(
       readOpenAIPromptUnderstandingConfig(
-        mergeGuideSiteMvpOpenAIEnv({
+        mergeGuideSiteMvpEnv({
           env: runOptions.env,
           envFilePath: runOptions.envFilePath,
         }),

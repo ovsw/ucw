@@ -143,6 +143,8 @@ export type RetrievalCoverage = {
 };
 
 export interface RetrievalResults {
+  adapterId?: string;
+  adapterLabel?: string;
   needs: string[];
   concerns: string[];
   results: RetrievalResult[];

@@ -1,5 +1,11 @@
 import { readFileSync } from "node:fs";
-import type { PromptUnderstanding, RetrievalCoverage, RetrievalResult, RetrievalResults } from "./types.js";
+import type {
+  PromptUnderstanding,
+  PromptUnderstandingSessionContext,
+  RetrievalCoverage,
+  RetrievalResult,
+  RetrievalResults,
+} from "./types.js";
 
 const defaultSourcePackPath = "fixtures/guidesite-mvp/canonical-source-pack.json";
 const retrievableSourceTypes = new Set(["campProgram", "policy", "concern"]);
@@ -37,7 +43,7 @@ export type GuideSiteRetrievalResult = RetrievalResults & {
 export interface GuideSiteRetrievalAdapter {
   id: string;
   label: string;
-  retrieve(input: GuideSiteRetrievalInput): GuideSiteRetrievalResult;
+  retrieve(input: GuideSiteRetrievalInput, context?: PromptUnderstandingSessionContext): GuideSiteRetrievalResult;
 }
 
 function assertNonEmptyString(value: unknown, diagnostic: string): asserts value is string {
@@ -161,6 +167,8 @@ function retrieveGuideSiteFixtureSourcesFromPack(
   });
 
   return {
+    adapterId: "fixture",
+    adapterLabel: "Canonical Fixture",
     needs: [...understanding.retrievalNeeds],
     concerns: understanding.concerns.map((concern) => concern.key),
     results,
@@ -178,7 +186,7 @@ export function createFixtureGuideSiteRetrievalAdapter(
   return {
     id: "fixture",
     label: "Canonical Fixture",
-    retrieve(input: GuideSiteRetrievalInput): GuideSiteRetrievalResult {
+    retrieve(input: GuideSiteRetrievalInput, _context?: PromptUnderstandingSessionContext): GuideSiteRetrievalResult {
       return retrieveGuideSiteFixtureSourcesFromPack(input, sourcePack);
     },
   };
