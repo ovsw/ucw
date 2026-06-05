@@ -2,13 +2,15 @@
   "name": "ucw",
   "version": "0.0.0",
   "private": true,
+  "packageManager": "pnpm@10.33.2",
   "type": "module",
   "scripts": {
+    "preinstall": "node -e \"const execPath = process.env.npm_execpath || ''; if (!execPath.includes('pnpm')) { console.error('Use pnpm to install dependencies.'); process.exit(1); }\"",
     "sandcastle": "tsx .sandcastle/main.ts",
     "guidesite:mvp": "tsx src/guidesite-mvp/cli.ts",
     "workbench": "tsx src/retrieval-workbench/cli.ts",
     "workbench:generate": "tsx src/retrieval-workbench/generate-fixture.ts",
-    "check": "npm run typecheck",
+    "check": "pnpm typecheck",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/**/*.test.ts"
   },
@@ -20,6 +22,7 @@
     "@ai-hero/sandcastle": "^0.6.5",
     "@types/node": "^20.14.10",
     "tsx": "^4.16.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "typescript-language-server": "^5.3.0"
   }
 }

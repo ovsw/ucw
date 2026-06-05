@@ -44,5 +44,5 @@ The current validator enforces the first seed corpus bounds from issue 1:
 Run the local validation command with:
 
 ```sh
-npm run workbench
+pnpm workbench
 ```

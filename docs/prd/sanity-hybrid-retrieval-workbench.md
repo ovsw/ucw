@@ -62,7 +62,7 @@ The comparison report should focus on rank and top-k usefulness, not raw search 
 38. As a developer, I want the Sanity dataset to preserve fixture IDs, types, fields, and relationships, so that the comparison remains maximally compatible with previous tests.
 39. As a developer, I want the Sanity dataset to be treated as a hosted copy of the fixture corpus, so that this prototype does not become premature production CMS modeling.
 40. As a developer, I want setup notes to mention the Sanity `LWJ` coupon, so that the embeddings-enabled trial setup is documented.
-41. As a developer, I want the setup notes to include `npm create sanity@latest -- --coupon=lwj`, so that project setup is reproducible.
+41. As a developer, I want the setup notes to include `pnpm create sanity@latest -- --coupon=lwj`, so that project setup is reproducible.
 42. As a developer, I want the prototype to avoid adding Sanity Studio unless necessary, so that the next step stays lightweight.
 43. As a developer, I want Sanity Studio, if added, to be clearly marked as prototype-only, so that nobody mistakes it for production CMS architecture.
 44. As a developer, I want the workbench to keep using the local fixture as the evaluation contract, so that correctness is not defined by whatever happens to be in Sanity.
@@ -118,7 +118,7 @@ The comparison report should focus on rank and top-k usefulness, not raw search 
 - AI Retrieval Planner implementation is deferred to the next stage.
 - Conversational Framing implementation is deferred to a later stage.
 - Sanity setup notes should mention using coupon `LWJ` for the extended trial required for embeddings.
-- The setup note should include `npm create sanity@latest -- --coupon=lwj`.
+- The setup note should include `pnpm create sanity@latest -- --coupon=lwj`.
 - Sanity MCP is not currently installed and is not required by the prototype runtime.
 - If Sanity MCP is available in an agent environment, agents may use it for Sanity documentation and investigation, but prototype code should use the normal Sanity CLI/client/GROQ APIs.
 - Prefer scripts and workbench integration over scaffolding a Sanity Studio.
@@ -179,7 +179,7 @@ The practical question this prototype should answer is: does Sanity hybrid seman
 ## Sanity Setup Notes
 
 - Use the Sanity `LWJ` coupon for the prototype trial setup.
-- Create the initial Sanity project with `npm create sanity@latest -- --coupon=lwj`.
+- Create the initial Sanity project with `pnpm create sanity@latest -- --coupon=lwj`.
 - Query workflows require `SANITY_PROJECT_ID`, `SANITY_DATASET`, and `SANITY_API_VERSION`.
 - Seed workflows additionally require `SANITY_WRITE_TOKEN`.
 - `SANITY_READ_TOKEN` is optional and should only be used when the dataset requires authenticated reads.

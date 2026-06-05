@@ -11,7 +11,7 @@ fixtures/retrieval-workbench/generated.json
 Run command:
 
 ```sh
-npm run workbench -- fixtures/retrieval-workbench/generated.json
+pnpm workbench -- fixtures/retrieval-workbench/generated.json
 ```
 
 The generated corpus contains 8 Concern documents, 25 non-Concern Content Entities, and 12 gold-set Parent Prompts.

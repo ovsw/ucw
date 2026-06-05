@@ -31,19 +31,19 @@ By default the generator writes `fixtures/retrieval-workbench/generated.json` an
 Generate the larger corpus:
 
 ```sh
-npm run workbench:generate
+pnpm workbench:generate
 ```
 
 Write to a different path:
 
 ```sh
-npm run workbench:generate -- --output /tmp/generated.json
+pnpm workbench:generate -- --output /tmp/generated.json
 ```
 
 Use a different seed fixture:
 
 ```sh
-npm run workbench:generate -- --seed fixtures/retrieval-workbench/seed.json --output fixtures/retrieval-workbench/generated.json
+pnpm workbench:generate -- --seed fixtures/retrieval-workbench/seed.json --output fixtures/retrieval-workbench/generated.json
 ```
 
 ## Tuning
