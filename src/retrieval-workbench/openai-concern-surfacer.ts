@@ -42,7 +42,7 @@ function normalize(value: string | undefined): string | undefined {
 }
 
 export function readOpenAIConcernSurfacerConfig(
-  env: OpenAIConcernSurfacerEnv = process.env,
+  env: OpenAIConcernSurfacerEnv = process.env as OpenAIConcernSurfacerEnv,
 ): OpenAIConcernSurfacerConfig {
   const apiKey = normalize(env.OPENAI_API_KEY);
 

@@ -49,6 +49,7 @@ function createAnsweredRun(): RunState {
 test("GuideSite GUI service starts from the canonical prompt and maps technical failures", async () => {
   const seenRuntimeModes: Array<"live" | "fixture"> = [];
   const seenPrompts: string[] = [];
+  const seenSessionIds: Array<string | undefined> = [];
   const service = createGuideSiteGuiService({
     readRuntimeConfig() {
       seenRuntimeModes.push("fixture");
@@ -59,22 +60,27 @@ test("GuideSite GUI service starts from the canonical prompt and maps technical 
     },
     async runTurn(options) {
       seenPrompts.push(options.promptText);
+      seenSessionIds.push(options.sessionId);
       assert.equal(options.runtimeConfig.runtimeMode, "fixture");
       return createAnsweredRun();
     },
   });
 
-  const startResult = await service.startDemo();
+  const startResult = await service.startDemo({ sessionId: "session_gui_reload" });
   assert.deepEqual(seenRuntimeModes, ["fixture"]);
   assert.deepEqual(seenPrompts, [DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT]);
+  assert.deepEqual(seenSessionIds, ["session_gui_reload"]);
   assert.equal(startResult.promptText, DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT);
   assert.equal(startResult.presentation.answer.status, "assembled_answer");
 
   seenPrompts.length = 0;
+  seenSessionIds.length = 0;
   const submitResult = await service.submitPrompt({
     promptText: "  Need more context please  ",
+    sessionId: "session_gui_reload",
   });
   assert.deepEqual(seenPrompts, ["Need more context please"]);
+  assert.deepEqual(seenSessionIds, ["session_gui_reload"]);
   assert.equal(submitResult.promptText, "Need more context please");
 
   const technicalFailureService = createGuideSiteGuiService({
@@ -95,6 +101,7 @@ test("GuideSite GUI service starts from the canonical prompt and maps technical 
 
 test("Operator demo actions adapt form submissions into service calls", async () => {
   const seenPromptTexts: string[] = [];
+  const seenSessionIds: Array<string | undefined> = [];
   const actions = createGuideSiteOperatorDemoActions({
     service: {
       startDemo: async () => ({
@@ -122,8 +129,9 @@ test("Operator demo actions adapt form submissions into service calls", async ()
           },
         },
       }),
-      submitPrompt: async ({ promptText }: { promptText: string }) => {
+      submitPrompt: async ({ promptText, sessionId }: { promptText: string; sessionId?: string }) => {
         seenPromptTexts.push(promptText);
+        seenSessionIds.push(sessionId);
         return {
           promptText,
           presentation: {
@@ -156,10 +164,12 @@ test("Operator demo actions adapt form submissions into service calls", async ()
   const started = await actions.startGuideSiteOperatorDemoAction(new FormData());
   const submittedFormData = new FormData();
   submittedFormData.append("promptText", "  Is overnight camp right for my 8-year-old?  ");
+  submittedFormData.append("sessionId", "session_operator_gui_boundary");
   const submitted = await actions.submitGuideSiteOperatorPromptAction(submittedFormData);
 
   assert.equal(started.promptText, DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT);
   assert.deepEqual(seenPromptTexts, ["  Is overnight camp right for my 8-year-old?  "]);
+  assert.deepEqual(seenSessionIds, ["session_operator_gui_boundary"]);
   assert.equal(submitted.promptText, "  Is overnight camp right for my 8-year-old?  ");
 });
 

@@ -11,6 +11,7 @@ import type {
   RunState,
   RunStore,
   SessionPatch,
+  SessionStore,
   SessionState,
   StartGuideSiteRunOptions,
   StartGuideSiteRunResult,
@@ -191,34 +192,35 @@ export function renderStartRunOperatorOutput(run: RunState): string {
   ].join("\n");
 }
 
-export function createGuideSiteMemoryStores(options: { runs?: RunStore } = {}): GuideSiteStores {
+export function createGuideSiteMemoryStores(options: { sessions?: SessionStore; runs?: RunStore } = {}): GuideSiteStores {
   const sessions = new Map<string, SessionState>();
   const runs = new Map<string, RunState>();
   const committedRunIds = new Set<string>();
+  const sessionStore: SessionStore = options.sessions ?? {
+    create(session) {
+      const stored = cloneSessionState(session);
+      sessions.set(session.sessionId, stored);
+      return cloneSessionState(stored);
+    },
+    read(sessionId) {
+      const session = sessions.get(sessionId);
+      return session ? cloneSessionState(session) : null;
+    },
+    update(session) {
+      const stored = cloneSessionState(session);
+      sessions.set(session.sessionId, stored);
+      return cloneSessionState(stored);
+    },
+    hasCommittedRun(runId) {
+      return committedRunIds.has(runId);
+    },
+    markCommittedRun(runId) {
+      committedRunIds.add(runId);
+    },
+  };
 
   return {
-    sessions: {
-      create(session) {
-        const stored = cloneSessionState(session);
-        sessions.set(session.sessionId, stored);
-        return cloneSessionState(stored);
-      },
-      read(sessionId) {
-        const session = sessions.get(sessionId);
-        return session ? cloneSessionState(session) : null;
-      },
-      update(session) {
-        const stored = cloneSessionState(session);
-        sessions.set(session.sessionId, stored);
-        return cloneSessionState(stored);
-      },
-      hasCommittedRun(runId) {
-        return committedRunIds.has(runId);
-      },
-      markCommittedRun(runId) {
-        committedRunIds.add(runId);
-      },
-    },
+    sessions: sessionStore,
     runs: options.runs ?? {
       create(run) {
         const stored = structuredClone(run);

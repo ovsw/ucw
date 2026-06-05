@@ -10,6 +10,17 @@ function normalizeFormPromptText(formData: FormData): string {
   return typeof value === "string" ? value : "";
 }
 
+function normalizeFormSessionId(formData: FormData): string | undefined {
+  const value = formData.get("sessionId");
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 export function createGuideSiteOperatorDemoActions(
   dependencies: {
     service?: Pick<ReturnType<typeof createGuideSiteGuiService>, "startDemo" | "submitPrompt">;
@@ -24,6 +35,7 @@ export function createGuideSiteOperatorDemoActions(
     async submitGuideSiteOperatorPromptAction(formData: FormData) {
       return service.submitPrompt({
         promptText: normalizeFormPromptText(formData),
+        sessionId: normalizeFormSessionId(formData),
       });
     },
   };

@@ -6,6 +6,7 @@ import type {
   GuideSitePresentationSection,
   GuideSiteRequiredQuestion,
 } from "../../src/guidesite-mvp/presentation-dto.ts";
+import { GUIDESITE_GUI_SESSION_COOKIE } from "../../src/guidesite-mvp/gui-session.ts";
 
 type GuideSiteGuiActionResult = {
   promptText: string;
@@ -64,9 +65,11 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
 
 function RequiredQuestionCard({
   question,
+  sessionId,
   submitPromptAction,
 }: {
   question: GuideSiteRequiredQuestion;
+  sessionId: string;
   submitPromptAction: FormAction;
 }) {
   return (
@@ -76,6 +79,7 @@ function RequiredQuestionCard({
       {question.rationale ? <p className="mt-2 text-sm leading-6 text-slate-700">{question.rationale}</p> : null}
       <form action={submitPromptAction} className="mt-4">
         <input type="hidden" name="promptText" value={question.text} />
+        <input type="hidden" name="sessionId" value={sessionId} />
         <button
           type="submit"
           className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
@@ -89,14 +93,17 @@ function RequiredQuestionCard({
 
 function PromptButton({
   promptText,
+  sessionId,
   submitPromptAction,
 }: {
   promptText: string;
+  sessionId: string;
   submitPromptAction: FormAction;
 }) {
   return (
     <form action={submitPromptAction}>
       <input type="hidden" name="promptText" value={promptText} />
+      <input type="hidden" name="sessionId" value={sessionId} />
       <button
         type="submit"
         className="inline-flex w-full items-center justify-between rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
@@ -108,7 +115,11 @@ function PromptButton({
   );
 }
 
-function renderAnswerContent(answer: GuideSitePresentation["answer"], submitPromptAction: FormAction) {
+function renderAnswerContent(
+  answer: GuideSitePresentation["answer"],
+  submitPromptAction: FormAction,
+  sessionId: string,
+) {
   switch (answer.status) {
     case "loading":
       return (
@@ -146,6 +157,7 @@ function renderAnswerContent(answer: GuideSitePresentation["answer"], submitProm
                 <RequiredQuestionCard
                   key={question.id}
                   question={question}
+                  sessionId={sessionId}
                   submitPromptAction={submitPromptAction}
                 />
               ))}
@@ -168,7 +180,12 @@ function renderAnswerContent(answer: GuideSitePresentation["answer"], submitProm
 
               <div className="mt-4 grid gap-3">
                 {answer.suggestedPrompts.map((prompt) => (
-                  <PromptButton key={prompt.id} promptText={prompt.text} submitPromptAction={submitPromptAction} />
+                  <PromptButton
+                    key={prompt.id}
+                    promptText={prompt.text}
+                    sessionId={sessionId}
+                    submitPromptAction={submitPromptAction}
+                  />
                 ))}
               </div>
             </section>
@@ -278,7 +295,16 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
   const submitPromptFormAction = submitPromptAction as unknown as FormAction;
   const { presentation } = result;
   const { answer, camp } = presentation;
+  const sessionId = presentation.operatorDiagnostics.sessionId ?? "";
   const answerStateLabel = answer.status.replace(/_/g, " ");
+
+  React.useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    document.cookie = `${GUIDESITE_GUI_SESSION_COOKIE}=${encodeURIComponent(sessionId)}; path=/; samesite=lax`;
+  }, [sessionId]);
 
   return (
     <main aria-labelledby="operator-title" className="min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
@@ -328,7 +354,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 : "The validated product output is ready for the operator surface."}
             </p>
 
-            <div className="mt-6">{renderAnswerContent(answer, submitPromptFormAction)}</div>
+            <div className="mt-6">{renderAnswerContent(answer, submitPromptFormAction, sessionId)}</div>
 
             <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">New demo</p>
@@ -370,7 +396,12 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 <div className="mt-4 grid gap-3">
                   {answer.status === "context_gathering_response" && answer.suggestedPrompts.length > 0 ? (
                     answer.suggestedPrompts.map((prompt) => (
-                      <PromptButton key={prompt.id} promptText={prompt.text} submitPromptAction={submitPromptFormAction} />
+                      <PromptButton
+                        key={prompt.id}
+                        promptText={prompt.text}
+                        sessionId={sessionId}
+                        submitPromptAction={submitPromptFormAction}
+                      />
                     ))
                   ) : (
                     <div className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4 text-sm leading-6 text-slate-700">
@@ -391,8 +422,10 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                   id="operator-prompt"
                   name="promptText"
                   defaultValue={result.promptText}
+                  aria-label="Typed prompt"
                   className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
                 />
+                <input type="hidden" name="sessionId" value={sessionId} />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950"

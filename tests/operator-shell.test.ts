@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,6 +22,7 @@ test("operator shell renders the canonical demo surface", async () => {
       /Suggested prompts/,
       /Is overnight camp right for my 8-year-old\?/,
       /Open a new demo/,
+      /name="sessionId"/,
     ]) {
       assert.match(markup, expected);
     }
@@ -29,6 +30,10 @@ test("operator shell renders the canonical demo surface", async () => {
     assert.doesNotMatch(markup, /chat transcript/i);
     assert.doesNotMatch(markup, /Session State editing/i);
   } finally {
+    rmSync(join(process.cwd(), ".guidesite/operator-demo-sessions"), {
+      recursive: true,
+      force: true,
+    });
     if (previousRuntimeMode === undefined) {
       delete process.env.GUIDESITE_GUI_RUNTIME_MODE;
     } else {

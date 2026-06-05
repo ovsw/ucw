@@ -3,11 +3,13 @@ import { readGuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeConfig, type Gui
 import { createOpenAIPromptUnderstandingProvider, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
 import { createGuideSiteLoadingPresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
 import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
+import { createGuideSiteFileSessionStore } from "../../src/guidesite-mvp/session-store.ts";
 import { createSanityGuideSiteRetrievalAdapterResolver } from "../../src/guidesite-mvp/sanity-retrieval.ts";
 
-import type { RunState } from "../../src/guidesite-mvp/types.ts";
+import type { GuideSiteStores, RunState } from "../../src/guidesite-mvp/types.ts";
 
 export const DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT = "Is overnight camp right for my 8-year-old?";
+export const DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY = ".guidesite/operator-demo-sessions";
 
 export type GuideSiteGuiActionResult = {
   promptText: string;
@@ -16,6 +18,7 @@ export type GuideSiteGuiActionResult = {
 
 export type GuideSiteGuiTurnRequest = {
   promptText: string;
+  sessionId?: string;
   env?: GuideSiteGuiRuntimeEnv;
   envFilePath?: string;
   now?: () => Date;
@@ -35,6 +38,7 @@ export type GuideSiteGuiTurnExecutor = (request: GuideSiteGuiTurnRequest & {
 export interface GuideSiteGuiServiceDependencies {
   readRuntimeConfig?: GuideSiteGuiRuntimeReader;
   runTurn?: GuideSiteGuiTurnExecutor;
+  createStores?: () => GuideSiteStores;
 }
 
 function normalizePromptText(promptText: string): string {
@@ -140,9 +144,9 @@ function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider
 async function executeGuideSiteGuiTurn(
   request: GuideSiteGuiTurnRequest & {
     runtimeConfig: GuideSiteGuiRuntimeConfig;
+    stores: GuideSiteStores;
   },
 ): Promise<RunState> {
-  const stores = createGuideSiteMemoryStores();
   const promptUnderstandingProvider =
     request.runtimeConfig.runtimeMode === "fixture"
       ? createFixturePromptUnderstandingProvider()
@@ -157,7 +161,8 @@ async function executeGuideSiteGuiTurn(
 
   const started = startGuideSiteRun({
     promptText: request.promptText,
-    stores,
+    stores: request.stores,
+    sessionId: request.sessionId,
     now: request.now,
     createSessionId: request.createSessionId,
     createRunId: request.createRunId,
@@ -172,7 +177,20 @@ async function executeGuideSiteGuiTurn(
 
 export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDependencies = {}) {
   const readRuntimeConfig = dependencies.readRuntimeConfig ?? readGuideSiteGuiRuntimeConfig;
-  const runTurn = dependencies.runTurn ?? executeGuideSiteGuiTurn;
+  const stores =
+    dependencies.createStores ??
+    (() =>
+      createGuideSiteMemoryStores({
+        sessions: createGuideSiteFileSessionStore(DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY),
+      }));
+  const resolvedStores = stores();
+  const runTurn =
+    dependencies.runTurn ??
+    ((request: GuideSiteGuiTurnRequest & { runtimeConfig: GuideSiteGuiRuntimeConfig }) =>
+      executeGuideSiteGuiTurn({
+        ...request,
+        stores: resolvedStores,
+      }));
 
   async function executePrompt(
     promptText: string,

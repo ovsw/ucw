@@ -38,7 +38,7 @@ function normalize(value: string | undefined): string | undefined {
 }
 
 export function readOpenAIAnswerComposerConfig(
-  env: OpenAIAnswerComposerEnv = process.env,
+  env: OpenAIAnswerComposerEnv = process.env as OpenAIAnswerComposerEnv,
 ): OpenAIAnswerComposerConfig {
   const apiKey = normalize(env.OPENAI_API_KEY);
 
