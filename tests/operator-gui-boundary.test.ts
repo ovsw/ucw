@@ -83,6 +83,17 @@ test("GuideSite GUI service starts from the canonical prompt and maps technical 
   assert.deepEqual(seenSessionIds, ["session_gui_reload"]);
   assert.equal(submitResult.promptText, "Need more context please");
 
+  seenPrompts.length = 0;
+  seenSessionIds.length = 0;
+  const blankResult = await service.submitPrompt({
+    promptText: "   ",
+    sessionId: "session_gui_reload",
+  });
+  assert.deepEqual(seenPrompts, []);
+  assert.deepEqual(seenSessionIds, []);
+  assert.equal(blankResult.presentation.answer.status, "technical_failure");
+  assert.match(blankResult.presentation.operatorDiagnostics.diagnostics[0] ?? "", /prompt text is required/);
+
   const technicalFailureService = createGuideSiteGuiService({
     readRuntimeConfig() {
       throw new Error("missing live config");

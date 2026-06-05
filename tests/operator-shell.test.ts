@@ -21,8 +21,10 @@ test("operator shell renders the canonical demo surface", async () => {
       /Context Gathering Response/,
       /Required context/,
       /Controlled replies/,
+      /Freeform reply/,
       /Suggested prompts/,
       /Is overnight camp right for my 8-year-old\?/,
+      /Answer in your own words/,
       /Open a new demo/,
       /name="sessionId"/,
     ]) {

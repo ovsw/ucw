@@ -93,6 +93,28 @@ function RequiredQuestionCard({
           </div>
         </div>
       ) : null}
+
+      <div className="mt-4 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Freeform reply</p>
+        <p className="mt-2 text-sm leading-6 text-slate-700">
+          Answer in your own words if the controlled replies do not cover the context you want to provide.
+        </p>
+        <form action={submitPromptAction} className="mt-3 space-y-3">
+          <input
+            name="promptText"
+            aria-label={`Freeform reply for ${question.text}`}
+            placeholder="Answer in your own words"
+            className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
+          />
+          <SessionIdField sessionId={sessionId} />
+          <button
+            type="submit"
+            className="inline-flex w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
+          >
+            Submit freeform reply
+          </button>
+        </form>
+      </div>
     </article>
   );
 }
