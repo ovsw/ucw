@@ -104,11 +104,25 @@ test("presentation DTO maps required questions apart from optional suggested pro
       id: "prompt_prior_sleepaway_experience",
       text: "Has your child slept away from home before?",
       rationale: "The next turn should gather the minimum required context before the answer can continue.",
+      controlledReplies: [
+        {
+          id: "prompt_prior_sleepaway_experience",
+          text: "Has your child slept away from home before?",
+          purpose: "gather_fit_context",
+        },
+      ],
     },
     {
       id: "prompt_child_readiness",
       text: "How does your child handle new routines away from home?",
       rationale: "The next turn should ask how the child responds to separation and new routines.",
+      controlledReplies: [
+        {
+          id: "prompt_child_readiness",
+          text: "How does your child handle new routines away from home?",
+          purpose: "gather_fit_context",
+        },
+      ],
     },
   ]);
   assert.deepEqual(presentation.answer.suggestedPrompts, [

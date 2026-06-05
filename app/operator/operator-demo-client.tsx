@@ -77,16 +77,22 @@ function RequiredQuestionCard({
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Required question</p>
       <p className="mt-3 text-sm font-semibold leading-6 text-slate-950">{question.text}</p>
       {question.rationale ? <p className="mt-2 text-sm leading-6 text-slate-700">{question.rationale}</p> : null}
-      <form action={submitPromptAction} className="mt-4">
-        <input type="hidden" name="promptText" value={question.text} />
-        <SessionIdField sessionId={sessionId} />
-        <button
-          type="submit"
-          className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
-        >
-          Use this prompt
-        </button>
-      </form>
+      {question.controlledReplies.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Controlled replies</p>
+          <div className="mt-3 grid gap-3">
+            {question.controlledReplies.map((reply) => (
+              <PromptButton
+                key={reply.id}
+                promptText={reply.text}
+                sessionId={sessionId}
+                submitPromptAction={submitPromptAction}
+                badgeLabel="Controlled reply"
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -95,10 +101,12 @@ function PromptButton({
   promptText,
   sessionId,
   submitPromptAction,
+  badgeLabel = "Prompt",
 }: {
   promptText: string;
   sessionId: string;
   submitPromptAction: FormAction;
+  badgeLabel?: string;
 }) {
   return (
     <form action={submitPromptAction}>
@@ -109,7 +117,7 @@ function PromptButton({
         className="inline-flex w-full items-center justify-between rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
       >
         <span>{promptText}</span>
-        <span className="text-xs uppercase tracking-[0.18em] text-amber-800">Prompt</span>
+        <span className="text-xs uppercase tracking-[0.18em] text-amber-800">{badgeLabel}</span>
       </button>
     </form>
   );
@@ -400,14 +408,15 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 <div className="mt-4 grid gap-3">
                   {answer.status === "context_gathering_response" && answer.suggestedPrompts.length > 0 ? (
                     answer.suggestedPrompts.map((prompt) => (
-                      <PromptButton
-                        key={prompt.id}
-                        promptText={prompt.text}
-                        sessionId={sessionId}
-                        submitPromptAction={submitPromptFormAction}
-                      />
-                    ))
-                  ) : (
+                    <PromptButton
+                      key={prompt.id}
+                      promptText={prompt.text}
+                      sessionId={sessionId}
+                      submitPromptAction={submitPromptFormAction}
+                      badgeLabel="Prompt"
+                    />
+                  ))
+                ) : (
                     <div className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4 text-sm leading-6 text-slate-700">
                       Suggested prompts will appear when the current turn needs more context or wants to offer a controlled next step.
                     </div>

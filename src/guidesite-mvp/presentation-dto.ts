@@ -38,6 +38,7 @@ export interface GuideSiteRequiredQuestion {
   id: string;
   text: string;
   rationale: string | null;
+  controlledReplies: GuideSiteSuggestedPromptSummary[];
 }
 
 export interface GuideSiteOperatorDiagnostics {
@@ -193,6 +194,7 @@ function splitSuggestedPrompts(answerComposition: AnswerComposition): {
         id: prompt.id,
         text: prompt.text,
         rationale: joinRequiredPromptRationales(matchingRequiredRationales),
+        controlledReplies: [promptSummary],
       });
       continue;
     }
