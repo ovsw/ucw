@@ -8,13 +8,17 @@ import OperatorPage from "../app/operator/page.js";
 test("operator shell renders the canonical demo surface", () => {
   const markup = renderToStaticMarkup(OperatorPage());
 
-  assert.match(markup, /Operator Demo Surface/);
-  assert.match(markup, /GuideSite operator shell/);
-  assert.match(markup, /Parent-shaped output placeholder/);
-  assert.match(markup, /Is overnight camp right for my 8-year-old\?/);
-  assert.match(markup, /Foundation checks/);
-  assert.match(markup, /App Router root and operator routes are mounted\./);
-  assert.match(markup, /Operator shell stays separate from the Parent-shaped answer canvas\./);
+  for (const expected of [
+    /Operator Demo Surface/,
+    /GuideSite operator shell/,
+    /Parent-shaped output placeholder/,
+    /Is overnight camp right for my 8-year-old\?/,
+    /Foundation checks/,
+    /App Router root and operator routes are mounted\./,
+    /Operator shell stays separate from the Parent-shaped answer canvas\./,
+  ]) {
+    assert.match(markup, expected);
+  }
 });
 
 test("global CSS imports Tailwind 4 and the PostCSS plugin is configured", () => {
