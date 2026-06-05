@@ -95,6 +95,10 @@ export interface GuideSitePresentation {
   operatorDiagnostics: GuideSiteOperatorDiagnostics;
 }
 
+function resolveCampTheme(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSiteCampThemeStub {
+  return options.camp ?? ULTIMATE_CAMP_WEBSITE_THEME_STUB;
+}
+
 function createOperatorDiagnostics(run: RunState | null, diagnostics: string[] = []): GuideSiteOperatorDiagnostics {
   return {
     runId: run?.runId ?? null,
@@ -224,7 +228,7 @@ function mapResponsibleAbstentionPresentation(
   };
 }
 
-function mapTechnicalFailurePresentation(run: RunState): GuideSiteTechnicalFailurePresentation {
+function mapTechnicalFailurePresentation(): GuideSiteTechnicalFailurePresentation {
   return {
     status: "technical_failure",
     title: "Technical failure",
@@ -233,7 +237,7 @@ function mapTechnicalFailurePresentation(run: RunState): GuideSiteTechnicalFailu
 }
 
 export function createGuideSiteLoadingPresentation(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSitePresentation {
-  const camp = options.camp ?? ULTIMATE_CAMP_WEBSITE_THEME_STUB;
+  const camp = resolveCampTheme(options);
 
   return {
     camp,
@@ -254,22 +258,25 @@ export function mapGuideSiteRunStateToPresentation(
     return createGuideSiteLoadingPresentation(options);
   }
 
-  const camp = options.camp ?? ULTIMATE_CAMP_WEBSITE_THEME_STUB;
+  const camp = resolveCampTheme(options);
   const operatorDiagnostics = createOperatorDiagnostics(run, run.diagnostics);
 
-  if (run.status === "prompt_understanding_failed" || run.status === "retrieval_failed" || run.status === "validation_failed") {
-    return {
-      camp,
-      answer: mapTechnicalFailurePresentation(run),
-      operatorDiagnostics,
-    };
+  switch (run.status) {
+    case "prompt_understanding_failed":
+    case "retrieval_failed":
+    case "validation_failed":
+      return {
+        camp,
+        answer: mapTechnicalFailurePresentation(),
+        operatorDiagnostics,
+      };
   }
 
   const answerComposition = run.answerComposition;
   if (!answerComposition) {
     return {
       camp,
-      answer: mapTechnicalFailurePresentation(run),
+      answer: mapTechnicalFailurePresentation(),
       operatorDiagnostics,
     };
   }
@@ -294,7 +301,7 @@ export function mapGuideSiteRunStateToPresentation(
         answer: mapResponsibleAbstentionPresentation(answerComposition),
         operatorDiagnostics,
       };
-    default:
-      throw new Error(`Unsupported GuideSite answer composition status: ${(answerComposition as AnswerComposition).status}`);
   }
+
+  throw new Error(`Unsupported GuideSite answer composition status: ${(answerComposition as AnswerComposition).status}`);
 }

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { startGuideSiteRun } from "../../src/guidesite-mvp/run-lifecycle.js";
-import { createGuideSiteMemoryStores } from "../../src/guidesite-mvp/run-lifecycle.js";
+import { createGuideSiteMemoryStores, startGuideSiteRun } from "../../src/guidesite-mvp/run-lifecycle.js";
 import {
   ULTIMATE_CAMP_WEBSITE_THEME_STUB,
   createGuideSiteLoadingPresentation,
