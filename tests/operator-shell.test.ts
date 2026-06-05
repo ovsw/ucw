@@ -4,21 +4,40 @@ import { join } from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import OperatorPage from "../app/operator/page.js";
+import OperatorLoading from "../app/operator/loading.js";
 
-test("operator shell renders the canonical demo surface", () => {
-  const markup = renderToStaticMarkup(OperatorPage());
+test("operator shell renders the canonical demo surface", async () => {
+  const previousRuntimeMode = process.env.GUIDESITE_GUI_RUNTIME_MODE;
+  process.env.GUIDESITE_GUI_RUNTIME_MODE = "fixture";
 
-  for (const expected of [
-    /Operator Demo Surface/,
-    /GuideSite operator shell/,
-    /Parent-shaped output placeholder/,
-    /Is overnight camp right for my 8-year-old\?/,
-    /Foundation checks/,
-    /App Router root and operator routes are mounted\./,
-    /Operator shell stays separate from the Parent-shaped answer canvas\./,
-  ]) {
-    assert.match(markup, expected);
+  try {
+    const markup = renderToStaticMarkup(await OperatorPage());
+
+    for (const expected of [
+      /Operator Demo Surface/,
+      /GuideSite operator shell/,
+      /Answer Presentation/,
+      /Context Gathering Response/,
+      /Required context/,
+      /Suggested prompts/,
+      /Is overnight camp right for my 8-year-old\?/,
+      /Open a new demo/,
+    ]) {
+      assert.match(markup, expected);
+    }
+    assert.doesNotMatch(markup, /uncertain/i);
+    assert.doesNotMatch(markup, /chat transcript/i);
+    assert.doesNotMatch(markup, /Session State editing/i);
+  } finally {
+    process.env.GUIDESITE_GUI_RUNTIME_MODE = previousRuntimeMode;
   }
+});
+
+test("operator loading route stays simple and readable", () => {
+  const markup = renderToStaticMarkup(OperatorLoading());
+
+  assert.match(markup, /Loading the validated GuideSite presentation/);
+  assert.match(markup, /canonical Parent journey/i);
 });
 
 test("global CSS imports Tailwind 4 and the PostCSS plugin is configured", () => {

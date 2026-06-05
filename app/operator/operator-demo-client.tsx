@@ -1,71 +1,283 @@
 "use client";
 
 import React from "react";
-import type { GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
+import type {
+  GuideSitePresentation,
+  GuideSitePresentationSection,
+  GuideSiteRequiredQuestion,
+} from "../../src/guidesite-mvp/presentation-dto.ts";
 
-const canonicalPrompt = "Is overnight camp right for my 8-year-old?";
-
-const foundationChecks = [
-  "App Router root and operator routes are mounted.",
-  "Operator shell stays separate from the Parent-shaped answer canvas.",
-  "GuideSite MVP execution code is not imported into client components.",
-];
-
-const answerCanvasSection = {
-  label: "Answer canvas",
-  title: "Parent-shaped output placeholder",
-  description:
-    "This neutral canvas is where the validated product state will appear once the GUI service boundary is wired in.",
-} as const;
-
-const operatorInspectionSection = {
-  label: "Operator inspection",
-  title: "Foundation checks",
-  description:
-    "The shell keeps the demo operator focused on the product surface while the implementation details stay one layer deeper.",
-} as const;
-
-function FoundationCheckCard({ check }: { check: string }) {
-  return (
-    <div className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
-      <p className="text-sm leading-6 text-slate-700">{check}</p>
-    </div>
-  );
-}
-
-function FoundationCheckItem({ check, index }: { check: string; index: number }) {
-  return (
-    <li className="flex items-start gap-3 rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-semibold text-amber-950">
-        {index + 1}
-      </span>
-      <span>{check}</span>
-    </li>
-  );
-}
-
-type OperatorDemoActionResult = {
+type GuideSiteGuiActionResult = {
   promptText: string;
   presentation: GuideSitePresentation;
 };
 
-type OperatorDemoAction = (formData: FormData) => Promise<OperatorDemoActionResult>;
+type OperatorDemoAction = (formData: FormData) => Promise<GuideSiteGuiActionResult>;
 type FormAction = (formData: FormData) => void | Promise<void>;
 
 type OperatorDemoClientProps = {
-  presentation: GuideSitePresentation;
+  result: GuideSiteGuiActionResult;
   startDemoAction: OperatorDemoAction;
   submitPromptAction: OperatorDemoAction;
 };
 
-export default function OperatorDemoClient({
-  presentation,
-  startDemoAction,
+function StatusChip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+      {label}
+    </span>
+  );
+}
+
+function SectionCard({ section }: { section: GuideSitePresentationSection }) {
+  return (
+    <article className="rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">{section.title}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-700">{section.body}</p>
+      {section.items && section.items.length > 0 ? (
+        <ul className="mt-4 space-y-2">
+          {section.items.map((item) => (
+            <li
+              key={item}
+              className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700"
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {section.citations.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {section.citations.map((citation) => (
+            <span
+              key={citation.sourceId}
+              className="rounded-full border border-amber-900/10 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-950"
+            >
+              {citation.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function RequiredQuestionCard({
+  question,
   submitPromptAction,
-}: OperatorDemoClientProps) {
-  const answerStateLabel = presentation.answer.status.replace(/_/g, " ");
+}: {
+  question: GuideSiteRequiredQuestion;
+  submitPromptAction: FormAction;
+}) {
+  return (
+    <article className="rounded-[1.5rem] border border-amber-900/10 bg-amber-50/80 px-5 py-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Required question</p>
+      <p className="mt-3 text-sm font-semibold leading-6 text-slate-950">{question.text}</p>
+      {question.rationale ? <p className="mt-2 text-sm leading-6 text-slate-700">{question.rationale}</p> : null}
+      <form action={submitPromptAction} className="mt-4">
+        <input type="hidden" name="promptText" value={question.text} />
+        <button
+          type="submit"
+          className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+        >
+          Use this prompt
+        </button>
+      </form>
+    </article>
+  );
+}
+
+function PromptButton({
+  promptText,
+  submitPromptAction,
+}: {
+  promptText: string;
+  submitPromptAction: FormAction;
+}) {
+  return (
+    <form action={submitPromptAction}>
+      <input type="hidden" name="promptText" value={promptText} />
+      <button
+        type="submit"
+        className="inline-flex w-full items-center justify-between rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
+      >
+        <span>{promptText}</span>
+        <span className="text-xs uppercase tracking-[0.18em] text-amber-800">Prompt</span>
+      </button>
+    </form>
+  );
+}
+
+function renderAnswerContent(result: GuideSiteGuiActionResult, submitPromptAction: FormAction) {
+  const answer = result.presentation.answer;
+
+  switch (answer.status) {
+    case "loading":
+      return (
+        <div className="rounded-[1.75rem] border border-slate-900/10 bg-white px-5 py-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Loading</p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950">{answer.headline}</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-700">{answer.message}</p>
+        </div>
+      );
+    case "context_gathering_response":
+      return (
+        <div className="space-y-6">
+          <div className="rounded-[1.75rem] border border-amber-900/10 bg-gradient-to-br from-amber-50 to-white px-5 py-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">
+              Context Gathering Response
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+              {answer.conversationalFraming}
+            </h2>
+          </div>
+
+          <section aria-labelledby="required-context-title">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Required context</p>
+                <h3 id="required-context-title" className="mt-2 text-xl font-semibold tracking-[-0.05em]">
+                  Questions the system needs before answering
+                </h3>
+              </div>
+              <StatusChip label="Primary path" />
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              {answer.requiredQuestions.map((question) => (
+                <RequiredQuestionCard
+                  key={question.id}
+                  question={question}
+                  submitPromptAction={submitPromptAction}
+                />
+              ))}
+            </div>
+          </section>
+
+          {answer.suggestedPrompts.length > 0 ? (
+            <section aria-labelledby="suggested-prompts-title">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">
+                    Suggested prompts
+                  </p>
+                  <h3 id="suggested-prompts-title" className="mt-2 text-xl font-semibold tracking-[-0.05em]">
+                    Controlled follow-up options
+                  </h3>
+                </div>
+                <StatusChip label="Secondary path" />
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                {answer.suggestedPrompts.map((prompt) => (
+                  <PromptButton key={prompt.id} promptText={prompt.text} submitPromptAction={submitPromptAction} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      );
+    case "assembled_answer":
+      return (
+        <div className="space-y-6">
+          <div className="rounded-[1.75rem] border border-amber-900/10 bg-gradient-to-br from-amber-50 to-white px-5 py-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Assembled answer</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+              {answer.conversationalFraming}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              {answer.completeness === "partial"
+                ? "The answer is source-backed but still limited by the available context."
+                : "The answer is source-backed and validated for the current demo state."}
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            {answer.sections.map((section) => (
+              <SectionCard key={section.title} section={section} />
+            ))}
+          </div>
+        </div>
+      );
+    case "responsible_abstention":
+      return (
+        <div className="rounded-[1.75rem] border border-slate-900/10 bg-white px-5 py-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Responsible abstention</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+            {answer.conversationalFraming}
+          </h2>
+          <div className="mt-5 grid gap-3">
+            {answer.nextSteps.map((nextStep) => (
+              <div key={nextStep} className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                {nextStep}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    case "technical_failure":
+      return (
+        <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-5 py-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">Technical failure</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">{answer.title}</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-700">{answer.message}</p>
+        </div>
+      );
+  }
+}
+
+function renderDiagnostics(result: GuideSiteGuiActionResult) {
+  const diagnostics = result.presentation.operatorDiagnostics;
+
+  return (
+    <aside className="rounded-[1.75rem] border border-black/10 bg-white/78 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Operator inspection</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.05em] text-slate-950">Diagnostics</h2>
+        </div>
+        <StatusChip label={diagnostics.runStatus} />
+      </div>
+
+      <dl className="mt-5 grid gap-3 text-sm text-slate-700">
+        <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Prompt</dt>
+          <dd className="mt-1 leading-6 text-slate-800">{result.promptText}</dd>
+        </div>
+        <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Run</dt>
+          <dd className="mt-1 leading-6 text-slate-800">
+            {diagnostics.runId ?? "Pending"} / {diagnostics.sessionId ?? "Pending"}
+          </dd>
+        </div>
+        <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
+          <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Provider</dt>
+          <dd className="mt-1 leading-6 text-slate-800">
+            {diagnostics.provider ?? "Not available"}{diagnostics.model ? ` · ${diagnostics.model}` : ""}
+          </dd>
+        </div>
+      </dl>
+
+      {diagnostics.diagnostics.length > 0 ? (
+        <div className="mt-5 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Diagnostics notes</p>
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+            {diagnostics.diagnostics.map((message) => (
+              <li key={message} className="rounded-[1rem] bg-slate-50 px-3 py-2">
+                {message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
+export default function OperatorDemoClient({ result, startDemoAction, submitPromptAction }: OperatorDemoClientProps) {
   const startDemoFormAction = startDemoAction as unknown as FormAction;
   const submitPromptFormAction = submitPromptAction as unknown as FormAction;
+  const answerStateLabel = result.presentation.answer.status.replace(/_/g, " ");
 
   return (
     <main aria-labelledby="operator-title" className="min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
@@ -80,136 +292,116 @@ export default function OperatorDemoClient({
                 GuideSite operator shell
               </h1>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-700 sm:text-lg">
-                Foundation route for the operator-led Ultimate Camp Website demo. This slice proves the
-                App Router shell, the Tailwind 4 pipeline, and a neutral surface around the eventual
-                Parent-shaped answer presentation.
+                The GUI opens directly into the canonical Parent journey for one configured Ultimate Camp Website
+                instance. Controlled prompts stay visible, and the main canvas stays focused on the validated
+                product output.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <span className="rounded-full border border-amber-900/10 bg-amber-950 px-4 py-2 text-sm font-medium text-amber-50">
-                Canonical journey
-              </span>
-              <span className="rounded-full border border-slate-900/10 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                Desktop-first shell
-              </span>
+              <StatusChip label="Canonical journey" />
+              <StatusChip label="Desktop-first" />
+              <StatusChip label={answerStateLabel} />
             </div>
           </div>
         </header>
 
         <section
-          aria-label="Demo surface foundation"
-          className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.65fr)]"
+          aria-label="Demo surface"
+          className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]"
         >
           <article className="rounded-[2rem] border border-black/10 bg-[#fffaf1]/92 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">
-                {answerCanvasSection.label}
-              </p>
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-950">
-                {answerStateLabel}
-              </span>
-            </div>
-
-            <h2 className="mt-4 text-2xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-3xl">
-              {answerCanvasSection.title}
-            </h2>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">
-              {answerCanvasSection.description}
-            </p>
-
-            <div className="mt-6 rounded-[1.5rem] border border-amber-900/10 bg-gradient-to-br from-amber-50 to-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Canonical prompt</p>
-              <p className="mt-3 text-[clamp(1.8rem,4vw,3rem)] font-semibold leading-[1.05] tracking-[-0.07em] text-slate-950">
-                {canonicalPrompt}
-              </p>
-            </div>
-
-            <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">Current presentation</p>
-              <p className="mt-3 text-lg font-semibold tracking-[-0.04em] text-slate-950">
-                {presentation.answer.status === "loading"
-                  ? presentation.answer.headline
-                  : "Service-backed presentation ready"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
-                {presentation.answer.status === "loading"
-                  ? presentation.answer.message
-                  : "The GUI service and server actions are wired behind the shell for the next iteration."}
-              </p>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {foundationChecks.map((check) => (
-                <FoundationCheckCard key={check} check={check} />
-              ))}
-            </div>
-          </article>
-
-          <aside
-            aria-labelledby="operator-inspection-title"
-            className="rounded-[2rem] border border-black/10 bg-white/78 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8"
-          >
-            <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">
-                  {operatorInspectionSection.label}
-                </p>
-                <h2
-                  id="operator-inspection-title"
-                  className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950"
-                >
-                  {operatorInspectionSection.title}
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Answer Presentation</p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-3xl">
+                  Parent-shaped output
                 </h2>
               </div>
-              <span className="rounded-full border border-slate-900/10 bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
-                shell
-              </span>
+              <StatusChip label={result.presentation.camp.campName} />
             </div>
 
-            <p className="mt-3 text-sm leading-6 text-slate-700">{operatorInspectionSection.description}</p>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">
+              {result.presentation.answer.status === "context_gathering_response"
+                ? "The first visible product output is a context gathering response because the canonical Parent prompt still lacks required Visitor Context."
+                : "The validated product output is ready for the operator surface."}
+            </p>
 
-            <ul className="mt-6 space-y-3">
-              {foundationChecks.map((check, index) => (
-                <FoundationCheckItem key={check} check={check} index={index} />
-              ))}
-            </ul>
+            <div className="mt-6">{renderAnswerContent(result, submitPromptFormAction)}</div>
 
-            <section className="mt-6 rounded-[1.5rem] border border-amber-900/10 bg-amber-50/70 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Demo boundary</p>
+            <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">New demo</p>
               <p className="mt-3 text-sm leading-6 text-slate-700">
-                The forms below call server actions only. The client shell does not import the GuideSite
-                pipeline, OpenAI provider, Sanity retrieval adapter, or the server service module.
+                Start a fresh operator demo to clear the current prompt path and begin a new Parent journey.
               </p>
-
-              <form action={startDemoFormAction} className="mt-4 space-y-3">
+              <form action={startDemoFormAction} className="mt-4">
+                <input type="hidden" name="promptText" value={result.promptText} />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
                 >
-                  Start canonical demo
+                  Open a new demo
                 </button>
               </form>
+            </div>
+          </article>
 
+          {renderDiagnostics(result)}
+        </section>
+
+        <section aria-label="Prompt controls" className="rounded-[2rem] border border-black/10 bg-white/82 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Prompt controls</p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950">
+                Controlled prompts first, typed prompt second
+              </h2>
+            </div>
+            <StatusChip label="Session state is not editable here" />
+          </div>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.7fr)]">
+            <div className="space-y-4">
+              <div className="rounded-[1.5rem] border border-slate-900/10 bg-slate-50 px-5 py-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+                  Controlled suggested prompts
+                </p>
+                <div className="mt-4 grid gap-3">
+                  {result.presentation.answer.status === "context_gathering_response" &&
+                  result.presentation.answer.suggestedPrompts.length > 0 ? (
+                    result.presentation.answer.suggestedPrompts.map((prompt) => (
+                      <PromptButton key={prompt.id} promptText={prompt.text} submitPromptAction={submitPromptFormAction} />
+                    ))
+                  ) : (
+                    <div className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4 text-sm leading-6 text-slate-700">
+                      Suggested prompts will appear when the current turn needs more context or wants to offer a controlled next step.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Typed prompt</p>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                Use freeform input for secondary exploration. This keeps the surface flexible without exposing direct session editing.
+              </p>
               <form action={submitPromptFormAction} className="mt-4 space-y-3">
-                <label className="block text-xs font-semibold uppercase tracking-[0.22em] text-amber-800" htmlFor="operator-prompt">
-                  Submit prompt
-                </label>
                 <input
                   id="operator-prompt"
                   name="promptText"
-                  defaultValue={canonicalPrompt}
-                  className="w-full rounded-[1rem] border border-slate-900/10 bg-white px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
+                  defaultValue={result.promptText}
+                  className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
                 />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950"
                 >
-                  Run prompt
+                  Run typed prompt
                 </button>
               </form>
-            </section>
-          </aside>
+            </div>
+          </div>
         </section>
       </div>
     </main>

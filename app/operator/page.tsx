@@ -1,3 +1,7 @@
+import React from "react";
+
+export const dynamic = "force-dynamic";
+
 import OperatorDemoClient from "./operator-demo-client.tsx";
 import { createGuideSiteGuiService, type GuideSiteGuiActionResult } from "./guide-site-gui-service.ts";
 import {
@@ -17,10 +21,12 @@ async function submitGuideSiteOperatorPromptAction(formData: FormData): Promise<
   return invokeSubmitGuideSiteOperatorPromptAction(formData);
 }
 
-export default function OperatorPage() {
+export default async function OperatorPage() {
+  const initialPresentation = await guiService.startDemo();
+
   return (
     <OperatorDemoClient
-      presentation={guiService.createInitialPresentation()}
+      result={initialPresentation}
       startDemoAction={startGuideSiteOperatorDemoAction}
       submitPromptAction={submitGuideSiteOperatorPromptAction}
     />
