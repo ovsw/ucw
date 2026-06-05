@@ -111,13 +111,69 @@ function createCanonicalFixturePromptUnderstanding() {
   };
 }
 
-const DEFAULT_REQUIRED_CONTEXT_NEEDS = ["prior_sleepaway_experience", "child_readiness"];
+const DEFAULT_REQUIRED_CONTEXT_NEEDS = ["prior_sleepaway_experience", "child_readiness"] as const;
+const REQUIRED_CONTEXT_RETRIEVAL_NEEDS = ["overnight_readiness", "homesickness_support"] as const;
+const VAGUE_REQUIRED_CONTEXT_MARKERS = [
+  "i don't know",
+  "i do not know",
+  "idk",
+  "not sure",
+  "unsure",
+  "maybe",
+  "maybe so",
+  "sometimes",
+  "kind of",
+  "sort of",
+  "i think",
+  "i guess",
+  "a little",
+  "somewhat",
+] as const;
+const WITHHELD_REQUIRED_CONTEXT_MARKERS = [
+  "prefer not to say",
+  "rather not say",
+  "don't want to say",
+  "do not want to say",
+  "don't want to answer",
+  "do not want to answer",
+  "skip",
+  "pass",
+  "withhold",
+  "no comment",
+] as const;
+const PRECISE_SLEEPAWAY_MARKERS = [
+  "grandparent",
+  "grandparents",
+  "slept away",
+  "sleepaway",
+  "away from home",
+  "overnight at",
+] as const;
+
+function createRequiredContextConcerns(): PromptUnderstanding["concerns"] {
+  return [
+    {
+      key: "homesickness",
+      label: "Homesickness",
+      status: "open",
+      provenance: "implied",
+    },
+    {
+      key: "child_readiness",
+      label: "Child Readiness",
+      status: "open",
+      provenance: "implied",
+    },
+  ];
+}
+
+function includesAnyMarker(normalizedPromptText: string, markers: readonly string[]): boolean {
+  return markers.some((marker) => normalizedPromptText.includes(marker));
+}
 
 function getPendingContextNeeds(context?: PromptUnderstandingSessionContext): string[] {
-  const pendingContextNeeds =
-    context?.session.focus.contextNeeds && context.session.focus.contextNeeds.length > 0
-      ? context.session.focus.contextNeeds
-      : DEFAULT_REQUIRED_CONTEXT_NEEDS;
+  const contextNeeds = context?.session.focus.contextNeeds;
+  const pendingContextNeeds = contextNeeds && contextNeeds.length > 0 ? contextNeeds : DEFAULT_REQUIRED_CONTEXT_NEEDS;
   return [...new Set(pendingContextNeeds)];
 }
 
@@ -129,21 +185,8 @@ function createVagueRequiredContextUnderstanding(
     promptType: "fit",
     fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after clarifying the missing context.",
     facts: {},
-    concerns: [
-      {
-        key: "homesickness",
-        label: "Homesickness",
-        status: "open",
-        provenance: "implied",
-      },
-      {
-        key: "child_readiness",
-        label: "Child Readiness",
-        status: "open",
-        provenance: "implied",
-      },
-    ],
-    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    concerns: createRequiredContextConcerns(),
+    retrievalNeeds: [...REQUIRED_CONTEXT_RETRIEVAL_NEEDS],
     contextNeeds: getPendingContextNeeds(context),
   };
 }
@@ -168,21 +211,8 @@ function createPreciseRequiredContextUnderstanding(
         },
       },
     },
-    concerns: [
-      {
-        key: "homesickness",
-        label: "Homesickness",
-        status: "open",
-        provenance: "implied",
-      },
-      {
-        key: "child_readiness",
-        label: "Child Readiness",
-        status: "open",
-        provenance: "implied",
-      },
-    ],
-    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    concerns: createRequiredContextConcerns(),
+    retrievalNeeds: [...REQUIRED_CONTEXT_RETRIEVAL_NEEDS],
     contextNeeds: remainingContextNeeds.length > 0 ? remainingContextNeeds : ["child_readiness"],
   };
 }
@@ -199,76 +229,44 @@ function createWithheldRequiredContextUnderstanding(): PromptUnderstanding {
   };
 }
 
-function looksVagueRequiredContextReply(promptText: string): boolean {
-  const normalizedPromptText = promptText.trim().toLowerCase();
-  return [
-    "i don't know",
-    "i do not know",
-    "idk",
-    "not sure",
-    "unsure",
-    "maybe",
-    "maybe so",
-    "sometimes",
-    "kind of",
-    "sort of",
-    "i think",
-    "i guess",
-    "a little",
-    "somewhat",
-  ].some((marker) => normalizedPromptText.includes(marker));
+function looksVagueRequiredContextReply(normalizedPromptText: string): boolean {
+  return includesAnyMarker(normalizedPromptText, VAGUE_REQUIRED_CONTEXT_MARKERS);
 }
 
-function looksWithheldRequiredContextReply(promptText: string): boolean {
-  const normalizedPromptText = promptText.trim().toLowerCase();
-  return [
-    "prefer not to say",
-    "rather not say",
-    "don't want to say",
-    "do not want to say",
-    "don't want to answer",
-    "do not want to answer",
-    "skip",
-    "pass",
-    "withhold",
-    "no comment",
-  ].some((marker) => normalizedPromptText.includes(marker));
+function looksWithheldRequiredContextReply(normalizedPromptText: string): boolean {
+  return includesAnyMarker(normalizedPromptText, WITHHELD_REQUIRED_CONTEXT_MARKERS);
 }
 
-function looksPreciseSleepawayReply(promptText: string): boolean {
-  const normalizedPromptText = promptText.trim().toLowerCase();
-  return [
-    "grandparent",
-    "grandparents",
-    "slept away",
-    "sleepaway",
-    "away from home",
-    "overnight at",
-  ].some((marker) => normalizedPromptText.includes(marker));
+function looksPreciseSleepawayReply(normalizedPromptText: string): boolean {
+  return includesAnyMarker(normalizedPromptText, PRECISE_SLEEPAWAY_MARKERS);
 }
 
 function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider {
   return {
     async understandPrompt(promptText, context) {
-      const normalizedPromptText = promptText.trim();
-      const understanding =
-        normalizedPromptText === DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT
-          ? createCanonicalFixturePromptUnderstanding()
-          : looksWithheldRequiredContextReply(normalizedPromptText)
-            ? createWithheldRequiredContextUnderstanding()
-            : looksPreciseSleepawayReply(normalizedPromptText)
-              ? createPreciseRequiredContextUnderstanding(normalizedPromptText, context)
-              : looksVagueRequiredContextReply(normalizedPromptText)
-                ? createVagueRequiredContextUnderstanding(context)
-                : {
-                    goal: "unknown" as const,
-                    promptType: "unknown" as const,
-                    fitQuestion: null,
-                    facts: {},
-                    concerns: [],
-                    retrievalNeeds: [],
-                    contextNeeds: [],
-                  };
+      const trimmedPromptText = promptText.trim();
+      const normalizedPromptText = trimmedPromptText.toLowerCase();
+      let understanding: PromptUnderstanding;
+
+      if (trimmedPromptText === DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT) {
+        understanding = createCanonicalFixturePromptUnderstanding();
+      } else if (looksWithheldRequiredContextReply(normalizedPromptText)) {
+        understanding = createWithheldRequiredContextUnderstanding();
+      } else if (looksPreciseSleepawayReply(normalizedPromptText)) {
+        understanding = createPreciseRequiredContextUnderstanding(trimmedPromptText, context);
+      } else if (looksVagueRequiredContextReply(normalizedPromptText)) {
+        understanding = createVagueRequiredContextUnderstanding(context);
+      } else {
+        understanding = {
+          goal: "unknown" as const,
+          promptType: "unknown" as const,
+          fitQuestion: null,
+          facts: {},
+          concerns: [],
+          retrievalNeeds: [],
+          contextNeeds: [],
+        };
+      }
 
       return {
         understanding,
