@@ -36,48 +36,48 @@ function readGuideSiteGuiPromptUnderstandingConfig(
 ): GuideSiteGuiPromptUnderstandingConfig {
   const apiKey = normalize(env.OPENAI_API_KEY);
   const model = normalize(env.OPENAI_PROMPT_UNDERSTANDING_MODEL);
-  const missingKeys: string[] = [];
+  if (!apiKey || !model) {
+    const missingKeys: string[] = [];
 
-  if (!apiKey) {
-    missingKeys.push("OPENAI_API_KEY");
-  }
+    if (!apiKey) {
+      missingKeys.push("OPENAI_API_KEY");
+    }
 
-  if (!model) {
-    missingKeys.push("OPENAI_PROMPT_UNDERSTANDING_MODEL");
-  }
+    if (!model) {
+      missingKeys.push("OPENAI_PROMPT_UNDERSTANDING_MODEL");
+    }
 
-  if (missingKeys.length > 0) {
     throw new Error(
       `Missing required OpenAI config for GuideSite GUI live mode: ${missingKeys.join(", ")}.`,
     );
   }
 
   return {
-    apiKey: apiKey as string,
-    model: model as string,
+    apiKey,
+    model,
   };
 }
 
 function readGuideSiteGuiRuntimeMode(env: GuideSiteGuiRuntimeEnv): GuideSiteGuiRuntimeMode {
   const runtimeMode = normalize(env.GUIDESITE_GUI_RUNTIME_MODE) ?? DEFAULT_GUIDESITE_GUI_RUNTIME_MODE;
 
-  if (runtimeMode === "live" || runtimeMode === "fixture") {
-    return runtimeMode;
+  switch (runtimeMode) {
+    case "live":
+    case "fixture":
+      return runtimeMode;
+    default:
+      throw new Error(`Unknown GuideSite GUI runtime mode: ${runtimeMode}. Use live or fixture.`);
   }
-
-  throw new Error(
-    `Unknown GuideSite GUI runtime mode: ${runtimeMode}. Use live or fixture.`,
-  );
 }
 
 export function readGuideSiteGuiRuntimeConfig(options: {
   env?: GuideSiteGuiRuntimeEnv;
   envFilePath?: string;
 } = {}): GuideSiteGuiRuntimeConfig {
-  const mergedEnv = mergeGuideSiteMvpEnv({
+  const mergedEnv: GuideSiteGuiRuntimeEnv = mergeGuideSiteMvpEnv({
     env: options.env,
     envFilePath: options.envFilePath,
-  }) as GuideSiteGuiRuntimeEnv;
+  });
   const runtimeMode = readGuideSiteGuiRuntimeMode(mergedEnv);
 
   if (runtimeMode === "fixture") {

@@ -95,3 +95,15 @@ test("GUI runtime config accepts explicit fixture mode without live demo config"
     retrievalMode: "fixture",
   });
 });
+
+test("GUI runtime config rejects unknown runtime modes", () => {
+  assert.throws(
+    () =>
+      readGuideSiteGuiRuntimeConfig({
+        env: {
+          GUIDESITE_GUI_RUNTIME_MODE: "preview",
+        },
+      }),
+    /Unknown GuideSite GUI runtime mode: preview\. Use live or fixture\./,
+  );
+});
