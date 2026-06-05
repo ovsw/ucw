@@ -18,6 +18,10 @@ _Avoid_: User, customer, prospect
 The person running an operator-led demo by impersonating a **Visitor** and entering or selecting **Prompts** as that **Visitor** would.
 _Avoid_: Visitor, Parent, user, customer
 
+**Operator Demo Surface**:
+The interface a **Demo Operator** uses to run an operator-led demo while showing an **Answer Presentation** shaped like the eventual **Parent** experience.
+_Avoid_: Customer app, self-serve UI, admin panel, debug console
+
 **Decision Confidence**:
 The **Visitor**'s readiness to make or reject a high-consideration choice because their major concerns, constraints, and fit questions have been addressed.
 _Avoid_: Conversion, lead readiness, purchase intent
@@ -42,6 +46,10 @@ _Avoid_: Sub-query, intent
 A suggested **Prompt** the **Visitor** can choose to begin, continue, or refine a **GuideSite** exchange.
 _Avoid_: Chip, quick reply, CTA, button
 
+**Context Gathering Response**:
+A **GuideSite** response that asks required follow-up questions before an **Assembled Answer** can be created.
+_Avoid_: Uncertain answer, partial recommendation, intake form
+
 **Suggested Prompt Purpose**:
 The reason a **Suggested Prompt** is offered in a **GuideSite Session**.
 _Avoid_: CTA type, button category
@@ -49,6 +57,10 @@ _Avoid_: CTA type, button category
 **GuideSite Session**:
 The ongoing guided interaction where a **Visitor** uses **Prompts**, receives **Assembled Answers**, and follows **Suggested Prompts** toward **Decision Confidence**.
 _Avoid_: Chat, conversation, funnel, session
+
+**Journey Timeline**:
+A compact view of prior **Prompts**, learned **Visitor Context**, and **Concerns** in a **GuideSite Session**.
+_Avoid_: Chat transcript, message history, activity feed
 
 **Session State**:
 The cross-turn memory of a **GuideSite Session** owned by the GuideSite application.
@@ -207,52 +219,93 @@ _Avoid_: Session, GuideSite Session
 ## Relationships
 
 - **Ultimate Camp Website** is a camp-specific instance of a **GuideSite**.
+- The MVP **Operator Demo Surface** assumes one configured **Ultimate Camp Website** instance.
 - A **GuideSite** serves a visitor who needs confidence before making a high-consideration decision.
 - A **Demo Operator** may impersonate a **Visitor** during an operator-led demo.
 - A **Demo Operator** is not the **Visitor** whose decision context is being modeled.
+- A **Demo Operator** uses an **Operator Demo Surface** to run an operator-led demo.
+- An **Operator Demo Surface** may render a **Parent**-shaped **Answer Presentation** without making the MVP a self-serve **Parent** product.
+- The first **Operator Demo Surface** should not create a separate shareable **Parent** view.
+- An **Operator Demo Surface** foregrounds the **Answer Presentation** and uses run details only to help the **Demo Operator** explain or inspect the demo.
+- The **Answer Presentation** may carry camp-specific identity while the surrounding **Operator Demo Surface** remains neutral.
+- The first **Operator Demo Surface** is desktop-first, while the **Answer Presentation** should remain responsive enough to preview the eventual **Parent** experience.
+- An **Answer Presentation** may use approved camp media when available, but media should support the **Assembled Answer** rather than become required for the first demo slice.
+- The first **Answer Presentation** should prioritize **Conversational Framing** and render **Citations** and selected **Content Entities** text-first before introducing richer **Answer Components**.
+- In an **Operator Demo Surface**, run diagnostics should be available to the **Demo Operator** without competing with the **Answer Presentation**.
+- In an **Operator Demo Surface**, technical failure details belong in diagnostics while the **Answer Presentation** shows the product-level answer state.
+- In an **Operator Demo Surface**, operator inspection should show readable summaries before raw structured output.
+- An **Operator Demo Surface** may expose **Sources of Truth** for inspection, but content editing is not part of the main demo flow.
+- An **Operator Demo Surface** should expose editorial gaps to the **Demo Operator** when missing **Sources of Truth** affect answer assembly.
+- The first **Operator Demo Surface** should not manage editorial gaps as a backlog or workflow.
+- An **Operator Demo Surface** should use expandable inspection areas rather than separate demo and developer modes.
+- In an **Operator Demo Surface**, a valid **Assembled Answer** should appear in the **Answer Presentation** without requiring a separate operator approval step.
+- An **Operator Demo Surface** should show product output only after validation yields a **Context Gathering Response**, source-backed **Assembled Answer**, or responsible abstention.
+- The first **Operator Demo Surface** follows the canonical **Parent** journey before widening to multiple demo scenarios.
+- The first **Operator Demo Surface** should open directly into the canonical **Parent** journey rather than a generic empty state.
 - In an operator-led demo, **Prompts**, **Visitor Context**, and **Session State** represent the impersonated **Visitor**, not the **Demo Operator** personally.
 - A **Parent** is the camp-specific form of a **Visitor**.
 - A **Parent** evaluates **Fit** for a **Child**.
 - A **GuideSite** helps a **Visitor** reach **Decision Confidence** whether the final decision is yes or no.
 - A **GuideSite** adapts to the **Visitor**'s **Prompt**, **Constraints**, and **Concerns**.
 - **Decision Confidence** requires the **Visitor**'s major **Constraints** and **Concerns** to be addressed.
+- **Decision Confidence** should be represented qualitatively through **Fit** status, open **Concerns**, missing **Visitor Context**, and source coverage rather than a numeric meter until approved scoring rules exist.
 - **Prompt Understanding** interprets a **Prompt** before the system finds related **Content Entities**.
 - Every real **Answer Assembly Process** includes **Prompt Understanding** before retrieval or answer assembly.
 - **Concern Surfacing** is a responsibility within **Prompt Understanding**.
 - The real answer flow should model **Prompt Understanding** as the stage; **Concern Surfacing** can remain visible as a sub-output for evaluation and reporting.
 - **Prompt Understanding** may identify retrieval needs, but **Retrieval Strategies** own query construction and source retrieval.
 - A **Prompt** can suggest an **Implied Need** even when the **Visitor** does not name it directly.
+- A broad **Fit Prompt** may surface implied **Concerns** when they are relevant, but the **Answer Presentation** should frame them as checks worth considering rather than assumptions about the **Visitor**.
 - A **Prompt** can contain multiple **Prompt Parts**, including both **Factual Prompts** and **Fit Prompts**.
 - **Prompt Understanding** may receive a mixed **Prompt**, but its output should separate factual questions from **Fit** questions rather than label a **Prompt Part** as mixed.
 - The **Answer Assembly Process** should determine the makeup of a **Prompt** before deciding how each **Prompt Part** should be answered.
 - A **Factual Prompt** should be answered from available **Sources of Truth** when sufficient source material exists.
 - If sufficient source material for a **Factual Prompt** does not exist, the **Assembled Answer** should say so rather than substitute a **Fit** question.
 - A **Fit Prompt** requires relevant **Visitor Context** before a **GuideSite** can assess **Fit** honestly.
-- If relevant **Visitor Context** is missing for a **Fit Prompt**, the **GuideSite** should gather that context rather than invent a **Fit** assessment.
-- When Visitor Context is missing for a **Fit Prompt**, the **Assembled Answer** may explain which context is needed and offer a **Suggested Prompt** to gather it.
+- If relevant **Visitor Context** is missing for a **Fit Prompt**, the **GuideSite** should present a **Context Gathering Response** rather than an uncertain answer.
+- A **Context Gathering Response** may explain why the context is needed, but it should not present a **Fit** assessment, recommendation, or answer to the original **Prompt**.
+- When **Visitor Context** is missing for a **Fit Prompt**, the **GuideSite** should ask the required follow-up question or questions through controlled **Suggested Prompts**.
+- A **Context Gathering Response** should ask the smallest complete set of follow-up questions required before an honest **Assembled Answer** can be created.
+- A **Context Gathering Response** may include a short rationale for each required question when it helps the **Visitor** understand the decision relevance.
+- A **Context Gathering Response** should remain question-led and should not include source-backed background material that belongs in a later **Assembled Answer**.
+- If vague **Visitor Context** is not precise enough for an honest **Assembled Answer**, the **GuideSite** should ask a clarifying **Suggested Prompt** instead of hedging around the uncertainty.
+- If required **Visitor Context** is skipped or withheld, the **GuideSite** should continue with a **Context Gathering Response** or abstain rather than create an **Assembled Answer**.
 - An **Implied Need** can reveal additional **Concerns** or **Sources of Truth** needed for an **Assembled Answer**.
 - A **Suggested Prompt** becomes a **Prompt** when the **Visitor** chooses it.
+- A reply to a required **Suggested Prompt** should become a **Prompt**, whether the reply is selected from controlled choices or entered freeform.
 - A **GuideSite** can offer **Suggested Prompts** before or after an **Assembled Answer**.
+- An **Operator Demo Surface** may allow typed **Prompts**, but the polished demo path should primarily move through controlled **Suggested Prompts**.
 - A **GuideSite Session** contains **Prompts**, **Assembled Answers**, and **Suggested Prompts**.
+- In an **Operator Demo Surface**, a **GuideSite Session** should persist across browser reloads until the **Demo Operator** starts a new demo.
+- In an **Operator Demo Surface**, one **GuideSite Session** represents one **Parent** path; demonstrating a different answer branch should start a new demo.
+- An **Operator Demo Surface** may show a **Journey Timeline** as secondary context for multi-turn memory.
+- A **Journey Timeline** is not a chat transcript and should not compete with the current **Answer Presentation**.
+- In the first **Operator Demo Surface**, the current **Assembled Answer** should remain the main canvas while the **Journey Timeline** summarizes prior turns without replaying them.
+- An **Operator Demo Surface** should let the **Demo Operator** inspect **Session State**, but not directly edit it during the demo.
 - **Session State** stores cross-turn **Visitor Context**, conversation focus, concern state, current **Suggested Prompts**, answer history, source snapshots, and diagnostics.
+- **Session State** is runtime memory for a **GuideSite Session**, not editorial content or a **Source of Truth**.
 - **Run State** stores the current **Prompt**, **Prompt Understanding** output, retrieval results, **Answer Material Collection**, **Material Assessment**, **Conversational Framing**, and final **Answer Composition** for one answer turn.
 - **Run State** is storage read and written by **Answer Assembly Process** steps; it does not contain or execute those steps.
 - The **Answer Assembly Process** hydrates **Run State** from **Session State** at the start of a turn, writes to **Run State** during the turn, and commits validated updates to **Session State** after an **Answer Composition** is finalized.
 - Individual **Answer Assembly Process** steps should read and write **Run State** rather than directly mutating **Session State**.
 - A **GuideSite Session** can carry **Visitor Context** forward so later **Assembled Answers** can reason across what the **Visitor** has already shared.
 - A **Suggested Prompt Purpose** can include gathering **Fit** context, clarifying **Constraints**, addressing **Concerns**, testing **Fit**, comparing options, offering a **Contact Path**, or handling insufficient answer material.
+- A **Suggested Prompt** can be required for a **Context Gathering Response** or optional for further exploration; the **Answer Presentation** should distinguish those roles.
 - Gathering **Fit** context is a primary **Suggested Prompt Purpose** because a **GuideSite** needs to understand the **Visitor**'s situation, prior experience, expectations, **Constraints**, and **Concerns** before it can guide honestly.
 - A **GuideSite** may offer **Suggested Prompts** to gather **Fit** context before attempting an **Assembled Answer** or after an answer attempt reveals ambiguity or missing context.
+- An **Answer Presentation** may show missing **Visitor Context**, but gathering that context should happen through **Suggested Prompts** rather than a form-style intake flow.
 - **Fit** is the judgment a **Visitor** forms before reaching **Decision Confidence**.
 - In **Ultimate Camp Website**, **Fit** includes **Child** age, **Child Readiness**, interests, safety expectations, schedule, budget, location, and family values.
 - A **Camp Program** can have one or more **Camp Sessions**.
 - A **Camp Session** is a scheduled offering that can affect **Fit** through dates, availability, and pricing.
 - A **GuideSite** presents an **Answer Presentation** rather than a chat message or static page.
+- In the first **Operator Demo Surface**, an **Answer Presentation** should render an **Assembled Answer** as decision-support sections rather than as a chat transcript.
 - The **Answer Assembly Process** turns a **Prompt** into an **Answer Material Collection** and then an **Answer Composition**.
 - The **Answer Assembly Process** uses one or more **Retrieval Strategies** to find relevant **Concerns** and **Content Entities**.
 - The **Answer Assembly Process** can use a **Retrieval Planner** to create a **Retrieval Plan** before running **Retrieval Strategies**.
 - A **Retrieval Plan** can include **Implied Needs** that are not directly named in the **Prompt**.
 - An **Answer Material Collection** gathers selected **Sources of Truth**, candidate **Answer Components** when useful, **Citations**, diagnostics, caveats, source gaps, and follow-up obligations.
+- Factual material should appear in an **Answer Composition** only when it is relevant to the **Prompt**, **Visitor Context**, **Constraints**, **Concerns**, or the stated path toward **Decision Confidence**.
 - **Material Assessment** determines whether **Conversational Framing** should answer normally or use **Abstention Framing**.
 - **Material Assessment** is determined by **Composition Rules** and source coverage, not by the framing agent.
 - An **Assembled Answer** is grounded in **Content Entities**.
@@ -276,6 +329,7 @@ _Avoid_: Session, GuideSite Session
 - Evaluation annotations used to test retrieval quality are not **Sources of Truth** and must not become retrievable content for an **Answer Composition**.
 - LLM memory and model knowledge are not **Sources of Truth**.
 - Relevant retrieved context is the critical input to an **Answer Composition**.
+- An **Assembled Answer** should be presented only when it is backed by relevant **Sources of Truth** and the required **Visitor Context** is available.
 - **Conversational Framing** is generated by AI, but it is not a **Source of Truth**.
 - **Conversational Framing** must be grounded in selected **Sources of Truth**, **Composition Rules**, and the **Prompt**.
 - **Conversational Framing** provides the AI-authored text of an **Assembled Answer**, but it is not an **Answer Component**.
@@ -284,7 +338,9 @@ _Avoid_: Session, GuideSite Session
 - **Conversational Framing** may interpret, sequence, soften, and explain an **Answer Composition**, but it must not introduce factual claims outside that **Answer Composition**.
 - **Conversational Framing** uses the **Prompt** to shape relevance, emphasis, and tone, but not as factual evidence.
 - **Conversational Framing** relies on **Citations** in the **Answer Composition**; the **Answer Presentation** decides how those citations are shown.
+- An **Answer Presentation** should show lightweight **Citations** for source-backed sections, while detailed source metadata remains available to the **Demo Operator** through the **Operator Demo Surface**.
 - **Conversational Framing** can be represented as structured passages so an **Answer Presentation** can place prose around semantic answer sections or selected **Answer Components**.
+- **Conversational Framing** should not push unrelated factual material into an **Assembled Answer** merely because the material is available from **Sources of Truth**.
 - Normal answer framing is skipped when answer assembly abstains; **Abstention Framing** may explain the diagnostic, follow-up options, or a **Contact Path**.
 - **Conversational Framing** may emphasize parts of an **Answer Composition**, but it must not hide required semantic answer sections, selected **Answer Components**, diagnostics, caveats, or source gaps.
 - **Suggested Prompts** may be curated, derived from **Concerns**, or AI-authored by the **Answer Assembly Process**, but they remain structured outputs rather than prose hidden inside **Conversational Framing**.
@@ -296,6 +352,8 @@ _Avoid_: Session, GuideSite Session
 - **Abstention Framing** must not answer the original factual question; it may only explain why the available **Answer Material Collection** is insufficient and what the **Visitor** can do next.
 - An abstaining **Assembled Answer** is still represented by an **Answer Composition**.
 - An **Answer Composition** explicitly records whether the **Assembled Answer** answers normally or abstains.
+- Abstention should be presented as a helpful next-step state, not as a technical error.
+- A **Contact Path** should appear when the **GuideSite** cannot or should not responsibly resolve the **Visitor**'s need, not as a default conversion action in the canonical **Fit** journey.
 - A **GuideSite** should be more than a chatbot and more than a mute **Answer Component** renderer: it uses AI to reason about the **Prompt** and to articulate a grounded, conversational response.
 - Asking for a **Prompt** creates a conversational expectation; an **Answer Presentation** that only points at **Answer Components**, CMS content, or policy excerpts fails that expectation.
 - **Conversational Framing** is part of the visitor experience, not decorative copy: it is the UX layer that explains why the selected answer material, **Answer Components** when present, and **Sources of Truth** matter for the visitor's situation.
