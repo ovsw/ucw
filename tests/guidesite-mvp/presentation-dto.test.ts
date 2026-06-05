@@ -1,0 +1,225 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { startGuideSiteRun } from "../../src/guidesite-mvp/run-lifecycle.js";
+import { createGuideSiteMemoryStores } from "../../src/guidesite-mvp/run-lifecycle.js";
+import {
+  ULTIMATE_CAMP_WEBSITE_THEME_STUB,
+  createGuideSiteLoadingPresentation,
+  mapGuideSiteRunStateToPresentation,
+} from "../../src/guidesite-mvp/presentation-dto.js";
+import type { AnswerComposition, RunState } from "../../src/guidesite-mvp/types.js";
+
+const canonicalPrompt = "Is overnight camp right for my 8-year-old?";
+
+function createBaseRun(): RunState {
+  const stores = createGuideSiteMemoryStores();
+  return startGuideSiteRun({
+    promptText: canonicalPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
+    createSessionId: () => "session_presentation_dto",
+    createRunId: () => "run_presentation_dto",
+  }).run;
+}
+
+test("presentation DTO exposes the Ultimate Camp Website theme stub and loading state", () => {
+  const presentation = createGuideSiteLoadingPresentation();
+
+  assert.deepEqual(ULTIMATE_CAMP_WEBSITE_THEME_STUB, {
+    campId: "ultimate-camp-website",
+    campName: "Ultimate Camp Website",
+    answerAccent: "amber",
+    surfaceTone: "warm-sand",
+    operatorChrome: "slate",
+  });
+  assert.equal(presentation.camp.campId, "ultimate-camp-website");
+  assert.equal(presentation.answer.status, "loading");
+  assert.equal(presentation.operatorDiagnostics.runStatus, "loading");
+});
+
+test("presentation DTO maps required questions apart from optional suggested prompts", () => {
+  const run = createBaseRun();
+  const answerComposition: AnswerComposition = {
+    status: "needs_context",
+    conversationalFraming: "More Visitor Context is needed before the GuideSite can answer honestly.",
+    sections: [
+      {
+        kind: "context_needs",
+        title: "Missing Visitor Context",
+        body: "The next turn should gather the minimum required context before the answer can continue.",
+        items: ["prior_sleepaway_experience", "child_readiness"],
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: "Internal diagnostics remain operator-only.",
+      },
+    ],
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "gather_fit_context",
+        text: "Has your child slept away from home before?",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+      {
+        id: "prompt_compare_options",
+        purpose: "compare_options",
+        text: "Would you like to compare overnight and day camp options?",
+        contextNeeds: ["compare_options"],
+        concerns: [],
+        templateId: "compare_camp_options",
+      },
+    ],
+    citations: [],
+    diagnostics: ["needs_visitor_context"],
+  };
+  const contextualRun: RunState = {
+    ...run,
+    status: "composed",
+    answerComposition,
+    diagnostics: ["needs_visitor_context"],
+  };
+
+  const presentation = mapGuideSiteRunStateToPresentation(contextualRun);
+
+  assert.equal(presentation.answer.status, "context_gathering_response");
+  assert.deepEqual(presentation.answer.requiredQuestions, [
+    {
+      id: "prompt_prior_sleepaway_experience",
+      text: "Has your child slept away from home before?",
+      rationale: "The next turn should gather the minimum required context before the answer can continue.",
+    },
+  ]);
+  assert.deepEqual(presentation.answer.suggestedPrompts, [
+    {
+      id: "prompt_compare_options",
+      text: "Would you like to compare overnight and day camp options?",
+      purpose: "compare_options",
+    },
+  ]);
+  assert.equal(presentation.operatorDiagnostics.diagnostics[0], "needs_visitor_context");
+});
+
+test("presentation DTO maps source-backed assembled answers with lightweight citations", () => {
+  const run = createBaseRun();
+  const answerComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The approved source material explains how overnight camp supports the Child.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Summary",
+        body: "The camp offers overnight programming for age-appropriate campers.",
+        sourceRefs: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+        ],
+      },
+      {
+        kind: "concerns",
+        title: "Concerns",
+        body: "The homesickness policy outlines the support path.",
+        items: ["homesickness"],
+        sourceRefs: [
+          {
+            sourceId: "policy_homesickness",
+            sourceType: "policy",
+            title: "Homesickness Support Policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_homesickness_001",
+          },
+        ],
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: "Provider metadata stays out of the Parent-shaped answer output.",
+      },
+    ],
+    suggestedPrompts: [],
+    citations: ["program_overnight", "policy_homesickness"],
+    diagnostics: [],
+  };
+  const answeredRun: RunState = {
+    ...run,
+    status: "composed",
+    answerComposition,
+    promptUnderstandingProvider: {
+      provider: "openai",
+      model: "gpt-test",
+      rawOutput: null,
+      parsedOutput: null,
+      diagnostics: [],
+    },
+  };
+
+  const presentation = mapGuideSiteRunStateToPresentation(answeredRun);
+
+  assert.equal(presentation.answer.status, "assembled_answer");
+  assert.equal(presentation.answer.completeness, "complete");
+  assert.equal(presentation.answer.sections.length, 2);
+  assert.deepEqual(presentation.answer.sections[0].citations, [
+    {
+      sourceId: "program_overnight",
+      label: "Overnight Camp Program",
+    },
+  ]);
+  assert.deepEqual(presentation.answer.citations, [
+    {
+      sourceId: "program_overnight",
+      label: "Overnight Camp Program",
+    },
+    {
+      sourceId: "policy_homesickness",
+      label: "Homesickness Support Policy",
+    },
+  ]);
+  assert.equal("provider" in presentation.answer, false);
+  assert.equal("model" in presentation.answer, false);
+  assert.equal(presentation.operatorDiagnostics.provider, "openai");
+  assert.equal(presentation.operatorDiagnostics.model, "gpt-test");
+});
+
+test("presentation DTO maps abstention distinctly from technical failure", () => {
+  const run = createBaseRun();
+  const abstainingRun: RunState = {
+    ...run,
+    status: "fallback",
+    answerComposition: {
+      status: "fallback",
+      conversationalFraming: "The GuideSite cannot responsibly answer this prompt yet.",
+      sections: [
+        {
+          kind: "diagnostics",
+          title: "Fallback",
+          body: "The current slice has no approved source-backed answer for this prompt.",
+        },
+      ],
+      suggestedPrompts: [],
+      citations: [],
+      diagnostics: ["unknown_prompt_fallback"],
+    },
+  };
+  const failedRun: RunState = {
+    ...run,
+    status: "retrieval_failed",
+    diagnostics: ["retrieval_failed: fixture retrieval broke"],
+  };
+
+  const abstention = mapGuideSiteRunStateToPresentation(abstainingRun);
+  const technicalFailure = mapGuideSiteRunStateToPresentation(failedRun);
+
+  assert.equal(abstention.answer.status, "responsible_abstention");
+  assert.match(abstention.answer.nextSteps[0], /Provide more context/);
+  assert.equal(technicalFailure.answer.status, "technical_failure");
+  assert.equal(technicalFailure.answer.title, "Technical failure");
+  assert.equal(technicalFailure.operatorDiagnostics.diagnostics[0], "retrieval_failed: fixture retrieval broke");
+});
