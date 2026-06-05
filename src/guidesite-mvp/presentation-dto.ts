@@ -1,4 +1,5 @@
 import type { AnswerComposition, AnswerCompositionSection, RunState, SuggestedPrompt } from "./types.ts";
+import { collectUnresolvedContextNeeds } from "./context-needs.ts";
 
 export interface GuideSiteCampThemeStub {
   campId: string;
@@ -171,11 +172,12 @@ function joinRequiredPromptRationales(rationales: string[]): string | null {
   return uniqueRationales.join(" ");
 }
 
-function splitSuggestedPrompts(answerComposition: AnswerComposition): {
+function splitSuggestedPrompts(run: RunState, answerComposition: AnswerComposition): {
   requiredQuestions: GuideSiteRequiredQuestion[];
   suggestedPrompts: GuideSiteSuggestedPromptSummary[];
 } {
   const contextNeedRationales = collectContextNeedRationales(answerComposition);
+  const unresolvedContextNeeds = run.understanding ? new Set(collectUnresolvedContextNeeds(run)) : null;
   const requiredPrompts = new Map<string, GuideSiteRequiredQuestion>();
   const optionalPrompts: GuideSiteSuggestedPromptSummary[] = [];
 
@@ -185,6 +187,15 @@ function splitSuggestedPrompts(answerComposition: AnswerComposition): {
       text: prompt.text,
       purpose: prompt.purpose,
     };
+    if (unresolvedContextNeeds) {
+      const unresolvedPromptContextNeeds = prompt.contextNeeds.filter((contextNeed) =>
+        unresolvedContextNeeds.has(contextNeed),
+      );
+      if (unresolvedPromptContextNeeds.length === 0) {
+        continue;
+      }
+    }
+
     const matchingRequiredRationales = prompt.contextNeeds
       .map((contextNeed) => contextNeedRationales.get(contextNeed))
       .filter((rationale): rationale is string => rationale !== undefined);
@@ -208,8 +219,11 @@ function splitSuggestedPrompts(answerComposition: AnswerComposition): {
   };
 }
 
-function mapContextGatheringPresentation(answerComposition: AnswerComposition): GuideSiteContextGatheringResponsePresentation {
-  const prompts = splitSuggestedPrompts(answerComposition);
+function mapContextGatheringPresentation(
+  run: RunState,
+  answerComposition: AnswerComposition,
+): GuideSiteContextGatheringResponsePresentation {
+  const prompts = splitSuggestedPrompts(run, answerComposition);
 
   return {
     status: "context_gathering_response",
@@ -300,7 +314,7 @@ export function mapGuideSiteRunStateToPresentation(
     case "needs_context":
       return {
         camp,
-        answer: mapContextGatheringPresentation(answerComposition),
+        answer: mapContextGatheringPresentation(run, answerComposition),
         operatorDiagnostics,
       };
     case "answered":

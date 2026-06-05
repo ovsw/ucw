@@ -35,6 +35,7 @@ import {
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.ts";
 import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.ts";
 import { collectActiveFacts } from "./fact-state.ts";
+import { collectUnresolvedContextNeeds } from "./context-needs.ts";
 import { formatChildAge } from "./age-formatting.ts";
 import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.ts";
 
@@ -653,7 +654,7 @@ function createNeedsContextSections(
 ): AnswerComposition["sections"] {
   const concernLabels = run.understanding?.concerns.map((concern) => concern.label) ?? [];
   const concernKeys = run.understanding?.concerns.map((concern) => concern.key) ?? [];
-  const contextNeeds = run.understanding?.contextNeeds ?? [];
+  const contextNeeds = collectUnresolvedContextNeeds(run);
   const concernSourceRefs = createSourceRefs(canonicalConcernSourceIds, retrieval);
   const sections: AnswerComposition["sections"] = [
     {
@@ -727,10 +728,11 @@ function createSuggestedPrompts(run: RunState): SuggestedPromptDerivation {
     };
   }
 
+  const unresolvedContextNeeds = collectUnresolvedContextNeeds(run);
   const prompts: AnswerComposition["suggestedPrompts"] = [];
   const diagnostics: string[] = [];
 
-  for (const contextNeed of understanding.contextNeeds) {
+  for (const contextNeed of unresolvedContextNeeds) {
     const template = getApprovedContextNeedPromptTemplate(contextNeed);
     if (!template) {
       diagnostics.push(`suggested_prompt_unknown_context_need_${contextNeed}`);

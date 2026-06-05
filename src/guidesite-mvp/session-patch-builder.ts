@@ -1,6 +1,7 @@
 import { validateAnswerCompositionCandidate } from "./answer-composition-contract.ts";
 import { formatChildAge } from "./age-formatting.ts";
 import { collectActiveFacts } from "./fact-state.ts";
+import { collectUnresolvedContextNeeds } from "./context-needs.ts";
 import type { RunState, SessionPatch, SessionPatchOperation } from "./types.ts";
 
 function titleCaseIdentifier(identifier: string): string {
@@ -65,7 +66,7 @@ function collectConcernStatusByKey(run: RunState): Map<string, "open" | "address
 function createSessionSummary(run: RunState): string {
   const activeFacts = collectActiveFacts(run);
   const concernStatusByKey = collectConcernStatusByKey(run);
-  const currentContextNeeds = run.understanding?.contextNeeds ?? [];
+  const currentContextNeeds = collectUnresolvedContextNeeds(run);
 
   const ageFact = activeFacts.get("child_age");
   const intro =
@@ -128,6 +129,7 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
     return [];
   }
   const addressedConcernKeys = createAddressedConcernKeySet(run);
+  const unresolvedContextNeeds = collectUnresolvedContextNeeds(run);
   const factOperations = Object.entries(understanding.facts).map(([key, fact]) => ({
     type: "upsertFact" as const,
     key,
@@ -155,7 +157,7 @@ function createSessionPatchOperations(run: RunState): SessionPatchOperation[] {
       type: "setFocus",
       focus: {
         goal: understanding.goal === "unknown" ? null : understanding.goal,
-        contextNeeds: [...understanding.contextNeeds],
+        contextNeeds: unresolvedContextNeeds,
       },
     },
     {

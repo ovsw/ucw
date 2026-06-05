@@ -152,6 +152,63 @@ test("Session Patch builder carries the grandparents sleepaway follow-up into th
   });
 });
 
+test("Session Patch builder narrows required context to unresolved prompts after an answered follow-up", () => {
+  const stores = createGuideSiteMemoryStores();
+  const started = startGuideSiteRun({
+    promptText: followUpPrompt,
+    stores,
+    now: () => new Date("2026-01-01T00:04:00.000Z"),
+    createSessionId: () => "session_patch_builder_unresolved_prompts",
+    createRunId: () => "run_patch_builder_unresolved_prompts",
+  });
+  const run = withPromptUnderstandingCandidate(
+    started.run,
+    {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning about prior sleepaway experience.",
+      facts: {
+        prior_sleepaway_experience: {
+          value: "slept_with_grandparents",
+          provenance: {
+            source: "explicit",
+            promptText: followUpPrompt,
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "implied",
+        },
+        {
+          key: "child_readiness",
+          label: "Child Readiness",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+    },
+    { now: () => new Date("2026-01-01T00:05:00.000Z") },
+  );
+  const patch = buildSessionPatchFromValidatedRun(run);
+  const committed = commitSessionPatch({
+    stores,
+    run,
+    patch,
+    now: () => new Date("2026-01-01T00:06:00.000Z"),
+  });
+
+  assert.deepEqual(committed.session.focus.contextNeeds, ["child_readiness"]);
+  assert.match(committed.session.summary, /Remaining need: Child Readiness/);
+  assert.doesNotMatch(committed.session.summary, /Remaining need: Prior Sleepaway Experience and Child Readiness/);
+  assert.deepEqual(committed.session.suggestedPrompts.map((prompt) => prompt.id), ["prompt_child_readiness"]);
+});
+
 test("Session Patch builder rejects factual Answer Composition sections without source refs", () => {
   const stores = createGuideSiteMemoryStores();
   const started = startGuideSiteRun({
@@ -243,7 +300,6 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
     },
   ]);
   assert.deepEqual(run.answerComposition?.diagnostics, [
-    "suggested_prompt_unknown_context_need_camp_budget",
     "needs_visitor_context",
     "no_fit_recommendation",
   ]);
@@ -282,11 +338,11 @@ test("Session Patch builder commits validated non-canonical Visitor Context and 
   });
   assert.deepEqual(committed.session.focus, {
     goal: "assess_fit",
-    contextNeeds: ["prior_sleepaway_experience", "camp_budget"],
+    contextNeeds: ["prior_sleepaway_experience"],
   });
   assert.equal(
     committed.session.summary,
-    "Parent is assessing overnight camp Fit for an 8-year-old Child. Homesickness and Travel Logistics remain open concerns; Remaining need: Prior Sleepaway Experience and Camp Budget.",
+    "Parent is assessing overnight camp Fit for an 8-year-old Child. Homesickness and Travel Logistics remain open concerns; Remaining need: Prior Sleepaway Experience.",
   );
   assert.deepEqual(committed.session.suggestedPrompts.map((prompt) => prompt.id), [
     "prompt_prior_sleepaway_experience",

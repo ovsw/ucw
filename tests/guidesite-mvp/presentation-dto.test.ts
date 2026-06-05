@@ -135,6 +135,101 @@ test("presentation DTO maps required questions apart from optional suggested pro
   assert.equal(presentation.operatorDiagnostics.diagnostics[0], "needs_visitor_context");
 });
 
+test("presentation DTO suppresses already-answered required prompts from the required question list", () => {
+  const run = createBaseRun();
+  const answerComposition: AnswerComposition = {
+    status: "needs_context",
+    conversationalFraming: "More Visitor Context is needed before the GuideSite can answer honestly.",
+    sections: [
+      {
+        kind: "context_needs",
+        title: "Missing Visitor Context",
+        body: "The next turn should gather the minimum required context before the answer can continue.",
+        items: ["prior_sleepaway_experience", "child_readiness"],
+      },
+      {
+        kind: "diagnostics",
+        title: "Diagnostics",
+        body: "Internal diagnostics remain operator-only.",
+      },
+    ],
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "gather_fit_context",
+        text: "Has your child slept away from home before?",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+      {
+        id: "prompt_child_readiness",
+        purpose: "gather_fit_context",
+        text: "How does your child handle new routines away from home?",
+        contextNeeds: ["child_readiness"],
+        concerns: ["child_readiness"],
+        templateId: "ask_child_readiness",
+      },
+    ],
+    citations: [],
+    diagnostics: ["needs_visitor_context"],
+  };
+  const repeatedTurnRun: RunState = {
+    ...run,
+    status: "composed",
+    understanding: {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+      facts: {
+        prior_sleepaway_experience: {
+          value: "slept_with_grandparents",
+          provenance: {
+            source: "explicit",
+            promptText: "She has slept at her grandparents' house a few times.",
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "implied",
+        },
+        {
+          key: "child_readiness",
+          label: "Child Readiness",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+      contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
+    },
+    answerComposition,
+  };
+
+  const presentation = mapGuideSiteRunStateToPresentation(repeatedTurnRun);
+
+  assert.equal(presentation.answer.status, "context_gathering_response");
+  assert.deepEqual(presentation.answer.requiredQuestions, [
+    {
+      id: "prompt_child_readiness",
+      text: "How does your child handle new routines away from home?",
+      rationale: "The next turn should gather the minimum required context before the answer can continue.",
+      controlledReplies: [
+        {
+          id: "prompt_child_readiness",
+          text: "How does your child handle new routines away from home?",
+          purpose: "gather_fit_context",
+        },
+      ],
+    },
+  ]);
+  assert.deepEqual(presentation.answer.suggestedPrompts, []);
+});
+
 test("presentation DTO maps source-backed assembled answers with lightweight citations", () => {
   const run = createBaseRun();
   const answerComposition: AnswerComposition = {
