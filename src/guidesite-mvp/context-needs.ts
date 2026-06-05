@@ -4,18 +4,21 @@ import type { RunState } from "./types.ts";
 export function collectUnresolvedContextNeeds(run: RunState): string[] {
   const activeFacts = collectActiveFacts(run);
   const unresolvedContextNeeds: string[] = [];
-  const seenContextNeeds = new Set<string>();
+  const seenContextNeedIds = new Set<string>();
+  const contextNeeds = run.understanding?.contextNeeds ?? [];
 
-  for (const contextNeed of run.understanding?.contextNeeds ?? []) {
-    if (seenContextNeeds.has(contextNeed)) {
+  for (const contextNeed of contextNeeds) {
+    if (seenContextNeedIds.has(contextNeed)) {
       continue;
     }
 
-    seenContextNeeds.add(contextNeed);
+    seenContextNeedIds.add(contextNeed);
 
-    if (!activeFacts.has(contextNeed)) {
-      unresolvedContextNeeds.push(contextNeed);
+    if (activeFacts.has(contextNeed)) {
+      continue;
     }
+
+    unresolvedContextNeeds.push(contextNeed);
   }
 
   return unresolvedContextNeeds;

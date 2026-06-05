@@ -177,7 +177,7 @@ function splitSuggestedPrompts(run: RunState, answerComposition: AnswerCompositi
   suggestedPrompts: GuideSiteSuggestedPromptSummary[];
 } {
   const contextNeedRationales = collectContextNeedRationales(answerComposition);
-  const unresolvedContextNeeds = run.understanding ? new Set(collectUnresolvedContextNeeds(run)) : null;
+  const unresolvedContextNeeds = new Set(run.understanding ? collectUnresolvedContextNeeds(run) : []);
   const requiredPrompts = new Map<string, GuideSiteRequiredQuestion>();
   const optionalPrompts: GuideSiteSuggestedPromptSummary[] = [];
 
@@ -187,13 +187,12 @@ function splitSuggestedPrompts(run: RunState, answerComposition: AnswerCompositi
       text: prompt.text,
       purpose: prompt.purpose,
     };
-    if (unresolvedContextNeeds) {
-      const unresolvedPromptContextNeeds = prompt.contextNeeds.filter((contextNeed) =>
-        unresolvedContextNeeds.has(contextNeed),
-      );
-      if (unresolvedPromptContextNeeds.length === 0) {
-        continue;
-      }
+
+    if (
+      unresolvedContextNeeds.size > 0 &&
+      !prompt.contextNeeds.some((contextNeed) => unresolvedContextNeeds.has(contextNeed))
+    ) {
+      continue;
     }
 
     const matchingRequiredRationales = prompt.contextNeeds
