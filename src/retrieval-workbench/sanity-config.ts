@@ -28,7 +28,7 @@ function missingConfigError(workflow: "query" | "seed", missingKeys: string[]): 
   );
 }
 
-export function readSanityQueryConfig(env: SanityConfigEnv = process.env): SanityQueryConfig {
+export function readSanityQueryConfig(env: SanityConfigEnv = process.env as SanityConfigEnv): SanityQueryConfig {
   const projectId = normalize(env.SANITY_PROJECT_ID);
   const dataset = normalize(env.SANITY_DATASET);
   const apiVersion = normalize(env.SANITY_API_VERSION);
@@ -61,7 +61,7 @@ export function readSanityQueryConfig(env: SanityConfigEnv = process.env): Sanit
   };
 }
 
-export function readSanitySeedConfig(env: SanityConfigEnv = process.env): SanitySeedConfig {
+export function readSanitySeedConfig(env: SanityConfigEnv = process.env as SanityConfigEnv): SanitySeedConfig {
   const queryConfig = readSanityQueryConfig(env);
   const writeToken = normalize(env.SANITY_WRITE_TOKEN);
 

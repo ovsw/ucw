@@ -2,24 +2,24 @@ import { pathToFileURL } from "node:url";
 import {
   createGuideSiteMemoryStores,
   renderGuideSiteRunOperatorOutput,
-} from "./run-lifecycle.js";
+} from "./run-lifecycle.ts";
 import {
   createFixtureGuideSiteRetrievalAdapter,
   type GuideSiteRetrievalAdapter,
-} from "./fixture-retrieval.js";
-import { createGuideSiteFileRunStore } from "./run-store.js";
+} from "./fixture-retrieval.ts";
+import { createGuideSiteFileRunStore } from "./run-store.ts";
 import {
   createOpenAIPromptUnderstandingProvider,
   readOpenAIPromptUnderstandingConfig,
   type PromptUnderstandingProvider,
-} from "./openai-prompt-understanding.js";
-import { mergeGuideSiteMvpEnv, type GuideSiteMvpEnv } from "./env.js";
-import { readSanityQueryConfig } from "../retrieval-workbench/sanity-config.js";
+} from "./openai-prompt-understanding.ts";
+import { mergeGuideSiteMvpEnv, type GuideSiteMvpEnv } from "./env.ts";
+import { readSanityQueryConfig } from "../retrieval-workbench/sanity-config.ts";
 import {
   createSanityGuideSiteRetrievalAdapterResolver,
   type GuideSiteSanityRetrievalAdapterResolver,
-} from "./sanity-retrieval.js";
-import { runGuideSiteMvpTurn } from "./turn.js";
+} from "./sanity-retrieval.ts";
+import { runGuideSiteMvpTurn } from "./turn.ts";
 
 export const DEFAULT_GUIDESITE_MVP_PROMPT = "Is overnight camp right for my 8-year-old?";
 export const SPRINT_3_GUIDESITE_MVP_SAMPLE_PROMPTS = [

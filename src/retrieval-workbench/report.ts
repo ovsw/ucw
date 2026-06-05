@@ -1,21 +1,21 @@
-import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
+import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.ts";
 import {
   buildApprovedConcernCatalog,
   formatMissingConcernCandidateForReport,
   formatSurfacedConcernForReport,
-} from "./concern-surfacing.js";
+} from "./concern-surfacing.ts";
 import type {
   FieldMatchReason,
   PromptRetrievalResult,
   RankedConcernMatch,
   RankedContentEntityMatch,
-} from "./deterministic-retrieval.js";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import { summarizeFixture } from "./fixture-summary.js";
-import type { ParentPromptExpectation } from "./types.js";
-import type { RetrievalStrategy } from "./retrieval-strategy.js";
-import type { AnswerCompositionCoverageFailure, AnswerCompositionResult } from "./answer-composition.js";
-import type { AnswerSourceSnippet } from "./answer-source-material.js";
+} from "./deterministic-retrieval.ts";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import { summarizeFixture } from "./fixture-summary.ts";
+import type { ParentPromptExpectation } from "./types.ts";
+import type { RetrievalStrategy } from "./retrieval-strategy.ts";
+import type { AnswerCompositionCoverageFailure, AnswerCompositionResult } from "./answer-composition.ts";
+import type { AnswerSourceSnippet } from "./answer-source-material.ts";
 
 type Hit = {
   id: string;

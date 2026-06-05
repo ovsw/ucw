@@ -1,9 +1,9 @@
-import { shapeSanitySearchQuery } from "../retrieval-workbench/search-query-shaping.js";
-import { executeSanityQuery, executeSanityRetrievalQueryPlan } from "../retrieval-workbench/sanity-client.js";
-import { buildSanityHybridQueryPlan } from "../retrieval-workbench/sanity-retrieval.js";
-import type { SanityQueryConfig } from "../retrieval-workbench/sanity-config.js";
-import type { PromptUnderstanding, PromptUnderstandingSessionContext, RetrievalResult, RetrievalResults } from "./types.js";
-import type { GuideSiteRetrievalAdapter, GuideSiteRetrievalInput, GuideSiteRetrievalResult } from "./fixture-retrieval.js";
+import { shapeSanitySearchQuery } from "../retrieval-workbench/search-query-shaping.ts";
+import { executeSanityQuery, executeSanityRetrievalQueryPlan } from "../retrieval-workbench/sanity-client.ts";
+import { buildSanityHybridQueryPlan } from "../retrieval-workbench/sanity-retrieval.ts";
+import type { SanityQueryConfig } from "../retrieval-workbench/sanity-config.ts";
+import type { PromptUnderstanding, PromptUnderstandingSessionContext, RetrievalResult, RetrievalResults } from "./types.ts";
+import type { GuideSiteRetrievalAdapter, GuideSiteRetrievalInput, GuideSiteRetrievalResult } from "./fixture-retrieval.ts";
 
 export type GuideSiteSanitySourceDocument = {
   _id: string;

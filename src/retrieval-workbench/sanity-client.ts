@@ -1,17 +1,17 @@
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import type { SanityQueryConfig } from "./sanity-config.js";
-import { compareSanitySeedParity } from "./sanity-seed.js";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import type { SanityQueryConfig } from "./sanity-config.ts";
+import { compareSanitySeedParity } from "./sanity-seed.ts";
 import type {
   ConcernMatchReason,
   RankedConcernMatch,
   RankedContentEntityMatch,
   RetrievalSource,
-} from "./deterministic-retrieval.js";
+} from "./deterministic-retrieval.ts";
 import type {
   SanityRetrievalQueryPlan,
   SanityRetrievalQueryResult,
   SanitySearchHit,
-} from "./sanity-retrieval.js";
+} from "./sanity-retrieval.ts";
 
 export type SanityDocumentRef = {
   _id: string;

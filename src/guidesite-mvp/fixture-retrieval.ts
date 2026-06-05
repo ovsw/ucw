@@ -5,7 +5,7 @@ import type {
   RetrievalCoverage,
   RetrievalResult,
   RetrievalResults,
-} from "./types.js";
+} from "./types.ts";
 
 const defaultSourcePackPath = "fixtures/guidesite-mvp/canonical-source-pack.json";
 const retrievableSourceTypes = new Set(["campProgram", "policy", "concern"]);

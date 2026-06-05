@@ -3,16 +3,16 @@ import {
   buildAnswerSourceMaterials,
   validateAnswerComposerTopK,
   type AnswerSourceMaterial,
-} from "./answer-source-material.js";
+} from "./answer-source-material.ts";
 import type {
   AnswerComposerCitedSource,
   AnswerComposerClaim,
   AnswerComposerDiagnostics,
   AnswerComposerValidatedProviderResult,
-} from "./answer-composer-contract.js";
-import type { PromptRetrievalResult } from "./retrieval-strategy.js";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import type { ParentPromptExpectation } from "./types.js";
+} from "./answer-composer-contract.ts";
+import type { PromptRetrievalResult } from "./retrieval-strategy.ts";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import type { ParentPromptExpectation } from "./types.ts";
 
 export type RetrievalWorkbenchAnswerComposer = "none" | "openai";
 

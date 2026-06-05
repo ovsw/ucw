@@ -4,10 +4,10 @@ import type {
   AnswerSectionKind,
   RetrievalResults,
   SuggestedPrompt,
-} from "./types.js";
+} from "./types.ts";
 import {
   getApprovedContextNeedPromptTemplate,
-} from "./suggested-prompt-templates.js";
+} from "./suggested-prompt-templates.ts";
 
 const allowedAnswerCompositionStatuses = new Set<AnswerComposition["status"]>([
   "needs_context",

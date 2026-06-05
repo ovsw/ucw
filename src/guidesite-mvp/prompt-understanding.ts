@@ -1,7 +1,7 @@
 import type {
   PromptUnderstanding,
   PromptUnderstandingValidationResult,
-} from "./types.js";
+} from "./types.ts";
 
 export type PromptUnderstandingAssessment =
   | {

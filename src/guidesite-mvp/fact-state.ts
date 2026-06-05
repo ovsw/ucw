@@ -1,4 +1,4 @@
-import type { RunState } from "./types.js";
+import type { RunState } from "./types.ts";
 
 export function collectActiveFacts(run: RunState): Map<string, string | number | boolean> {
   const activeFacts = new Map<string, string | number | boolean>();

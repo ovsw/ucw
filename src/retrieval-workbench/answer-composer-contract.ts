@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AnswerSourceMaterial, AnswerSourceSnippet } from "./answer-source-material.js";
+import type { AnswerSourceMaterial, AnswerSourceSnippet } from "./answer-source-material.ts";
 
 export const answerComposerJsonSchema = {
   type: "object",

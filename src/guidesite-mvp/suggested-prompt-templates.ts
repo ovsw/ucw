@@ -1,4 +1,4 @@
-import type { SuggestedPrompt } from "./types.js";
+import type { SuggestedPrompt } from "./types.ts";
 
 export type ContextNeed = "prior_sleepaway_experience" | "child_readiness";
 

@@ -1,14 +1,14 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadEnvFile } from "node:process";
-import { DEFAULT_ANSWER_COMPOSER_TOP_K } from "./answer-source-material.js";
-import { printFixtureValidationError } from "./fixture-errors.js";
+import { DEFAULT_ANSWER_COMPOSER_TOP_K } from "./answer-source-material.ts";
+import { printFixtureValidationError } from "./fixture-errors.ts";
 import {
   printRetrievalWorkbenchFailure,
   runRetrievalWorkbench,
   type RetrievalWorkbenchConcernSurfacer,
-} from "./workbench.js";
-import type { RetrievalWorkbenchAnswerComposer } from "./answer-composition.js";
+} from "./workbench.ts";
+import type { RetrievalWorkbenchAnswerComposer } from "./answer-composition.ts";
 import { ZodError } from "zod";
 
 type NodeErrnoException = Error & {

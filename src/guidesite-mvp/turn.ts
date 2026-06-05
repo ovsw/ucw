@@ -3,11 +3,11 @@ import {
   commitSessionPatch,
   startGuideSiteRun,
   withProviderBackedUnderstandingAndComposition,
-} from "./run-lifecycle.js";
-import type { GuideSiteRetrievalAdapter } from "./fixture-retrieval.js";
-import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.js";
-import type { GuideSiteStores, RunState } from "./types.js";
-import type { PromptUnderstandingProvider } from "./openai-prompt-understanding.js";
+} from "./run-lifecycle.ts";
+import type { GuideSiteRetrievalAdapter } from "./fixture-retrieval.ts";
+import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.ts";
+import type { GuideSiteStores, RunState } from "./types.ts";
+import type { PromptUnderstandingProvider } from "./openai-prompt-understanding.ts";
 
 export interface RunGuideSiteMvpTurnOptions {
   promptText: string;

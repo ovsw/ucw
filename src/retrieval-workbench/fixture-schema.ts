@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { evaluationNoteCategories } from "./types.js";
+import { evaluationNoteCategories } from "./types.ts";
 
 const sanityReferenceSchema = z.object({
   _type: z.literal("reference"),

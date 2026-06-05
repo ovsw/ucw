@@ -1,5 +1,5 @@
-import { mergeGuideSiteMvpEnv, type GuideSiteMvpEnv } from "./env.js";
-import { readSanityQueryConfig, type SanityQueryConfig } from "../retrieval-workbench/sanity-config.js";
+import { mergeGuideSiteMvpEnv, type GuideSiteMvpEnv } from "./env.ts";
+import { readSanityQueryConfig, type SanityQueryConfig } from "../retrieval-workbench/sanity-config.ts";
 
 export const DEFAULT_GUIDESITE_GUI_RUNTIME_MODE = "live";
 

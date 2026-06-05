@@ -1,7 +1,7 @@
-import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
-import { formatChildAge } from "./age-formatting.js";
-import { collectActiveFacts } from "./fact-state.js";
-import type { RunState, SessionPatch, SessionPatchOperation } from "./types.js";
+import { validateAnswerCompositionCandidate } from "./answer-composition-contract.ts";
+import { formatChildAge } from "./age-formatting.ts";
+import { collectActiveFacts } from "./fact-state.ts";
+import type { RunState, SessionPatch, SessionPatchOperation } from "./types.ts";
 
 function titleCaseIdentifier(identifier: string): string {
   return identifier

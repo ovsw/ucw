@@ -1,5 +1,5 @@
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import type { SanityReference } from "./types.js";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import type { SanityReference } from "./types.ts";
 
 export type SanitySeedDocument = ParsedRetrievalWorkbenchFixture["documents"][number] & {
   relatedConcernTitles?: string;

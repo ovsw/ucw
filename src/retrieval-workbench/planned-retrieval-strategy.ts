@@ -2,9 +2,9 @@ import type {
   PromptRetrievalResult,
   RankedConcernMatch,
   RankedContentEntityMatch,
-} from "./deterministic-retrieval.js";
-import { cloneRetrievalPlan, type RetrievalPlanner } from "./retrieval-planner.js";
-import type { RetrievalStrategy } from "./retrieval-strategy.js";
+} from "./deterministic-retrieval.ts";
+import { cloneRetrievalPlan, type RetrievalPlanner } from "./retrieval-planner.ts";
+import type { RetrievalStrategy } from "./retrieval-strategy.ts";
 
 type PlannedRetrievalStrategyOptions = {
   rrfK?: number;

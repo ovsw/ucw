@@ -1,4 +1,4 @@
-import type { SessionPatchOperation, SessionState } from "./types.js";
+import type { SessionPatchOperation, SessionState } from "./types.ts";
 
 const visitorFactSources = new Set(["explicit", "inferred"]);
 const visitorFactStatuses = new Set(["active", "superseded", "disputed"]);

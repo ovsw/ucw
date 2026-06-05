@@ -1,4 +1,4 @@
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
 
 export type FixtureSummary = {
   concernCount: number;

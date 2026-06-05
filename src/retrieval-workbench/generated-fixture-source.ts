@@ -1,4 +1,4 @@
-import type { ContentEntityDocument, ParentPromptExpectation, SanityReference } from "./types.js";
+import type { ContentEntityDocument, ParentPromptExpectation, SanityReference } from "./types.ts";
 
 function reference(ref: string): SanityReference {
   return { _type: "reference", _ref: ref };

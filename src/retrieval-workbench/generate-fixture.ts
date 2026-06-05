@@ -1,10 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { loadFixture } from "./load-fixture.js";
-import { printFixtureValidationError } from "./fixture-errors.js";
-import { generatedFixtureDocuments, generatedFixtureGoldSet } from "./generated-fixture-source.js";
-import { retrievalWorkbenchFixtureSchema } from "./fixture-schema.js";
-import { summarizeFixture } from "./fixture-summary.js";
+import { loadFixture } from "./load-fixture.ts";
+import { printFixtureValidationError } from "./fixture-errors.ts";
+import { generatedFixtureDocuments, generatedFixtureGoldSet } from "./generated-fixture-source.ts";
+import { retrievalWorkbenchFixtureSchema } from "./fixture-schema.ts";
+import { summarizeFixture } from "./fixture-summary.ts";
 
 const DEFAULT_SEED_PATH = "fixtures/retrieval-workbench/seed.json";
 const DEFAULT_OUTPUT_PATH = "fixtures/retrieval-workbench/generated.json";

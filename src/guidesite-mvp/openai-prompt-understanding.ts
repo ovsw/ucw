@@ -3,7 +3,7 @@ import type {
   PromptUnderstanding,
   PromptUnderstandingProviderTrace,
   PromptUnderstandingSessionContext,
-} from "./types.js";
+} from "./types.ts";
 
 export const DEFAULT_OPENAI_PROMPT_UNDERSTANDING_MODEL = "gpt-4o-mini";
 
@@ -161,7 +161,7 @@ export class PromptUnderstandingProviderError extends Error {
 }
 
 export function readOpenAIPromptUnderstandingConfig(
-  env: OpenAIPromptUnderstandingEnv = process.env,
+  env: OpenAIPromptUnderstandingEnv = process.env as OpenAIPromptUnderstandingEnv,
 ): OpenAIPromptUnderstandingConfig {
   const apiKey = normalize(env.OPENAI_API_KEY);
 

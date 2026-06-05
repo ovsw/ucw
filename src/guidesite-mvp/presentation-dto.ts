@@ -1,4 +1,4 @@
-import type { AnswerComposition, AnswerCompositionSection, RunState, SuggestedPrompt } from "./types.js";
+import type { AnswerComposition, AnswerCompositionSection, RunState, SuggestedPrompt } from "./types.ts";
 
 export interface GuideSiteCampThemeStub {
   campId: string;

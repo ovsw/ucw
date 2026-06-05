@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { RunState, RunStore } from "./types.js";
+import type { RunState, RunStore } from "./types.ts";
 
 const safeRunIdPattern = /^[A-Za-z0-9_-]+$/;
 

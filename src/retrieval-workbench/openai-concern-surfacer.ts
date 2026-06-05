@@ -1,12 +1,12 @@
 import {
   concernSurfacingJsonSchema,
   validateConcernSurfacingResult,
-} from "./concern-surfacing.js";
+} from "./concern-surfacing.ts";
 import type {
   ConcernSurfacer,
   ConcernSurfacingCatalogEntry,
   ConcernSurfacingResult,
-} from "./concern-surfacing-types.js";
+} from "./concern-surfacing-types.ts";
 
 export const DEFAULT_OPENAI_CONCERN_SURFACER_MODEL = "gpt-4o-mini";
 

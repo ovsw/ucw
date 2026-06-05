@@ -1,6 +1,6 @@
-import type { PromptRetrievalResult } from "./retrieval-strategy.js";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import type { ContentEntityDocument } from "./types.js";
+import type { PromptRetrievalResult } from "./retrieval-strategy.ts";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import type { ContentEntityDocument } from "./types.ts";
 
 export const DEFAULT_ANSWER_COMPOSER_TOP_K = 5;
 

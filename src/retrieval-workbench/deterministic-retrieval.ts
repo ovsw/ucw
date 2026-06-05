@@ -1,9 +1,9 @@
 import MiniSearch from "minisearch";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import { processIndexedSearchTerm, processQuerySearchTerm } from "./search-query-shaping.js";
-import type { RetrievalPlan } from "./retrieval-planner.js";
-import type { ConcernSurfacingResult } from "./concern-surfacing-types.js";
-import type { ConcernDocument, ContentEntityDocument, ParentPromptExpectation } from "./types.js";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import { processIndexedSearchTerm, processQuerySearchTerm } from "./search-query-shaping.ts";
+import type { RetrievalPlan } from "./retrieval-planner.ts";
+import type { ConcernSurfacingResult } from "./concern-surfacing-types.ts";
+import type { ConcernDocument, ContentEntityDocument, ParentPromptExpectation } from "./types.ts";
 
 type SearchMatch = Record<string, string[]>;
 type SearchResultWithMatch = {

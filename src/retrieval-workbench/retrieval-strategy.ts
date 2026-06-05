@@ -1,8 +1,8 @@
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import { createDeterministicWorkbench } from "./deterministic-retrieval.js";
-import type { PromptRetrievalResult } from "./deterministic-retrieval.js";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import { createDeterministicWorkbench } from "./deterministic-retrieval.ts";
+import type { PromptRetrievalResult } from "./deterministic-retrieval.ts";
 
-export type { PromptRetrievalResult } from "./deterministic-retrieval.js";
+export type { PromptRetrievalResult } from "./deterministic-retrieval.ts";
 
 export type RetrievalStrategy = {
   id: string;

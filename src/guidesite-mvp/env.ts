@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { OpenAIPromptUnderstandingEnv } from "./openai-prompt-understanding.js";
-import type { SanityConfigEnv } from "../retrieval-workbench/sanity-config.js";
+import type { OpenAIPromptUnderstandingEnv } from "./openai-prompt-understanding.ts";
+import type { SanityConfigEnv } from "../retrieval-workbench/sanity-config.ts";
 
 export const DEFAULT_GUIDESITE_MVP_ENV_FILE_PATH = ".env";
 

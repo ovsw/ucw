@@ -1,8 +1,8 @@
 import {
   answerComposerJsonSchema,
   validateAnswerComposerProviderResultDetailed,
-} from "./answer-composer-contract.js";
-import type { AnswerComposer, AnswerComposerInput } from "./answer-composition.js";
+} from "./answer-composer-contract.ts";
+import type { AnswerComposer, AnswerComposerInput } from "./answer-composition.ts";
 
 export const DEFAULT_OPENAI_ANSWER_COMPOSER_MODEL = "gpt-4o-mini";
 

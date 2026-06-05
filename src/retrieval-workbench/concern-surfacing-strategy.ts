@@ -1,10 +1,10 @@
 import {
   mergeConcernSurfacingResultIntoRetrievalResult,
   validateConcernSurfacingResult,
-} from "./concern-surfacing.js";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import type { ConcernSurfacingCatalogEntry, ConcernSurfacingResult } from "./concern-surfacing-types.js";
-import type { RetrievalStrategy } from "./retrieval-strategy.js";
+} from "./concern-surfacing.ts";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import type { ConcernSurfacingCatalogEntry, ConcernSurfacingResult } from "./concern-surfacing-types.ts";
+import type { RetrievalStrategy } from "./retrieval-strategy.ts";
 
 export function createConcernSurfacingRetrievalStrategy(
   fixture: ParsedRetrievalWorkbenchFixture,

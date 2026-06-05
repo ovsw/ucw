@@ -14,28 +14,28 @@ import type {
   SessionState,
   StartGuideSiteRunOptions,
   StartGuideSiteRunResult,
-} from "./types.js";
-import { applySessionPatchOperations } from "./patch-engine.js";
+} from "./types.ts";
+import { applySessionPatchOperations } from "./patch-engine.ts";
 import {
   createFixtureGuideSiteRetrievalAdapter,
   loadCanonicalGuideSiteSourcePack,
   type GuideSiteRetrievalAdapter,
   type GuideSiteRetrievalResult,
-} from "./fixture-retrieval.js";
-import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.js";
+} from "./fixture-retrieval.ts";
+import type { GuideSiteSanityRetrievalAdapterResolver } from "./sanity-retrieval.ts";
 import {
   PromptUnderstandingProviderError,
   type PromptUnderstandingProvider,
-} from "./openai-prompt-understanding.js";
+} from "./openai-prompt-understanding.ts";
 import {
   assessPromptUnderstandingCandidate,
   validatePromptUnderstandingMeaning,
-} from "./prompt-understanding.js";
-import { validateAnswerCompositionCandidate } from "./answer-composition-contract.js";
-import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.js";
-import { collectActiveFacts } from "./fact-state.js";
-import { formatChildAge } from "./age-formatting.js";
-import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.js";
+} from "./prompt-understanding.ts";
+import { validateAnswerCompositionCandidate } from "./answer-composition-contract.ts";
+import { buildSessionPatchFromValidatedRun } from "./session-patch-builder.ts";
+import { collectActiveFacts } from "./fact-state.ts";
+import { formatChildAge } from "./age-formatting.ts";
+import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.ts";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
 const canonicalGuideSiteSourcePack = loadCanonicalGuideSiteSourcePack();

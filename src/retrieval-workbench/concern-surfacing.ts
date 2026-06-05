@@ -6,15 +6,15 @@ import type {
   RankedConcernMatch,
   RankedContentEntityMatch,
   RetrievalSource,
-} from "./deterministic-retrieval.js";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
+} from "./deterministic-retrieval.ts";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
 import type {
   ConcernSurfacingCatalogEntry,
   ConcernSurfacingResult,
   MissingConcernCandidate,
   SurfacedConcern,
-} from "./concern-surfacing-types.js";
-import type { ConcernDocument } from "./types.js";
+} from "./concern-surfacing-types.ts";
+import type { ConcernDocument } from "./types.ts";
 
 export const concernSurfacingJsonSchema = {
   type: "object",

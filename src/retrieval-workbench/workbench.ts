@@ -1,40 +1,40 @@
 import { resolve } from "node:path";
-import { buildApprovedConcernCatalog } from "./concern-surfacing.js";
-import { createConcernSurfacingRetrievalStrategy } from "./concern-surfacing-strategy.js";
-import { loadFixture } from "./load-fixture.js";
-import { summarizeFixture } from "./fixture-summary.js";
-import { readSanityQueryConfig, type SanityConfigEnv, type SanityQueryConfig } from "./sanity-config.js";
+import { buildApprovedConcernCatalog } from "./concern-surfacing.ts";
+import { createConcernSurfacingRetrievalStrategy } from "./concern-surfacing-strategy.ts";
+import { loadFixture } from "./load-fixture.ts";
+import { summarizeFixture } from "./fixture-summary.ts";
+import { readSanityQueryConfig, type SanityConfigEnv, type SanityQueryConfig } from "./sanity-config.ts";
 import {
   createOpenAIConcernSurfacer,
   readOpenAIConcernSurfacerConfig,
   type OpenAIConcernSurfacerEnv,
-} from "./openai-concern-surfacer.js";
-import { DEFAULT_ANSWER_COMPOSER_TOP_K, validateAnswerComposerTopK } from "./answer-source-material.js";
+} from "./openai-concern-surfacer.ts";
+import { DEFAULT_ANSWER_COMPOSER_TOP_K, validateAnswerComposerTopK } from "./answer-source-material.ts";
 import {
   composeAnswerForPrompt,
   type AnswerCompositionResult,
   type RetrievalWorkbenchAnswerComposer,
-} from "./answer-composition.js";
+} from "./answer-composition.ts";
 import {
   createOpenAIAnswerComposer,
   readOpenAIAnswerComposerConfig,
   type OpenAIAnswerComposerEnv,
-} from "./openai-answer-composer.js";
-import { printFixtureValidationError } from "./fixture-errors.js";
-import { createPlannedRetrievalStrategy } from "./planned-retrieval-strategy.js";
-import { createPrototypeRetrievalPlanner } from "./retrieval-planner.js";
-import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.js";
-import { renderRetrievalWorkbenchReport } from "./report.js";
+} from "./openai-answer-composer.ts";
+import { printFixtureValidationError } from "./fixture-errors.ts";
+import { createPlannedRetrievalStrategy } from "./planned-retrieval-strategy.ts";
+import { createPrototypeRetrievalPlanner } from "./retrieval-planner.ts";
+import { createDeterministicRetrievalStrategy } from "./retrieval-strategy.ts";
+import { renderRetrievalWorkbenchReport } from "./report.ts";
 import {
   buildSanityHybridQueryPlan,
   buildSanityKeywordQueryPlan,
   createSanityRetrievalStrategyFromResults,
   type SanityRetrievalQueryResult,
-} from "./sanity-retrieval.js";
-import { executeSanityRetrievalQueryPlan, verifySanityFixtureParity } from "./sanity-client.js";
-import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.js";
-import type { ConcernSurfacer, ConcernSurfacingResult } from "./concern-surfacing-types.js";
-import type { RetrievalStrategy } from "./retrieval-strategy.js";
+} from "./sanity-retrieval.ts";
+import { executeSanityRetrievalQueryPlan, verifySanityFixtureParity } from "./sanity-client.ts";
+import type { ParsedRetrievalWorkbenchFixture } from "./fixture-schema.ts";
+import type { ConcernSurfacer, ConcernSurfacingResult } from "./concern-surfacing-types.ts";
+import type { RetrievalStrategy } from "./retrieval-strategy.ts";
 
 export type RetrievalWorkbenchRunMode = "deterministic-only" | "comparison";
 export type RetrievalWorkbenchConcernSurfacer = "none" | "openai";

@@ -1,5 +1,5 @@
-import type { PromptRetrievalResult, RetrievalStrategy } from "./retrieval-strategy.js";
-import { shapeSanitySearchQuery } from "./search-query-shaping.js";
+import type { PromptRetrievalResult, RetrievalStrategy } from "./retrieval-strategy.ts";
+import { shapeSanitySearchQuery } from "./search-query-shaping.ts";
 
 export type SanityRetrievalMode = "sanityKeyword" | "sanityHybrid";
 
