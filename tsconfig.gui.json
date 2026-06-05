@@ -30,6 +30,9 @@
   "include": [
     "next-env.d.ts",
     "next.config.ts",
+    "sanity.config.ts",
+    "sanity.cli.ts",
+    "sanity/**/*.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
     ".next/types/**/*.ts",

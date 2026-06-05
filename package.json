@@ -15,16 +15,22 @@
     "typecheck:ts": "tsc --project tsconfig.json --noEmit",
     "typecheck:gui": "tsc --project tsconfig.gui.json --noEmit",
     "dev:gui": "next dev",
+    "dev:admin": "next dev",
     "build:gui": "next build",
+    "build:admin": "next build",
     "start:gui": "next start",
+    "start:admin": "next start",
     "test": "node --import tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "minisearch": "^7.2.0",
     "next": "^16.2.7",
+    "next-sanity": "^11.6.13",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "sanity": "^5.30.0",
     "server-only": "^0.0.1",
+    "styled-components": "^6.4.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
