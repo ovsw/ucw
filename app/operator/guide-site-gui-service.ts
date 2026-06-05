@@ -141,6 +141,12 @@ function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider
   };
 }
 
+function createDefaultGuideSiteGuiStores(): GuideSiteStores {
+  return createGuideSiteMemoryStores({
+    sessions: createGuideSiteFileSessionStore(DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY),
+  });
+}
+
 async function executeGuideSiteGuiTurn(
   request: GuideSiteGuiTurnRequest & {
     runtimeConfig: GuideSiteGuiRuntimeConfig;
@@ -177,19 +183,14 @@ async function executeGuideSiteGuiTurn(
 
 export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDependencies = {}) {
   const readRuntimeConfig = dependencies.readRuntimeConfig ?? readGuideSiteGuiRuntimeConfig;
-  const stores =
-    dependencies.createStores ??
-    (() =>
-      createGuideSiteMemoryStores({
-        sessions: createGuideSiteFileSessionStore(DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY),
-      }));
-  const resolvedStores = stores();
+  const createStores = dependencies.createStores ?? createDefaultGuideSiteGuiStores;
+  const stores = createStores();
   const runTurn =
     dependencies.runTurn ??
     ((request: GuideSiteGuiTurnRequest & { runtimeConfig: GuideSiteGuiRuntimeConfig }) =>
       executeGuideSiteGuiTurn({
         ...request,
-        stores: resolvedStores,
+        stores,
       }));
 
   async function executePrompt(

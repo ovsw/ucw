@@ -79,7 +79,7 @@ function RequiredQuestionCard({
       {question.rationale ? <p className="mt-2 text-sm leading-6 text-slate-700">{question.rationale}</p> : null}
       <form action={submitPromptAction} className="mt-4">
         <input type="hidden" name="promptText" value={question.text} />
-        <input type="hidden" name="sessionId" value={sessionId} />
+        <SessionIdField sessionId={sessionId} />
         <button
           type="submit"
           className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
@@ -103,7 +103,7 @@ function PromptButton({
   return (
     <form action={submitPromptAction}>
       <input type="hidden" name="promptText" value={promptText} />
-      <input type="hidden" name="sessionId" value={sessionId} />
+      <SessionIdField sessionId={sessionId} />
       <button
         type="submit"
         className="inline-flex w-full items-center justify-between rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
@@ -113,6 +113,10 @@ function PromptButton({
       </button>
     </form>
   );
+}
+
+function SessionIdField({ sessionId }: { sessionId: string }) {
+  return <input type="hidden" name="sessionId" value={sessionId} />;
 }
 
 function renderAnswerContent(
@@ -425,7 +429,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                   aria-label="Typed prompt"
                   className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
                 />
-                <input type="hidden" name="sessionId" value={sessionId} />
+                <SessionIdField sessionId={sessionId} />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950"

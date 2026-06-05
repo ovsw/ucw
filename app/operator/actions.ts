@@ -1,4 +1,5 @@
 import { createGuideSiteGuiService, type GuideSiteGuiActionResult, type GuideSiteGuiServiceDependencies } from "./guide-site-gui-service.ts";
+import { normalizeGuideSiteSessionId } from "../../src/guidesite-mvp/gui-session.ts";
 
 export type GuideSiteOperatorDemoActions = {
   startGuideSiteOperatorDemoAction(formData: FormData): Promise<GuideSiteGuiActionResult>;
@@ -8,17 +9,6 @@ export type GuideSiteOperatorDemoActions = {
 function normalizeFormPromptText(formData: FormData): string {
   const value = formData.get("promptText");
   return typeof value === "string" ? value : "";
-}
-
-function normalizeFormSessionId(formData: FormData): string | undefined {
-  const value = formData.get("sessionId");
-
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 export function createGuideSiteOperatorDemoActions(
@@ -35,7 +25,7 @@ export function createGuideSiteOperatorDemoActions(
     async submitGuideSiteOperatorPromptAction(formData: FormData) {
       return service.submitPrompt({
         promptText: normalizeFormPromptText(formData),
-        sessionId: normalizeFormSessionId(formData),
+        sessionId: normalizeGuideSiteSessionId(formData.get("sessionId")),
       });
     },
   };

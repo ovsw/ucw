@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 import OperatorDemoClient from "./operator-demo-client.tsx";
 import { createGuideSiteGuiService, type GuideSiteGuiActionResult } from "./guide-site-gui-service.ts";
-import { GUIDESITE_GUI_SESSION_COOKIE } from "../../src/guidesite-mvp/gui-session.ts";
+import { GUIDESITE_GUI_SESSION_COOKIE, normalizeGuideSiteSessionId } from "../../src/guidesite-mvp/gui-session.ts";
 import {
   startGuideSiteOperatorDemoAction as invokeStartGuideSiteOperatorDemoAction,
   submitGuideSiteOperatorPromptAction as invokeSubmitGuideSiteOperatorPromptAction,
@@ -26,8 +26,7 @@ async function submitGuideSiteOperatorPromptAction(formData: FormData): Promise<
 async function readInitialGuideSiteSessionId(): Promise<string | undefined> {
   try {
     const cookieStore = await cookies();
-    const sessionId = cookieStore.get(GUIDESITE_GUI_SESSION_COOKIE)?.value?.trim();
-    return sessionId && sessionId.length > 0 ? sessionId : undefined;
+    return normalizeGuideSiteSessionId(cookieStore.get(GUIDESITE_GUI_SESSION_COOKIE)?.value);
   } catch (error) {
     if (error instanceof Error && /outside a request scope/i.test(error.message)) {
       return undefined;
