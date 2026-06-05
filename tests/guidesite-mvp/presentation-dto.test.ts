@@ -46,7 +46,13 @@ test("presentation DTO maps required questions apart from optional suggested pro
         kind: "context_needs",
         title: "Missing Visitor Context",
         body: "The next turn should gather the minimum required context before the answer can continue.",
-        items: ["prior_sleepaway_experience", "child_readiness"],
+        items: ["prior_sleepaway_experience"],
+      },
+      {
+        kind: "context_needs",
+        title: "Readiness Context",
+        body: "The next turn should ask how the child responds to separation and new routines.",
+        items: ["child_readiness"],
       },
       {
         kind: "diagnostics",
@@ -62,6 +68,14 @@ test("presentation DTO maps required questions apart from optional suggested pro
         contextNeeds: ["prior_sleepaway_experience"],
         concerns: ["homesickness"],
         templateId: "ask_sleepaway_experience",
+      },
+      {
+        id: "prompt_child_readiness",
+        purpose: "gather_fit_context",
+        text: "How does your child handle new routines away from home?",
+        contextNeeds: ["child_readiness"],
+        concerns: ["child_readiness"],
+        templateId: "ask_child_readiness",
       },
       {
         id: "prompt_compare_options",
@@ -90,6 +104,11 @@ test("presentation DTO maps required questions apart from optional suggested pro
       id: "prompt_prior_sleepaway_experience",
       text: "Has your child slept away from home before?",
       rationale: "The next turn should gather the minimum required context before the answer can continue.",
+    },
+    {
+      id: "prompt_child_readiness",
+      text: "How does your child handle new routines away from home?",
+      rationale: "The next turn should ask how the child responds to separation and new routines.",
     },
   ]);
   assert.deepEqual(presentation.answer.suggestedPrompts, [

@@ -1,10 +1,10 @@
 import { createFixtureGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.ts";
 import { readGuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeEnv } from "../../src/guidesite-mvp/gui-runtime.ts";
-import { createOpenAIPromptUnderstandingProvider, readOpenAIPromptUnderstandingConfig, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
+import { createOpenAIPromptUnderstandingProvider, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
 import { createGuideSiteLoadingPresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
 import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
 import { createSanityGuideSiteRetrievalAdapterResolver } from "../../src/guidesite-mvp/sanity-retrieval.ts";
-import { readSanityQueryConfig } from "../../src/retrieval-workbench/sanity-config.ts";
+
 import type { RunState } from "../../src/guidesite-mvp/types.ts";
 
 export const DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT = "Is overnight camp right for my 8-year-old?";
@@ -146,15 +146,13 @@ async function executeGuideSiteGuiTurn(
   const promptUnderstandingProvider =
     request.runtimeConfig.runtimeMode === "fixture"
       ? createFixturePromptUnderstandingProvider()
-      : createOpenAIPromptUnderstandingProvider(
-          readOpenAIPromptUnderstandingConfig(request.env ?? {}),
-        );
+      : createOpenAIPromptUnderstandingProvider(request.runtimeConfig.promptUnderstandingConfig);
 
   const retrievalAdapter =
     request.runtimeConfig.retrievalMode === "fixture" ? createFixtureGuideSiteRetrievalAdapter() : undefined;
   const sanityRetrievalAdapterResolver =
     request.runtimeConfig.retrievalMode === "sanity"
-      ? createSanityGuideSiteRetrievalAdapterResolver(readSanityQueryConfig(request.env ?? {}))
+      ? createSanityGuideSiteRetrievalAdapterResolver(request.runtimeConfig.sanityQueryConfig)
       : undefined;
 
   const started = startGuideSiteRun({

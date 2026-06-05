@@ -5,11 +5,12 @@ import {
   readGuideSiteGuiRuntimeConfig,
 } from "../../src/guidesite-mvp/gui-runtime.js";
 
+const emptyEnvFilePath = ".guidesite-gui-runtime-test.env";
 test("GUI runtime config defaults to live mode and requires Sanity config", () => {
   assert.equal(DEFAULT_GUIDESITE_GUI_RUNTIME_MODE, "live");
 
   assert.throws(
-    () => readGuideSiteGuiRuntimeConfig({ env: {} }),
+    () => readGuideSiteGuiRuntimeConfig({ env: {}, envFilePath: emptyEnvFilePath }),
     (error) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /Missing required Sanity config for query workflow/);
@@ -30,6 +31,7 @@ test("GUI runtime config requires explicit OpenAI prompt understanding config in
           SANITY_DATASET: "production",
           SANITY_API_VERSION: "2025-02-19",
         },
+        envFilePath: emptyEnvFilePath,
       }),
     (error) => {
       assert.ok(error instanceof Error);
@@ -51,6 +53,7 @@ test("GUI runtime config accepts valid live mode config without any dummy fallba
       OPENAI_API_KEY: " openai-key ",
       OPENAI_PROMPT_UNDERSTANDING_MODEL: " gpt-test ",
     },
+    envFilePath: emptyEnvFilePath,
   });
 
   assert.deepEqual(config, {
@@ -78,6 +81,7 @@ test("GUI runtime config requires explicit fixture mode instead of silently fall
           OPENAI_API_KEY: "openai-key",
           OPENAI_PROMPT_UNDERSTANDING_MODEL: "gpt-test",
         },
+        envFilePath: emptyEnvFilePath,
       }),
     /Missing required Sanity config for query workflow/,
   );
@@ -88,6 +92,7 @@ test("GUI runtime config accepts explicit fixture mode without live demo config"
     env: {
       GUIDESITE_GUI_RUNTIME_MODE: "fixture",
     },
+    envFilePath: emptyEnvFilePath,
   });
 
   assert.deepEqual(config, {
@@ -103,6 +108,7 @@ test("GUI runtime config rejects unknown runtime modes", () => {
         env: {
           GUIDESITE_GUI_RUNTIME_MODE: "preview",
         },
+        envFilePath: emptyEnvFilePath,
       }),
     /Unknown GuideSite GUI runtime mode: preview\. Use live or fixture\./,
   );

@@ -142,8 +142,8 @@ function collectAnswerCitations(sections: GuideSitePresentationSection[]): Guide
   return [...citationsBySourceId.values()];
 }
 
-function collectContextNeedIds(answerComposition: AnswerComposition): Set<string> {
-  const requiredContextNeedIds = new Set<string>();
+function collectContextNeedRationales(answerComposition: AnswerComposition): Map<string, string> {
+  const rationalesByContextNeedId = new Map<string, string>();
 
   for (const section of answerComposition.sections) {
     if (section.kind !== "context_needs" || !section.items) {
@@ -151,19 +151,30 @@ function collectContextNeedIds(answerComposition: AnswerComposition): Set<string
     }
 
     for (const item of section.items) {
-      requiredContextNeedIds.add(item);
+      if (!rationalesByContextNeedId.has(item)) {
+        rationalesByContextNeedId.set(item, section.body);
+      }
     }
   }
 
-  return requiredContextNeedIds;
+  return rationalesByContextNeedId;
+}
+
+function joinRequiredPromptRationales(rationales: string[]): string | null {
+  const uniqueRationales = [...new Set(rationales)];
+
+  if (uniqueRationales.length === 0) {
+    return null;
+  }
+
+  return uniqueRationales.join(" ");
 }
 
 function splitSuggestedPrompts(answerComposition: AnswerComposition): {
   requiredQuestions: GuideSiteRequiredQuestion[];
   suggestedPrompts: GuideSiteSuggestedPromptSummary[];
 } {
-  const requiredContextNeedIds = collectContextNeedIds(answerComposition);
-  const contextNeedRationale = answerComposition.sections.find((section) => section.kind === "context_needs")?.body ?? null;
+  const contextNeedRationales = collectContextNeedRationales(answerComposition);
   const requiredPrompts = new Map<string, GuideSiteRequiredQuestion>();
   const optionalPrompts: GuideSiteSuggestedPromptSummary[] = [];
 
@@ -173,13 +184,15 @@ function splitSuggestedPrompts(answerComposition: AnswerComposition): {
       text: prompt.text,
       purpose: prompt.purpose,
     };
-    const matchesRequiredNeed = prompt.contextNeeds.some((contextNeed) => requiredContextNeedIds.has(contextNeed));
+    const matchingRequiredRationales = prompt.contextNeeds
+      .map((contextNeed) => contextNeedRationales.get(contextNeed))
+      .filter((rationale): rationale is string => rationale !== undefined);
 
-    if (matchesRequiredNeed) {
+    if (matchingRequiredRationales.length > 0) {
       requiredPrompts.set(prompt.id, {
         id: prompt.id,
         text: prompt.text,
-        rationale: contextNeedRationale,
+        rationale: joinRequiredPromptRationales(matchingRequiredRationales),
       });
       continue;
     }

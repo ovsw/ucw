@@ -1,5 +1,5 @@
 import OperatorDemoClient from "./operator-demo-client.tsx";
-import { createGuideSiteGuiService } from "./guide-site-gui-service.ts";
+import { createGuideSiteGuiService, type GuideSiteGuiActionResult } from "./guide-site-gui-service.ts";
 import {
   startGuideSiteOperatorDemoAction as invokeStartGuideSiteOperatorDemoAction,
   submitGuideSiteOperatorPromptAction as invokeSubmitGuideSiteOperatorPromptAction,
@@ -7,14 +7,14 @@ import {
 
 const guiService = createGuideSiteGuiService();
 
-async function startGuideSiteOperatorDemoAction(formData: FormData): Promise<void> {
+async function startGuideSiteOperatorDemoAction(formData: FormData): Promise<GuideSiteGuiActionResult> {
   "use server";
-  await invokeStartGuideSiteOperatorDemoAction(formData);
+  return invokeStartGuideSiteOperatorDemoAction(formData);
 }
 
-async function submitGuideSiteOperatorPromptAction(formData: FormData): Promise<void> {
+async function submitGuideSiteOperatorPromptAction(formData: FormData): Promise<GuideSiteGuiActionResult> {
   "use server";
-  await invokeSubmitGuideSiteOperatorPromptAction(formData);
+  return invokeSubmitGuideSiteOperatorPromptAction(formData);
 }
 
 export default function OperatorPage() {

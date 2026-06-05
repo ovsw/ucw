@@ -44,10 +44,18 @@ function FoundationCheckItem({ check, index }: { check: string; index: number })
   );
 }
 
+type OperatorDemoActionResult = {
+  promptText: string;
+  presentation: GuideSitePresentation;
+};
+
+type OperatorDemoAction = (formData: FormData) => Promise<OperatorDemoActionResult>;
+type FormAction = (formData: FormData) => void | Promise<void>;
+
 type OperatorDemoClientProps = {
   presentation: GuideSitePresentation;
-  startDemoAction: (formData: FormData) => void | Promise<void>;
-  submitPromptAction: (formData: FormData) => void | Promise<void>;
+  startDemoAction: OperatorDemoAction;
+  submitPromptAction: OperatorDemoAction;
 };
 
 export default function OperatorDemoClient({
@@ -56,6 +64,8 @@ export default function OperatorDemoClient({
   submitPromptAction,
 }: OperatorDemoClientProps) {
   const answerStateLabel = presentation.answer.status.replace(/_/g, " ");
+  const startDemoFormAction = startDemoAction as unknown as FormAction;
+  const submitPromptFormAction = submitPromptAction as unknown as FormAction;
 
   return (
     <main aria-labelledby="operator-title" className="min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
@@ -172,7 +182,7 @@ export default function OperatorDemoClient({
                 pipeline, OpenAI provider, Sanity retrieval adapter, or the server service module.
               </p>
 
-              <form action={startDemoAction} className="mt-4 space-y-3">
+              <form action={startDemoFormAction} className="mt-4 space-y-3">
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
@@ -181,7 +191,7 @@ export default function OperatorDemoClient({
                 </button>
               </form>
 
-              <form action={submitPromptAction} className="mt-4 space-y-3">
+              <form action={submitPromptFormAction} className="mt-4 space-y-3">
                 <label className="block text-xs font-semibold uppercase tracking-[0.22em] text-amber-800" htmlFor="operator-prompt">
                   Submit prompt
                 </label>
