@@ -10,17 +10,27 @@
     "guidesite:mvp": "tsx src/guidesite-mvp/cli.ts",
     "workbench": "tsx src/retrieval-workbench/cli.ts",
     "workbench:generate": "tsx src/retrieval-workbench/generate-fixture.ts",
-    "check": "pnpm typecheck",
-    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm build:gui",
+    "typecheck": "pnpm typecheck:ts && pnpm typecheck:gui",
+    "typecheck:ts": "tsc --project tsconfig.json --noEmit",
+    "typecheck:gui": "tsc --project tsconfig.gui.json --noEmit",
+    "dev:gui": "next dev",
+    "build:gui": "next build",
+    "start:gui": "next start",
     "test": "node --import tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "minisearch": "^7.2.0",
+    "next": "^16.2.7",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.6.5",
     "@types/node": "^20.14.10",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3",
     "typescript-language-server": "^5.3.0"
