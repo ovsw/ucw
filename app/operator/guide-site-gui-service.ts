@@ -6,7 +6,7 @@ import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnder
 import { createGuideSiteFileSessionStore } from "../../src/guidesite-mvp/session-store.ts";
 import { createSanityGuideSiteRetrievalAdapterResolver } from "../../src/guidesite-mvp/sanity-retrieval.ts";
 
-import type { GuideSiteStores, RunState } from "../../src/guidesite-mvp/types.ts";
+import type { GuideSiteStores, PromptUnderstanding, PromptUnderstandingSessionContext, RunState } from "../../src/guidesite-mvp/types.ts";
 
 export const DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT = "Is overnight camp right for my 8-year-old?";
 export const DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY = ".guidesite/operator-demo-sessions";
@@ -111,21 +111,164 @@ function createCanonicalFixturePromptUnderstanding() {
   };
 }
 
+const DEFAULT_REQUIRED_CONTEXT_NEEDS = ["prior_sleepaway_experience", "child_readiness"];
+
+function getPendingContextNeeds(context?: PromptUnderstandingSessionContext): string[] {
+  const pendingContextNeeds =
+    context?.session.focus.contextNeeds && context.session.focus.contextNeeds.length > 0
+      ? context.session.focus.contextNeeds
+      : DEFAULT_REQUIRED_CONTEXT_NEEDS;
+  return [...new Set(pendingContextNeeds)];
+}
+
+function createVagueRequiredContextUnderstanding(
+  context?: PromptUnderstandingSessionContext,
+): PromptUnderstanding {
+  return {
+    goal: "assess_fit",
+    promptType: "fit",
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after clarifying the missing context.",
+    facts: {},
+    concerns: [
+      {
+        key: "homesickness",
+        label: "Homesickness",
+        status: "open",
+        provenance: "implied",
+      },
+      {
+        key: "child_readiness",
+        label: "Child Readiness",
+        status: "open",
+        provenance: "implied",
+      },
+    ],
+    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    contextNeeds: getPendingContextNeeds(context),
+  };
+}
+
+function createPreciseRequiredContextUnderstanding(
+  promptText: string,
+  context?: PromptUnderstandingSessionContext,
+): PromptUnderstanding {
+  const pendingContextNeeds = getPendingContextNeeds(context);
+  const remainingContextNeeds = pendingContextNeeds.filter((need) => need !== "prior_sleepaway_experience");
+
+  return {
+    goal: "assess_fit",
+    promptType: "fit",
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning about prior sleepaway experience.",
+    facts: {
+      prior_sleepaway_experience: {
+        value: "slept_with_grandparents",
+        provenance: {
+          source: "explicit",
+          promptText,
+        },
+      },
+    },
+    concerns: [
+      {
+        key: "homesickness",
+        label: "Homesickness",
+        status: "open",
+        provenance: "implied",
+      },
+      {
+        key: "child_readiness",
+        label: "Child Readiness",
+        status: "open",
+        provenance: "implied",
+      },
+    ],
+    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    contextNeeds: remainingContextNeeds.length > 0 ? remainingContextNeeds : ["child_readiness"],
+  };
+}
+
+function createWithheldRequiredContextUnderstanding(): PromptUnderstanding {
+  return {
+    goal: "gather_context",
+    promptType: "factual",
+    fitQuestion: null,
+    facts: {},
+    concerns: [],
+    retrievalNeeds: [],
+    contextNeeds: [],
+  };
+}
+
+function looksVagueRequiredContextReply(promptText: string): boolean {
+  const normalizedPromptText = promptText.trim().toLowerCase();
+  return [
+    "i don't know",
+    "i do not know",
+    "idk",
+    "not sure",
+    "unsure",
+    "maybe",
+    "maybe so",
+    "sometimes",
+    "kind of",
+    "sort of",
+    "i think",
+    "i guess",
+    "a little",
+    "somewhat",
+  ].some((marker) => normalizedPromptText.includes(marker));
+}
+
+function looksWithheldRequiredContextReply(promptText: string): boolean {
+  const normalizedPromptText = promptText.trim().toLowerCase();
+  return [
+    "prefer not to say",
+    "rather not say",
+    "don't want to say",
+    "do not want to say",
+    "don't want to answer",
+    "do not want to answer",
+    "skip",
+    "pass",
+    "withhold",
+    "no comment",
+  ].some((marker) => normalizedPromptText.includes(marker));
+}
+
+function looksPreciseSleepawayReply(promptText: string): boolean {
+  const normalizedPromptText = promptText.trim().toLowerCase();
+  return [
+    "grandparent",
+    "grandparents",
+    "slept away",
+    "sleepaway",
+    "away from home",
+    "overnight at",
+  ].some((marker) => normalizedPromptText.includes(marker));
+}
+
 function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider {
   return {
-    async understandPrompt(promptText) {
+    async understandPrompt(promptText, context) {
+      const normalizedPromptText = promptText.trim();
       const understanding =
-        promptText.trim() === DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT
+        normalizedPromptText === DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT
           ? createCanonicalFixturePromptUnderstanding()
-          : {
-              goal: "unknown" as const,
-              promptType: "unknown" as const,
-              fitQuestion: null,
-              facts: {},
-              concerns: [],
-              retrievalNeeds: [],
-              contextNeeds: [],
-            };
+          : looksWithheldRequiredContextReply(normalizedPromptText)
+            ? createWithheldRequiredContextUnderstanding()
+            : looksPreciseSleepawayReply(normalizedPromptText)
+              ? createPreciseRequiredContextUnderstanding(normalizedPromptText, context)
+              : looksVagueRequiredContextReply(normalizedPromptText)
+                ? createVagueRequiredContextUnderstanding(context)
+                : {
+                    goal: "unknown" as const,
+                    promptType: "unknown" as const,
+                    fitQuestion: null,
+                    facts: {},
+                    concerns: [],
+                    retrievalNeeds: [],
+                    contextNeeds: [],
+                  };
 
       return {
         understanding,

@@ -110,6 +110,58 @@ test("GuideSite GUI service starts from the canonical prompt and maps technical 
   assert.deepEqual(failureResult.presentation.operatorDiagnostics.diagnostics, ["missing live config"]);
 });
 
+test("GuideSite GUI fixture mode keeps vague required-context replies in the context-gathering loop", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+
+  const started = await service.startDemo({ sessionId: "session_gui_required_context" });
+  assert.equal(started.presentation.answer.status, "context_gathering_response");
+
+  const vagueReply = await service.submitPrompt({
+    promptText: "I don't know, maybe sometimes.",
+    sessionId: "session_gui_required_context",
+  });
+
+  assert.equal(vagueReply.presentation.answer.status, "context_gathering_response");
+  assert.match(vagueReply.presentation.answer.conversationalFraming, /more Visitor Context/i);
+  assert.equal(vagueReply.presentation.answer.requiredQuestions.length > 0, true);
+  assert.notEqual(vagueReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
+  assert.notEqual(vagueReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
+});
+
+test("GuideSite GUI fixture mode renders withheld required-context replies as responsible abstention", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+
+  const started = await service.startDemo({ sessionId: "session_gui_withheld_context" });
+  assert.equal(started.presentation.answer.status, "context_gathering_response");
+
+  const withheldReply = await service.submitPrompt({
+    promptText: "I'd prefer not to say.",
+    sessionId: "session_gui_withheld_context",
+  });
+
+  assert.equal(withheldReply.presentation.answer.status, "responsible_abstention");
+  assert.match(withheldReply.presentation.answer.conversationalFraming, /cannot responsibly answer/i);
+  assert.match(withheldReply.presentation.answer.nextSteps[0] ?? "", /Provide more context/i);
+  assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
+  assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
+});
+
 test("Operator demo actions adapt form submissions into service calls", async () => {
   const seenPromptTexts: string[] = [];
   const seenSessionIds: Array<string | undefined> = [];

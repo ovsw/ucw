@@ -932,12 +932,12 @@ function createInsufficientSourceAnswerComposition(
   const retrievalDescriptor = describeRetrievalAdapter(retrieval);
   return {
     status: "fallback",
-    conversationalFraming: `The GuideSite ${retrievalDescriptor} retrieval did not find approved source material for this Prompt.`,
+    conversationalFraming: "The GuideSite cannot responsibly answer this prompt yet.",
     sections: [
       {
         kind: "diagnostics",
         title: "Insufficient Source Material",
-        body: `No approved source material from ${retrievalDescriptor} matched the validated Prompt Understanding, so no source-backed answer material was composed.`,
+        body: `No approved source material from ${retrievalDescriptor} matched the validated Prompt Understanding, so the system is asking for more context instead of guessing.`,
       },
     ],
     suggestedPrompts: [],
