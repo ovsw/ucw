@@ -32,7 +32,7 @@ test("Sanity Studio config is mounted at /admin with the current source schema",
 
     assert.equal(studioConfig.basePath, "/admin");
 
-    const schemaTypeNames = studioConfig.schema.types.map((schemaType) => schemaType.name).sort();
+    const schemaTypeNames = studioConfig.schema.types.map(({ name }) => name).sort();
 
     for (const expectedType of ["concern", "policy", "program", "guide", "transportationRoute"]) {
       assert.ok(schemaTypeNames.includes(expectedType));

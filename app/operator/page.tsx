@@ -1,3 +1,4 @@
+import React from "react";
 import OperatorDemoClient from "./operator-demo-client.tsx";
 import { createGuideSiteGuiService } from "./guide-site-gui-service.ts";
 import {
