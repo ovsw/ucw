@@ -29,7 +29,11 @@ test("operator shell renders the canonical demo surface", async () => {
     assert.doesNotMatch(markup, /chat transcript/i);
     assert.doesNotMatch(markup, /Session State editing/i);
   } finally {
-    process.env.GUIDESITE_GUI_RUNTIME_MODE = previousRuntimeMode;
+    if (previousRuntimeMode === undefined) {
+      delete process.env.GUIDESITE_GUI_RUNTIME_MODE;
+    } else {
+      process.env.GUIDESITE_GUI_RUNTIME_MODE = previousRuntimeMode;
+    }
   }
 });
 

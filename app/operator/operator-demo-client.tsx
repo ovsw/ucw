@@ -108,9 +108,7 @@ function PromptButton({
   );
 }
 
-function renderAnswerContent(result: GuideSiteGuiActionResult, submitPromptAction: FormAction) {
-  const answer = result.presentation.answer;
-
+function renderAnswerContent(answer: GuideSitePresentation["answer"], submitPromptAction: FormAction) {
   switch (answer.status) {
     case "loading":
       return (
@@ -226,8 +224,8 @@ function renderAnswerContent(result: GuideSiteGuiActionResult, submitPromptActio
   }
 }
 
-function renderDiagnostics(result: GuideSiteGuiActionResult) {
-  const diagnostics = result.presentation.operatorDiagnostics;
+function renderDiagnostics(presentation: GuideSitePresentation, promptText: string) {
+  const { operatorDiagnostics } = presentation;
 
   return (
     <aside className="rounded-[1.75rem] border border-black/10 bg-white/78 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-6">
@@ -236,33 +234,34 @@ function renderDiagnostics(result: GuideSiteGuiActionResult) {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Operator inspection</p>
           <h2 className="mt-2 text-xl font-semibold tracking-[-0.05em] text-slate-950">Diagnostics</h2>
         </div>
-        <StatusChip label={diagnostics.runStatus} />
+        <StatusChip label={operatorDiagnostics.runStatus} />
       </div>
 
       <dl className="mt-5 grid gap-3 text-sm text-slate-700">
         <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Prompt</dt>
-          <dd className="mt-1 leading-6 text-slate-800">{result.promptText}</dd>
+          <dd className="mt-1 leading-6 text-slate-800">{promptText}</dd>
         </div>
         <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Run</dt>
           <dd className="mt-1 leading-6 text-slate-800">
-            {diagnostics.runId ?? "Pending"} / {diagnostics.sessionId ?? "Pending"}
+            {operatorDiagnostics.runId ?? "Pending"} / {operatorDiagnostics.sessionId ?? "Pending"}
           </dd>
         </div>
         <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Provider</dt>
           <dd className="mt-1 leading-6 text-slate-800">
-            {diagnostics.provider ?? "Not available"}{diagnostics.model ? ` · ${diagnostics.model}` : ""}
+            {operatorDiagnostics.provider ?? "Not available"}
+            {operatorDiagnostics.model ? ` · ${operatorDiagnostics.model}` : ""}
           </dd>
         </div>
       </dl>
 
-      {diagnostics.diagnostics.length > 0 ? (
+      {operatorDiagnostics.diagnostics.length > 0 ? (
         <div className="mt-5 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Diagnostics notes</p>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-            {diagnostics.diagnostics.map((message) => (
+            {operatorDiagnostics.diagnostics.map((message) => (
               <li key={message} className="rounded-[1rem] bg-slate-50 px-3 py-2">
                 {message}
               </li>
@@ -277,7 +276,9 @@ function renderDiagnostics(result: GuideSiteGuiActionResult) {
 export default function OperatorDemoClient({ result, startDemoAction, submitPromptAction }: OperatorDemoClientProps) {
   const startDemoFormAction = startDemoAction as unknown as FormAction;
   const submitPromptFormAction = submitPromptAction as unknown as FormAction;
-  const answerStateLabel = result.presentation.answer.status.replace(/_/g, " ");
+  const { presentation } = result;
+  const { answer, camp } = presentation;
+  const answerStateLabel = answer.status.replace(/_/g, " ");
 
   return (
     <main aria-labelledby="operator-title" className="min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
@@ -318,16 +319,16 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                   Parent-shaped output
                 </h2>
               </div>
-              <StatusChip label={result.presentation.camp.campName} />
+              <StatusChip label={camp.campName} />
             </div>
 
             <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">
-              {result.presentation.answer.status === "context_gathering_response"
+              {answer.status === "context_gathering_response"
                 ? "The first visible product output is a context gathering response because the canonical Parent prompt still lacks required Visitor Context."
                 : "The validated product output is ready for the operator surface."}
             </p>
 
-            <div className="mt-6">{renderAnswerContent(result, submitPromptFormAction)}</div>
+            <div className="mt-6">{renderAnswerContent(answer, submitPromptFormAction)}</div>
 
             <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">New demo</p>
@@ -346,7 +347,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
             </div>
           </article>
 
-          {renderDiagnostics(result)}
+          {renderDiagnostics(presentation, result.promptText)}
         </section>
 
         <section aria-label="Prompt controls" className="rounded-[2rem] border border-black/10 bg-white/82 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">
@@ -367,9 +368,8 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                   Controlled suggested prompts
                 </p>
                 <div className="mt-4 grid gap-3">
-                  {result.presentation.answer.status === "context_gathering_response" &&
-                  result.presentation.answer.suggestedPrompts.length > 0 ? (
-                    result.presentation.answer.suggestedPrompts.map((prompt) => (
+                  {answer.status === "context_gathering_response" && answer.suggestedPrompts.length > 0 ? (
+                    answer.suggestedPrompts.map((prompt) => (
                       <PromptButton key={prompt.id} promptText={prompt.text} submitPromptAction={submitPromptFormAction} />
                     ))
                   ) : (
