@@ -81,12 +81,7 @@ export const studioSchemaTypes = [
         title: "Source kind",
         type: "string",
       }),
-      defineField({
-        name: "relatedConcerns",
-        title: "Related concerns",
-        type: "array",
-        of: [{ type: "reference", to: [{ type: "concern" }] }],
-      }),
+      relatedConcernReferences,
     ],
     preview: {
       select: {

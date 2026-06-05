@@ -172,10 +172,6 @@ async function executeGuideSiteGuiTurn(
   });
 }
 
-function mapRunToPresentation(run: RunState): GuideSitePresentation {
-  return mapGuideSiteRunStateToPresentation(run);
-}
-
 export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDependencies = {}) {
   const readRuntimeConfig = dependencies.readRuntimeConfig ?? readGuideSiteGuiRuntimeConfig;
   const runTurn = dependencies.runTurn ?? executeGuideSiteGuiTurn;
@@ -198,7 +194,7 @@ export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDepen
 
       return {
         promptText: normalizedPromptText,
-        presentation: mapRunToPresentation(run),
+        presentation: mapGuideSiteRunStateToPresentation(run),
       };
     } catch (error) {
       return {

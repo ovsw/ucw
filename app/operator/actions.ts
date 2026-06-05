@@ -18,7 +18,7 @@ export function createGuideSiteOperatorDemoActions(
   const service = dependencies.service ?? createGuideSiteGuiService(dependencies);
 
   return {
-    async startGuideSiteOperatorDemoAction() {
+    async startGuideSiteOperatorDemoAction(_formData: FormData) {
       return service.startDemo();
     },
     async submitGuideSiteOperatorPromptAction(formData: FormData) {
