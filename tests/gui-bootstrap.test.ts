@@ -3,8 +3,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
+const repoRoot = process.cwd();
+
+function readRepoFile(relativePath: string): string {
+  return readFileSync(join(repoRoot, relativePath), "utf8");
+}
+
 test("repo-level check script covers the GUI typecheck and build path", () => {
-  const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+  const packageJson = JSON.parse(readRepoFile("package.json")) as {
     scripts?: Record<string, string>;
   };
 
@@ -14,10 +20,10 @@ test("repo-level check script covers the GUI typecheck and build path", () => {
 });
 
 test("App Router bootstraps the root route into the operator surface", () => {
-  const homePageSource = readFileSync(join(process.cwd(), "app/page.tsx"), "utf8");
-  const rootLayoutSource = readFileSync(join(process.cwd(), "app/layout.tsx"), "utf8");
-  const operatorPageSource = readFileSync(join(process.cwd(), "app/operator/page.tsx"), "utf8");
-  const adminPageSource = readFileSync(join(process.cwd(), "app/admin/[[...tool]]/page.tsx"), "utf8");
+  const homePageSource = readRepoFile("app/page.tsx");
+  const rootLayoutSource = readRepoFile("app/layout.tsx");
+  const operatorPageSource = readRepoFile("app/operator/page.tsx");
+  const adminPageSource = readRepoFile("app/admin/[[...tool]]/page.tsx");
 
   assert.match(homePageSource, /redirect\("\/operator"\)/);
   assert.match(rootLayoutSource, /GuideSite Operator Demo Surface/);
