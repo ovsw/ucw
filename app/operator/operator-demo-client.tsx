@@ -408,15 +408,14 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 <div className="mt-4 grid gap-3">
                   {answer.status === "context_gathering_response" && answer.suggestedPrompts.length > 0 ? (
                     answer.suggestedPrompts.map((prompt) => (
-                    <PromptButton
-                      key={prompt.id}
-                      promptText={prompt.text}
-                      sessionId={sessionId}
-                      submitPromptAction={submitPromptFormAction}
-                      badgeLabel="Prompt"
-                    />
-                  ))
-                ) : (
+                      <PromptButton
+                        key={prompt.id}
+                        promptText={prompt.text}
+                        sessionId={sessionId}
+                        submitPromptAction={submitPromptFormAction}
+                      />
+                    ))
+                  ) : (
                     <div className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4 text-sm leading-6 text-slate-700">
                       Suggested prompts will appear when the current turn needs more context or wants to offer a controlled next step.
                     </div>
