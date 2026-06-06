@@ -31,3 +31,13 @@ test("App Router bootstraps the root route into the operator surface", () => {
   assert.match(operatorPageSource, /OperatorDemoClient/);
   assert.match(adminPageSource, /NextStudio/);
 });
+
+test("operator inspection drawer exposes source metadata, editorial gaps, and raw source diagnostics", () => {
+  const operatorClientSource = readRepoFile("app/operator/operator-demo-client.tsx");
+
+  assert.match(operatorClientSource, /Source ID:/);
+  assert.match(operatorClientSource, /Field path:/);
+  assert.match(operatorClientSource, /Revision:/);
+  assert.match(operatorClientSource, /Editorial gaps/);
+  assert.match(operatorClientSource, /Raw source diagnostics/);
+});

@@ -446,6 +446,7 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
             <InspectionSummaryRow label="Adapter" value={retrievalSummary.adapterLabel ?? retrievalSummary.adapterId ?? "Not run"} />
             <InspectionSummaryRow label="Matched sources" value={retrievalSummary.matchedSourceCount} />
             <InspectionSummaryRow label="Retrieved sources" value={retrievalSummary.retrievedSourceCount} />
+            <InspectionSummaryRow label="Coverage summary" value={retrievalSummary.coverageExplanation} />
             <InspectionSummaryRow
               label="Needs"
               value={<InspectionList emptyLabel="No retrieval needs" items={retrievalSummary.needs} />}
@@ -454,18 +455,46 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
               label="Concerns"
               value={<InspectionList emptyLabel="No retrieval concerns" items={retrievalSummary.concerns} />}
             />
+            <InspectionSummaryRow
+              label="Retrieval diagnostics"
+              value={<InspectionList emptyLabel="No retrieval diagnostics" items={retrievalSummary.retrievalDiagnostics} />}
+            />
+            <InspectionSummaryRow
+              label="Editorial gaps"
+              value={<InspectionList emptyLabel="No editorial gaps" items={retrievalSummary.editorialGaps} />}
+            />
           </InspectionCard>
 
-          {operatorInspection.retrieval.sourceCoverage.length > 0 ? (
+          {operatorInspection.retrieval.sourceCoverage.length > 0 || operatorInspection.retrieval.details ? (
             <section className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Source coverage details</p>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                {operatorInspection.retrieval.sourceCoverage.map((source) => (
-                  <li key={`${source.sourceId}:${source.rank}`} className="rounded-[1rem] bg-slate-50 px-3 py-2">
-                    {source.matched ? "Matched" : "Retrieved"} · {source.title} · {source.sourceType}
-                  </li>
-                ))}
-              </ul>
+              {operatorInspection.retrieval.sourceCoverage.length > 0 ? (
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+                  {operatorInspection.retrieval.sourceCoverage.map((source) => (
+                    <li key={`${source.sourceId}:${source.rank}`} className="rounded-[1rem] bg-slate-50 px-3 py-2">
+                      <div className="font-semibold text-slate-800">
+                        {source.matched ? "Matched" : "Retrieved"} · {source.title} · {source.sourceType}
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-slate-600">
+                        Source ID: {source.sourceId} · Field path: {source.fieldPath || "Not available"} · Revision:{" "}
+                        {source.sourceRevision || "Not available"}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 rounded-[1rem] bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+                  No source metadata was retrieved for this turn.
+                </p>
+              )}
+              <details className="mt-3 rounded-[1rem] border border-dashed border-slate-900/20 bg-slate-50 px-3 py-2">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                  Raw source diagnostics
+                </summary>
+                <pre className="mt-3 max-h-72 overflow-auto rounded-[1rem] bg-slate-950 p-4 text-xs leading-5 text-slate-100">
+                  {JSON.stringify(operatorInspection.retrieval.details, null, 2)}
+                </pre>
+              </details>
             </section>
           ) : null}
 

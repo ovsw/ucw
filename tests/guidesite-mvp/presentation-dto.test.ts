@@ -405,6 +405,12 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal(presentation.operatorInspection.providerMetadata.summary.provider, "openai");
   assert.equal(presentation.operatorInspection.providerMetadata.summary.model, "gpt-test");
   assert.equal(presentation.operatorInspection.retrieval.summary.coverageStatus, "source_backed");
+  assert.equal(
+    presentation.operatorInspection.retrieval.summary.coverageExplanation,
+    "Retrieval found 2 matched Sources of Truth for the assembled answer.",
+  );
+  assert.deepEqual(presentation.operatorInspection.retrieval.summary.retrievalDiagnostics, []);
+  assert.deepEqual(presentation.operatorInspection.retrieval.summary.editorialGaps, []);
   assert.deepEqual(presentation.operatorInspection.retrieval.sourceCoverage, [
     {
       sourceId: "program_overnight",
@@ -440,6 +446,8 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal(presentation.operatorInspection.rawStructuredOutput.summary.hasProviderRawOutput, true);
   assert.deepEqual(presentation.operatorInspection.rawStructuredOutput.details.providerParsedOutput, { goal: "assess_fit" });
   assert.equal(presentation.operatorInspection.rawStructuredOutput.details.providerRawOutput, "{\"goal\":\"assess_fit\"}");
+  assert.doesNotMatch(JSON.stringify(presentation.answer), /program_overnight|policy_homesickness|mock_rev_|fieldPath|sourceRevision/);
+  assert.match(JSON.stringify(presentation.operatorInspection.retrieval.details), /program_overnight/);
 });
 
 test("presentation DTO gates answered output back to context gathering when required context is unresolved", () => {
@@ -673,7 +681,9 @@ test("presentation DTO gates incomplete source coverage back to responsible abst
       needs: ["overnight_readiness"],
       concerns: [],
       results: [],
-      diagnostics: ["fixture_retrieval_empty"],
+      diagnostics: [
+        "insufficient_fixture_sources: no approved fixture sources matched retrieval needs overnight_readiness or concerns (none)",
+      ],
       coverage: {
         status: "empty_retrieval",
         matchedSourceIds: [],
@@ -690,6 +700,21 @@ test("presentation DTO gates incomplete source coverage back to responsible abst
   assert.equal(presentation.operatorInspection.validation.summary.answerDisposition, "responsible_abstention");
   assert.match(presentation.operatorInspection.validation.summary.reasoning[0] ?? "", /abstained/);
   assert.equal(presentation.operatorInspection.retrieval.summary.coverageStatus, "empty_retrieval");
+  assert.equal(
+    presentation.operatorInspection.retrieval.summary.coverageExplanation,
+    "No approved Sources of Truth matched the validated Prompt Understanding, so the answer cannot assemble from source-backed material.",
+  );
+  assert.deepEqual(presentation.operatorInspection.retrieval.summary.editorialGaps, [
+    "Missing approved Sources of Truth for the validated retrieval needs or concerns.",
+    "insufficient_fixture_sources: no approved fixture sources matched retrieval needs overnight_readiness or concerns (none)",
+  ]);
+  assert.deepEqual(presentation.operatorInspection.retrieval.summary.retrievalDiagnostics, [
+    "insufficient_fixture_sources: no approved fixture sources matched retrieval needs overnight_readiness or concerns (none)",
+  ]);
+  assert.deepEqual(presentation.operatorInspection.retrieval.details?.diagnostics, [
+    "insufficient_fixture_sources: no approved fixture sources matched retrieval needs overnight_readiness or concerns (none)",
+  ]);
+  assert.doesNotMatch(JSON.stringify(presentation.answer), /insufficient_fixture_sources|Sources of Truth|sourceId|sourceRevision/);
 });
 
 test("presentation DTO maps abstention distinctly from technical failure", () => {

@@ -72,6 +72,9 @@ export interface GuideSiteRetrievalInspection {
     retrievedSourceCount: number;
     needs: string[];
     concerns: string[];
+    coverageExplanation: string;
+    retrievalDiagnostics: string[];
+    editorialGaps: string[];
   };
   sourceCoverage: Array<{
     sourceId: string;
@@ -249,6 +252,62 @@ function createPromptUnderstandingInspection(run: RunState | null): GuideSitePro
   };
 }
 
+function createRetrievalCoverageExplanation(
+  run: RunState | null,
+  retrieval: RetrievalResults | null,
+  matchedSourceCount: number,
+): string {
+  if (!run) {
+    return "No run has started, so retrieval has not run.";
+  }
+
+  if (!retrieval) {
+    return "Retrieval has not run for this turn.";
+  }
+
+  if (retrieval.coverage.status === "empty_retrieval") {
+    return "No approved Sources of Truth matched the validated Prompt Understanding, so the answer cannot assemble from source-backed material.";
+  }
+
+  if (run.answerComposition?.status === "partial") {
+    return `The answer candidate used ${matchedSourceCount} matched Sources of Truth, but coverage is partial and remains operator-gated.`;
+  }
+
+  if (run.answerComposition?.status === "fallback") {
+    return "The system abstained because approved Sources of Truth were missing or insufficient for the validated Prompt Understanding.";
+  }
+
+  if (run.answerComposition?.status === "needs_context") {
+    return `Retrieval found ${matchedSourceCount} matched Sources of Truth, but answer assembly stayed in context gathering until required Visitor Context is collected.`;
+  }
+
+  return `Retrieval found ${matchedSourceCount} matched Sources of Truth for the assembled answer.`;
+}
+
+function createEditorialGaps(run: RunState | null, retrieval: RetrievalResults | null): string[] {
+  if (!retrieval) {
+    return [];
+  }
+
+  const gaps: string[] = [];
+
+  if (retrieval.coverage.status === "empty_retrieval") {
+    gaps.push("Missing approved Sources of Truth for the validated retrieval needs or concerns.");
+  }
+
+  if (run?.answerComposition?.status === "partial") {
+    gaps.push("Available Sources of Truth only support a partial answer candidate.");
+  }
+
+  for (const diagnostic of retrieval.diagnostics) {
+    if (diagnostic.startsWith("insufficient_") || diagnostic.includes("unapproved_sources")) {
+      gaps.push(diagnostic);
+    }
+  }
+
+  return [...new Set(gaps)];
+}
+
 function createRetrievalInspection(run: RunState | null): GuideSiteRetrievalInspection {
   const retrieval = run?.retrieval ?? null;
   const matchedSourceIds = new Set(retrieval?.coverage.matchedSourceIds ?? []);
@@ -262,6 +321,9 @@ function createRetrievalInspection(run: RunState | null): GuideSiteRetrievalInsp
       retrievedSourceCount: retrieval?.results.length ?? 0,
       needs: retrieval?.needs ?? [],
       concerns: retrieval?.concerns ?? [],
+      coverageExplanation: createRetrievalCoverageExplanation(run, retrieval, matchedSourceIds.size),
+      retrievalDiagnostics: retrieval?.diagnostics ?? [],
+      editorialGaps: createEditorialGaps(run, retrieval),
     },
     sourceCoverage: (retrieval?.results ?? []).map((result) => ({
       sourceId: result.sourceId,
