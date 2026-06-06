@@ -304,6 +304,18 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   };
   const answeredRun: RunState = {
     ...run,
+    snapshot: {
+      ...run.snapshot,
+      promptHistory: [
+        {
+          runId: "run_prior_prompt",
+          text: "My child is nervous about overnight camp.",
+          source: "typed",
+          selectedSuggestedPromptId: null,
+          createdAt: "2025-12-31T00:00:00.000Z",
+        },
+      ],
+    },
     status: "composed",
     understanding: {
       goal: "assess_fit",
@@ -401,6 +413,12 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal("provider" in presentation.answer, false);
   assert.equal("model" in presentation.answer, false);
   assert.deepEqual(presentation.journeyTimeline.prompts, [
+    {
+      runId: "run_prior_prompt",
+      text: "My child is nervous about overnight camp.",
+      source: "typed",
+      createdAt: "2025-12-31T00:00:00.000Z",
+    },
     {
       runId: "run_presentation_dto",
       text: canonicalPrompt,

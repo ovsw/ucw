@@ -226,9 +226,11 @@ function createJourneyTimeline(run: RunState | null): GuideSiteJourneyTimeline {
   }
 
   const session = run.committedSessionState ?? run.snapshot;
-  const promptHistory = session.promptHistory && session.promptHistory.length > 0
-    ? session.promptHistory
+  const basePromptHistory = session.promptHistory ?? [];
+  const promptHistory = run.committedSessionState
+    ? basePromptHistory
     : [
+        ...basePromptHistory,
         {
           runId: run.runId,
           text: run.prompt.text,
