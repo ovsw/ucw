@@ -526,7 +526,7 @@ test("operator client keeps provider metadata out of the answer surface", () => 
 });
 
 test("operator demo client renders every allowed presentation state distinctly", () => {
-  const basePresentation: Pick<GuideSitePresentation, "camp" | "operatorDiagnostics" | "operatorInspection"> = {
+  const basePresentation: Pick<GuideSitePresentation, "camp" | "operatorDiagnostics" | "operatorInspection" | "journeyTimeline"> = {
     camp: {
       campId: "ultimate-camp-website",
       campName: "Ultimate Camp Website",
@@ -543,6 +543,7 @@ test("operator demo client renders every allowed presentation state distinctly",
       diagnostics: [],
     },
     operatorInspection: createGuideSiteLoadingPresentation().operatorInspection,
+    journeyTimeline: createGuideSiteLoadingPresentation().journeyTimeline,
   };
 
   const cases: Array<{
