@@ -25,7 +25,7 @@ type OperatorDemoClientProps = {
 
 function StatusChip({ label }: { label: string }) {
   return (
-    <span className="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+    <span className="inline-flex max-w-full items-center rounded-full border border-slate-900/10 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
       {label}
     </span>
   );
@@ -54,7 +54,7 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
   const citations = section.citations;
 
   return (
-    <article className="rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5">
+    <article className="overflow-hidden rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">{section.title}</p>
         {citations.length > 0 ? (
@@ -153,13 +153,13 @@ function FreeformReplyCard({
           name="promptText"
           aria-label={`Freeform reply for ${questionText}`}
           placeholder="Answer in your own words"
-          className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
+          className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
         />
         <SessionIdField sessionId={sessionId} />
         <input type="hidden" name="operatorAction" value="submitPrompt" />
         <button
           type="submit"
-          className="inline-flex w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
+          className="inline-flex w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-amber-500 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
         >
           Submit freeform reply
         </button>
@@ -186,10 +186,10 @@ function PromptButton({
       <SessionIdField sessionId={sessionId} />
       <button
         type="submit"
-        className="inline-flex w-full items-center justify-between rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
+        className="inline-flex w-full items-start justify-between gap-4 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
       >
-        <span>{promptText}</span>
-        <span className="text-xs uppercase tracking-[0.18em] text-amber-800">{badgeLabel}</span>
+        <span className="min-w-0 break-words">{promptText}</span>
+        <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-amber-800">{badgeLabel}</span>
       </button>
     </form>
   );
@@ -475,7 +475,7 @@ function RawStructuredOutputDetails({ inspection }: { inspection: GuideSiteOpera
 
   return (
     <details className="mt-5 rounded-[1.25rem] border border-dashed border-slate-900/20 bg-white px-4 py-4">
-      <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+      <summary className="cursor-pointer rounded-[0.75rem] text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
         Raw structured output
       </summary>
       <div className="mt-4 grid gap-3">
@@ -524,9 +524,9 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
   const providerSummary = operatorInspection.providerMetadata.summary;
 
   return (
-    <aside className="rounded-[1.75rem] border border-black/10 bg-white/70 p-4 shadow-[0_18px_48px_rgba(48,28,8,0.08)] sm:p-5">
+    <aside className="rounded-[1.75rem] border border-black/10 bg-white/72 p-4 shadow-[0_18px_48px_rgba(48,28,8,0.08)] backdrop-blur-sm sm:p-5 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-auto">
       <details className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3 marker:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Operator inspection</p>
             <h2 className="mt-1 text-lg font-semibold tracking-[-0.04em] text-slate-950">Inspection drawer</h2>
@@ -681,9 +681,9 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
   }, [sessionId]);
 
   return (
-    <main aria-labelledby="operator-title" className="min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col gap-6">
-        <header className="rounded-[2rem] border border-black/10 bg-white/72 px-6 py-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:px-8">
+    <main aria-labelledby="operator-title" className="min-h-screen px-3 py-4 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-7xl flex-col gap-5 lg:min-h-[calc(100vh-4rem)] lg:gap-6">
+        <header className="rounded-[1.75rem] border border-black/10 bg-white/72 px-5 py-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:rounded-[2rem] sm:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">
@@ -719,8 +719,13 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
           aria-label="Demo surface"
           className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]"
         >
-          <article className="rounded-[2rem] border border-black/10 bg-[#fffaf1]/92 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">
-            <div className="flex items-center justify-between gap-4">
+          <article
+            data-camp-id={camp.campId}
+            data-answer-accent={camp.answerAccent}
+            data-surface-tone={camp.surfaceTone}
+            className="min-w-0 rounded-[1.75rem] border border-black/10 bg-[color:var(--ucw-answer-surface)] p-4 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:rounded-[2rem] sm:p-8"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Answer Presentation</p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-3xl">
@@ -738,7 +743,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
 
             <div className="mt-6">{renderAnswerContent(answer, submitPromptFormAction, sessionId)}</div>
 
-            <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5">
+            <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">New demo</p>
               <p className="mt-3 text-sm leading-6 text-slate-700">
                 Start a fresh operator demo to clear the current prompt path and begin a new Parent journey.
@@ -747,7 +752,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 <input type="hidden" name="operatorAction" value="startDemo" />
                 <button
                   type="submit"
-                  className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                  className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950/35"
                 >
                   Open a new demo
                 </button>
@@ -761,7 +766,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
           </div>
         </section>
 
-        <section aria-label="Prompt controls" className="rounded-[2rem] border border-black/10 bg-white/82 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">
+        <section aria-label="Prompt controls" className="rounded-[1.75rem] border border-black/10 bg-white/82 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:rounded-[2rem] sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Prompt controls</p>
@@ -808,13 +813,13 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                   name="promptText"
                   defaultValue={currentResult.promptText}
                   aria-label="Typed prompt"
-                  className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
+                  className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
                 />
                 <SessionIdField sessionId={sessionId} />
                 <input type="hidden" name="operatorAction" value="submitPrompt" />
                 <button
                   type="submit"
-                  className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
                 >
                   Run typed prompt
                 </button>

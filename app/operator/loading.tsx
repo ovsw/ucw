@@ -2,11 +2,12 @@ import React from "react";
 
 export default function OperatorLoading() {
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl items-center justify-center">
+    <main className="min-h-screen px-3 py-4 text-slate-950 sm:px-6 lg:px-10 lg:py-8" aria-busy="true">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-7xl items-center justify-center lg:min-h-[calc(100vh-4rem)]">
         <section
           aria-labelledby="operator-loading-title"
-          className="w-full max-w-2xl rounded-[2rem] border border-black/10 bg-white/85 px-6 py-8 text-center shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:px-10"
+          aria-live="polite"
+          className="w-full max-w-2xl rounded-[1.75rem] border border-black/10 bg-white/85 px-6 py-8 text-center shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:rounded-[2rem] sm:px-10"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">
             Operator Demo Surface

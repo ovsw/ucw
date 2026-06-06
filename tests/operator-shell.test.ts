@@ -31,6 +31,12 @@ test("operator shell renders the canonical demo surface", async () => {
       /name="sessionId"/,
       /Open Sanity admin/,
       /href="\/admin"/,
+      /lg:grid-cols-\[minmax\(0,1\.4fr\)_minmax\(320px,0\.6fr\)\]/,
+      /lg:sticky/,
+      /data-camp-id="ultimate-camp-website"/,
+      /data-answer-accent="amber"/,
+      /sm:flex-row/,
+      /focus-visible:ring-2/,
     ]) {
       assert.match(markup, expected);
     }
@@ -58,6 +64,8 @@ test("operator shell renders the canonical demo surface", async () => {
 test("operator loading route stays simple and readable", () => {
   const markup = renderToStaticMarkup(OperatorLoading());
 
+  assert.match(markup, /aria-busy="true"/);
+  assert.match(markup, /aria-live="polite"/);
   assert.match(markup, /Loading the validated GuideSite presentation/);
   assert.match(markup, /canonical Parent journey/i);
 });
@@ -67,5 +75,7 @@ test("global CSS imports Tailwind 4 and the PostCSS plugin is configured", () =>
   const postcssConfig = readFileSync(join(process.cwd(), "postcss.config.mjs"), "utf8");
 
   assert.match(globalsCss, /@import "tailwindcss";/);
+  assert.match(globalsCss, /--ucw-answer-surface: #fffaf1;/);
+  assert.match(globalsCss, /--ucw-answer-accent: #b45309;/);
   assert.match(postcssConfig, /"@tailwindcss\/postcss"/);
 });

@@ -695,6 +695,27 @@ test("operator demo client hides unsupported answer statuses behind technical fa
   assert.doesNotMatch(markup, /partial answer should never be shown/i);
 });
 
+test("operator demo client keeps the answer presentation usable at mobile preview widths", () => {
+  const clientSource = readFileSync(join(process.cwd(), "app/operator/operator-demo-client.tsx"), "utf8");
+
+  assert.match(clientSource, /min-w-0 rounded-\[1\.75rem\]/);
+  assert.match(clientSource, /bg-\[color:var\(--ucw-answer-surface\)\] p-4 shadow-\[0_24px_70px_rgba\(48,28,8,0\.1\)\] sm:rounded-\[2rem\] sm:p-8/);
+  assert.match(clientSource, /flex flex-col gap-4 sm:flex-row/);
+  assert.match(clientSource, /min-w-0 break-words/);
+  assert.doesNotMatch(clientSource, /requiredMedia|mandatoryMedia|heroImage|videoUrl/);
+});
+
+test("operator demo client exposes native controls without custom keyboard shortcuts", () => {
+  const clientSource = readFileSync(join(process.cwd(), "app/operator/operator-demo-client.tsx"), "utf8");
+
+  assert.match(clientSource, /<details className="group">/);
+  assert.match(clientSource, /<summary className="flex cursor-pointer list-none/);
+  assert.match(clientSource, /focus-visible:outline-none focus-visible:ring-2/);
+  assert.match(clientSource, /type="submit"/);
+  assert.doesNotMatch(clientSource, /onKeyDown|onKeyUp|onKeyPress|addEventListener\(["']keydown/);
+  assert.doesNotMatch(clientSource, /accessKey=/);
+});
+
 test("operator demo client stays free of server-only GuideSite imports", () => {
   const clientSource = readFileSync(join(process.cwd(), "app/operator/operator-demo-client.tsx"), "utf8");
 

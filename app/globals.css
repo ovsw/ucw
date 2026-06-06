@@ -6,7 +6,12 @@
 }
 
 :root {
-  color: #1f1a17;
+  --ucw-operator-ink: #1f1a17;
+  --ucw-operator-muted: #6f6257;
+  --ucw-operator-panel: rgba(255, 255, 255, 0.78);
+  --ucw-answer-surface: #fffaf1;
+  --ucw-answer-accent: #b45309;
+  color: var(--ucw-operator-ink);
   background:
     radial-gradient(circle at top left, rgba(212, 180, 138, 0.28), transparent 28%),
     radial-gradient(circle at top right, rgba(115, 95, 74, 0.18), transparent 32%),
@@ -26,7 +31,7 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  color: #1f1a17;
+  color: var(--ucw-operator-ink);
   background: transparent;
 }
 
