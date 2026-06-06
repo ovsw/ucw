@@ -354,19 +354,29 @@ function formatInspectionValue(value: unknown): string {
 }
 
 function RawStructuredOutputDetails({ inspection }: { inspection: GuideSiteOperatorInspection }) {
+  const rawStructuredOutput = inspection.rawStructuredOutput;
+  const rawSummaryEntries = Object.entries(rawStructuredOutput?.summary ?? {});
+  const rawDetails = rawStructuredOutput?.details ?? null;
+
   return (
     <details className="mt-5 rounded-[1.25rem] border border-dashed border-slate-900/20 bg-white px-4 py-4">
       <summary className="cursor-pointer text-sm font-semibold text-slate-700">
         Raw structured output
       </summary>
       <div className="mt-4 grid gap-3">
-        {Object.entries(inspection.rawStructuredOutput.summary).map(([key, value]) => (
-          <div key={key} className="rounded-[1rem] bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
-            <span className="font-semibold">{key}</span>: {formatInspectionValue(value)}
+        {rawSummaryEntries.length > 0 ? (
+          rawSummaryEntries.map(([key, value]) => (
+            <div key={key} className="rounded-[1rem] bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+              <span className="font-semibold">{key}</span>: {formatInspectionValue(value)}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[1rem] bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+            Raw structured output summary is not available.
           </div>
-        ))}
+        )}
         <pre className="max-h-96 overflow-auto rounded-[1rem] bg-slate-950 p-4 text-xs leading-5 text-slate-100">
-          {JSON.stringify(inspection.rawStructuredOutput.details, null, 2)}
+          {JSON.stringify(rawDetails, null, 2)}
         </pre>
       </div>
     </details>
