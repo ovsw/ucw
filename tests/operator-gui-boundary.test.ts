@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { createGuideSiteMemoryStores, startGuideSiteRun } from "../src/guidesite-mvp/run-lifecycle.js";
 import type { AnswerComposition, RunState } from "../src/guidesite-mvp/types.js";
-import { createGuideSiteLoadingPresentation, type GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
+import { createGuideSiteLoadingPresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
 import {
   DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
   createGuideSiteGuiService,
@@ -36,22 +36,67 @@ function createAnsweredRun(): RunState {
         kind: "summary",
         title: "Summary",
         body: "The answer stays product-shaped and source-backed.",
-        sourceRefs: [],
+        sourceRefs: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+        ],
       },
     ],
     suggestedPrompts: [],
-    citations: [],
-    diagnostics: [],
+    citations: ["Overnight Camp Program"],
+    diagnostics: ["composer_used_source_backed_sections"],
   };
 
   return {
     ...started,
     status: "composed",
+    understanding: {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+      facts: {
+        childAge: {
+          value: 8,
+          provenance: {
+            source: "explicit",
+            promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: ["overnight camp program"],
+      contextNeeds: [],
+    },
+    promptUnderstandingProvider: {
+      provider: "openai",
+      model: "gpt-test",
+      rawOutput: "{\"goal\":\"assess_fit\"}",
+      parsedOutput: {
+        goal: "assess_fit",
+      },
+      diagnostics: ["provider_trace_available"],
+    },
+    promptUnderstandingValidation: {
+      valid: true,
+      diagnostics: [],
+    },
     retrieval: {
       adapterId: "fixture",
       adapterLabel: "Fixture",
-      needs: [],
-      concerns: [],
+      needs: ["overnight camp program"],
+      concerns: ["homesickness"],
       results: [
         {
           sourceId: "program_overnight",
@@ -68,7 +113,12 @@ function createAnsweredRun(): RunState {
         matchedSourceIds: ["program_overnight"],
       },
     },
+    answerCompositionValidation: {
+      valid: true,
+      diagnostics: [],
+    },
     answerComposition,
+    diagnostics: ["run_diagnostic_note"],
   };
 }
 
@@ -353,6 +403,60 @@ test("operator demo client renders assembled answers as text-first sections with
   assert.doesNotMatch(markup, /Contact Path/);
 });
 
+test("operator inspection drawer renders summaries first with raw structured output one level deeper", () => {
+  const presentation = mapGuideSiteRunStateToPresentation(createAnsweredRun());
+  const result: GuideSiteGuiActionResult = {
+    promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    presentation,
+  };
+
+  const markup = renderToStaticMarkup(
+    React.createElement(OperatorDemoClient, {
+      result,
+      startDemoAction: async () => result,
+      submitPromptAction: async () => result,
+    }),
+  );
+
+  assert.match(markup, /<details class="group">/);
+  assert.match(markup, /Inspection drawer/);
+  assert.match(markup, /Prompt understanding/);
+  assert.match(markup, /Retrieval\/source coverage/);
+  assert.match(markup, /Validation\/product-state reasoning/);
+  assert.match(markup, /Diagnostics/);
+  assert.match(markup, /Raw structured output/);
+  assert.ok(markup.indexOf("Prompt understanding") < markup.indexOf("Raw structured output"));
+  assert.ok(markup.indexOf("Retrieval/source coverage") < markup.indexOf("Raw structured output"));
+  assert.ok(markup.indexOf("Validation/product-state reasoning") < markup.indexOf("Raw structured output"));
+  assert.match(markup, /&quot;providerRawOutput&quot;: &quot;{\\&quot;goal\\&quot;:\\&quot;assess_fit\\&quot;}&quot;/);
+  assert.match(markup, /hasProviderRawOutput/);
+});
+
+test("operator client keeps provider metadata out of the answer surface", () => {
+  const presentation = mapGuideSiteRunStateToPresentation(createAnsweredRun());
+  const result: GuideSiteGuiActionResult = {
+    promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    presentation,
+  };
+
+  const markup = renderToStaticMarkup(
+    React.createElement(OperatorDemoClient, {
+      result,
+      startDemoAction: async () => result,
+      submitPromptAction: async () => result,
+    }),
+  );
+
+  const answerSurfaceIndex = markup.indexOf("Parent-shaped output");
+  const inspectionIndex = markup.indexOf("Inspection drawer");
+  const providerIndex = markup.indexOf("gpt-test");
+
+  assert.ok(answerSurfaceIndex >= 0);
+  assert.ok(inspectionIndex > answerSurfaceIndex);
+  assert.ok(providerIndex > inspectionIndex);
+  assert.doesNotMatch(markup.slice(answerSurfaceIndex, inspectionIndex), /gpt-test|openai|providerRawOutput/);
+});
+
 test("operator demo client renders every allowed presentation state distinctly", () => {
   const basePresentation: Pick<GuideSitePresentation, "camp" | "operatorDiagnostics" | "operatorInspection"> = {
     camp: {
@@ -472,6 +576,10 @@ test("operator demo client renders every allowed presentation state distinctly",
     for (const expectation of expectations) {
       assert.match(markup, expectation, label);
     }
+
+    assert.match(markup, /Inspection drawer/, label);
+    assert.match(markup, /Answer disposition/, label);
+    assert.match(markup, /Raw structured output/, label);
   }
 });
 

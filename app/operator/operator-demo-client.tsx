@@ -2,6 +2,7 @@
 
 import React from "react";
 import type {
+  GuideSiteOperatorInspection,
   GuideSitePresentation,
   GuideSitePresentationSection,
   GuideSiteRequiredQuestion,
@@ -317,51 +318,180 @@ function renderAnswerContent(
   }
 }
 
-function renderDiagnostics(presentation: GuideSitePresentation, promptText: string) {
-  const { operatorDiagnostics } = presentation;
+function InspectionSummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-[1rem] border border-slate-900/10 bg-white px-3 py-2">
+      <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</dt>
+      <dd className="mt-1 text-sm leading-6 text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+function InspectionList({ emptyLabel, items }: { emptyLabel: string; items: string[] }) {
+  if (items.length === 0) {
+    return <span className="text-slate-500">{emptyLabel}</span>;
+  }
 
   return (
-    <aside className="rounded-[1.75rem] border border-black/10 bg-white/78 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Operator inspection</p>
-          <h2 className="mt-2 text-xl font-semibold tracking-[-0.05em] text-slate-950">Diagnostics</h2>
-        </div>
-        <StatusChip label={operatorDiagnostics.runStatus} />
+    <ul className="space-y-1">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function formatInspectionValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "Not available";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  return String(value).replace(/_/g, " ");
+}
+
+function RawStructuredOutputDetails({ inspection }: { inspection: GuideSiteOperatorInspection }) {
+  return (
+    <details className="mt-5 rounded-[1.25rem] border border-dashed border-slate-900/20 bg-white px-4 py-4">
+      <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+        Raw structured output
+      </summary>
+      <div className="mt-4 grid gap-3">
+        {Object.entries(inspection.rawStructuredOutput.summary).map(([key, value]) => (
+          <div key={key} className="rounded-[1rem] bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+            <span className="font-semibold">{key}</span>: {formatInspectionValue(value)}
+          </div>
+        ))}
+        <pre className="max-h-96 overflow-auto rounded-[1rem] bg-slate-950 p-4 text-xs leading-5 text-slate-100">
+          {JSON.stringify(inspection.rawStructuredOutput.details, null, 2)}
+        </pre>
       </div>
+    </details>
+  );
+}
 
-      <dl className="mt-5 grid gap-3 text-sm text-slate-700">
-        <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
-          <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Prompt</dt>
-          <dd className="mt-1 leading-6 text-slate-800">{promptText}</dd>
-        </div>
-        <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
-          <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Run</dt>
-          <dd className="mt-1 leading-6 text-slate-800">
-            {operatorDiagnostics.runId ?? "Pending"} / {operatorDiagnostics.sessionId ?? "Pending"}
-          </dd>
-        </div>
-        <div className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
-          <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Provider</dt>
-          <dd className="mt-1 leading-6 text-slate-800">
-            {operatorDiagnostics.provider ?? "Not available"}
-            {operatorDiagnostics.model ? ` · ${operatorDiagnostics.model}` : ""}
-          </dd>
-        </div>
-      </dl>
+function InspectionCard({
+  title,
+  eyebrow,
+  children,
+}: {
+  title: string;
+  eyebrow: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
+      <h3 className="mt-1 text-base font-semibold text-slate-950">{title}</h3>
+      <dl className="mt-3 grid gap-2">{children}</dl>
+    </section>
+  );
+}
 
-      {operatorDiagnostics.diagnostics.length > 0 ? (
-        <div className="mt-5 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Diagnostics notes</p>
-          <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-            {operatorDiagnostics.diagnostics.map((message) => (
-              <li key={message} className="rounded-[1rem] bg-slate-50 px-3 py-2">
-                {message}
-              </li>
-            ))}
-          </ul>
+function renderDiagnostics(presentation: GuideSitePresentation, promptText: string) {
+  const { operatorDiagnostics, operatorInspection } = presentation;
+  const promptSummary = operatorInspection.promptUnderstanding.summary;
+  const retrievalSummary = operatorInspection.retrieval.summary;
+  const validationSummary = operatorInspection.validation.summary;
+  const providerSummary = operatorInspection.providerMetadata.summary;
+
+  return (
+    <aside className="rounded-[1.75rem] border border-black/10 bg-white/70 p-4 shadow-[0_18px_48px_rgba(48,28,8,0.08)] sm:p-5">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3 marker:hidden">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Operator inspection</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-[-0.04em] text-slate-950">Inspection drawer</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Secondary summaries for debugging the current answer state.
+            </p>
+          </div>
+          <span className="flex flex-col items-end gap-2">
+            <StatusChip label={operatorDiagnostics.runStatus} />
+            <span className="text-xs font-semibold text-slate-500 group-open:hidden">Expand</span>
+            <span className="hidden text-xs font-semibold text-slate-500 group-open:inline">Collapse</span>
+          </span>
+        </summary>
+
+        <div className="mt-4 grid gap-4">
+          <InspectionCard eyebrow="Run context" title="Prompt and run">
+            <InspectionSummaryRow label="Prompt" value={promptText || "Pending"} />
+            <InspectionSummaryRow
+              label="Run"
+              value={`${operatorDiagnostics.runId ?? "Pending"} / ${operatorDiagnostics.sessionId ?? "Pending"}`}
+            />
+          </InspectionCard>
+
+          <InspectionCard eyebrow="Prompt understanding" title="What the prompt asks for">
+            <InspectionSummaryRow label="Goal" value={formatInspectionValue(promptSummary.goal)} />
+            <InspectionSummaryRow label="Prompt type" value={formatInspectionValue(promptSummary.promptType)} />
+            <InspectionSummaryRow label="Fit question" value={formatInspectionValue(promptSummary.fitQuestion)} />
+            <InspectionSummaryRow label="Facts" value={promptSummary.factCount} />
+            <InspectionSummaryRow label="Concerns" value={promptSummary.concernCount} />
+            <InspectionSummaryRow
+              label="Retrieval needs"
+              value={<InspectionList emptyLabel="No retrieval needs" items={promptSummary.retrievalNeeds} />}
+            />
+            <InspectionSummaryRow
+              label="Context needs"
+              value={<InspectionList emptyLabel="No context needs" items={promptSummary.contextNeeds} />}
+            />
+          </InspectionCard>
+
+          <InspectionCard eyebrow="Retrieval/source coverage" title="Source support">
+            <InspectionSummaryRow label="Coverage" value={formatInspectionValue(retrievalSummary.coverageStatus)} />
+            <InspectionSummaryRow label="Adapter" value={retrievalSummary.adapterLabel ?? retrievalSummary.adapterId ?? "Not run"} />
+            <InspectionSummaryRow label="Matched sources" value={retrievalSummary.matchedSourceCount} />
+            <InspectionSummaryRow label="Retrieved sources" value={retrievalSummary.retrievedSourceCount} />
+            <InspectionSummaryRow
+              label="Needs"
+              value={<InspectionList emptyLabel="No retrieval needs" items={retrievalSummary.needs} />}
+            />
+            <InspectionSummaryRow
+              label="Concerns"
+              value={<InspectionList emptyLabel="No retrieval concerns" items={retrievalSummary.concerns} />}
+            />
+          </InspectionCard>
+
+          {operatorInspection.retrieval.sourceCoverage.length > 0 ? (
+            <section className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Source coverage details</p>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+                {operatorInspection.retrieval.sourceCoverage.map((source) => (
+                  <li key={`${source.sourceId}:${source.rank}`} className="rounded-[1rem] bg-slate-50 px-3 py-2">
+                    {source.matched ? "Matched" : "Retrieved"} · {source.title} · {source.sourceType}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <InspectionCard eyebrow="Validation/product-state reasoning" title="Why this state rendered">
+            <InspectionSummaryRow label="Answer disposition" value={formatInspectionValue(validationSummary.answerDisposition)} />
+            <InspectionSummaryRow label="Prompt validation" value={formatInspectionValue(validationSummary.promptUnderstandingValid)} />
+            <InspectionSummaryRow label="Answer validation" value={formatInspectionValue(validationSummary.answerCompositionValid)} />
+            <InspectionSummaryRow
+              label="Reasoning"
+              value={<InspectionList emptyLabel="No validation reasoning" items={validationSummary.reasoning} />}
+            />
+          </InspectionCard>
+
+          <InspectionCard eyebrow="Diagnostics" title="Provider and diagnostics">
+            <InspectionSummaryRow label="Provider" value={providerSummary.provider ?? "Not available"} />
+            <InspectionSummaryRow label="Model" value={providerSummary.model ?? "Not available"} />
+            <InspectionSummaryRow label="Provider diagnostics" value={providerSummary.diagnosticCount} />
+            <InspectionSummaryRow
+              label="Diagnostics notes"
+              value={<InspectionList emptyLabel="No diagnostics" items={operatorInspection.diagnostics.summary} />}
+            />
+          </InspectionCard>
+
+          <RawStructuredOutputDetails inspection={operatorInspection} />
         </div>
-      ) : null}
+      </details>
     </aside>
   );
 }
