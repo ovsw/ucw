@@ -122,6 +122,7 @@ function FreeformReplyCard({
           className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
         />
         <SessionIdField sessionId={sessionId} />
+        <input type="hidden" name="operatorAction" value="submitPrompt" />
         <button
           type="submit"
           className="inline-flex w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
@@ -147,6 +148,7 @@ function PromptButton({
   return (
     <form action={submitPromptAction}>
       <input type="hidden" name="promptText" value={promptText} />
+      <input type="hidden" name="operatorAction" value="submitPrompt" />
       <SessionIdField sessionId={sessionId} />
       <button
         type="submit"
@@ -339,9 +341,16 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
 }
 
 export default function OperatorDemoClient({ result, startDemoAction, submitPromptAction }: OperatorDemoClientProps) {
-  const startDemoFormAction = startDemoAction as unknown as FormAction;
-  const submitPromptFormAction = submitPromptAction as unknown as FormAction;
-  const { presentation } = result;
+  const [currentResult, operatorDemoFormAction, isActionPending] = React.useActionState(
+    async (_previousResult: GuideSiteGuiActionResult, formData: FormData) => {
+      const requestedAction = formData.get("operatorAction");
+      return requestedAction === "startDemo" ? startDemoAction(formData) : submitPromptAction(formData);
+    },
+    result,
+  );
+  const startDemoFormAction = operatorDemoFormAction as unknown as FormAction;
+  const submitPromptFormAction = operatorDemoFormAction as unknown as FormAction;
+  const { presentation } = currentResult;
   const { answer, camp } = presentation;
   const sessionId = presentation.operatorDiagnostics.sessionId ?? "";
   const answerStateLabel = answer.status.replace(/_/g, " ");
@@ -376,7 +385,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
             <div className="flex flex-wrap gap-3">
               <StatusChip label="Canonical journey" />
               <StatusChip label="Desktop-first" />
-              <StatusChip label={answerStateLabel} />
+              <StatusChip label={isActionPending ? "updating" : answerStateLabel} />
             </div>
           </div>
         </header>
@@ -410,7 +419,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 Start a fresh operator demo to clear the current prompt path and begin a new Parent journey.
               </p>
               <form action={startDemoFormAction} className="mt-4">
-                <input type="hidden" name="promptText" value={result.promptText} />
+                <input type="hidden" name="operatorAction" value="startDemo" />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
@@ -421,7 +430,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
             </div>
           </article>
 
-          {renderDiagnostics(presentation, result.promptText)}
+          {renderDiagnostics(presentation, currentResult.promptText)}
         </section>
 
         <section aria-label="Prompt controls" className="rounded-[2rem] border border-black/10 bg-white/82 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">
@@ -469,11 +478,12 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
                 <input
                   id="operator-prompt"
                   name="promptText"
-                  defaultValue={result.promptText}
+                  defaultValue={currentResult.promptText}
                   aria-label="Typed prompt"
                   className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:border-amber-500"
                 />
                 <SessionIdField sessionId={sessionId} />
+                <input type="hidden" name="operatorAction" value="submitPrompt" />
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950"

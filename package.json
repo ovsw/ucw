@@ -39,11 +39,13 @@
     "@types/node": "^20.14.10",
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
-    "lightningcss-linux-arm64-gnu": "1.32.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.8",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3",
     "typescript-language-server": "^5.3.0"
+  },
+  "optionalDependencies": {
+    "lightningcss-linux-arm64-gnu": "1.32.0"
   }
 }
