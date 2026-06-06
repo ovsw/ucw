@@ -104,6 +104,18 @@ test("OpenAI Prompt Understanding config requires an API key and trims the optio
       model: "gpt-test",
     },
   );
+
+  assert.throws(
+    () =>
+      readOpenAIPromptUnderstandingConfig(
+        { OPENAI_API_KEY: " key " },
+        {
+          requireExplicitModel: true,
+          errorContext: "GuideSite GUI live mode",
+        },
+      ),
+    /Missing required OpenAI config for GuideSite GUI live mode: OPENAI_PROMPT_UNDERSTANDING_MODEL/,
+  );
 });
 
 test("OpenAI Prompt Understanding uses fetch, Structured Outputs, and local schema validation", async () => {

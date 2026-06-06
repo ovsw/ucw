@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { rmSync, writeFileSync } from "node:fs";
 import test from "node:test";
 import {
   DEFAULT_GUIDESITE_GUI_RUNTIME_MODE,
@@ -99,6 +100,21 @@ test("GUI runtime config accepts explicit fixture mode without live demo config"
     runtimeMode: "fixture",
     retrievalMode: "fixture",
   });
+});
+
+test("GUI runtime config accepts explicit fixture mode from the local env file", () => {
+  const envFilePath = ".guidesite-gui-runtime-fixture-test.env";
+
+  try {
+    writeFileSync(envFilePath, "GUIDESITE_GUI_RUNTIME_MODE=fixture\n");
+
+    assert.deepEqual(readGuideSiteGuiRuntimeConfig({ env: {}, envFilePath }), {
+      runtimeMode: "fixture",
+      retrievalMode: "fixture",
+    });
+  } finally {
+    rmSync(envFilePath, { force: true });
+  }
 });
 
 test("GUI runtime config rejects unknown runtime modes", () => {

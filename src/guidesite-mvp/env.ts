@@ -18,7 +18,9 @@ function parseDotenvValue(value: string): string {
   return trimmed;
 }
 
-export type GuideSiteMvpEnv = OpenAIPromptUnderstandingEnv & SanityConfigEnv;
+export type GuideSiteMvpEnv = OpenAIPromptUnderstandingEnv & SanityConfigEnv & {
+  GUIDESITE_GUI_RUNTIME_MODE?: string;
+};
 
 export function parseGuideSiteMvpDotenv(contents: string): GuideSiteMvpEnv {
   const env: GuideSiteMvpEnv = {};
@@ -47,7 +49,8 @@ export function parseGuideSiteMvpDotenv(contents: string): GuideSiteMvpEnv {
       key === "SANITY_DATASET" ||
       key === "SANITY_API_VERSION" ||
       key === "SANITY_READ_TOKEN" ||
-      key === "SANITY_WRITE_TOKEN"
+      key === "SANITY_WRITE_TOKEN" ||
+      key === "GUIDESITE_GUI_RUNTIME_MODE"
     ) {
       env[key] = value;
     }

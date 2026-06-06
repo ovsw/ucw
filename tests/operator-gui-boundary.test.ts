@@ -136,6 +136,64 @@ test("GuideSite GUI service starts from the canonical prompt and maps technical 
   assert.deepEqual(failureResult.presentation.operatorDiagnostics.diagnostics, ["missing live config"]);
 });
 
+test("GuideSite GUI service defaults demo retrieval to live Sanity config without fixture fallback", async () => {
+  const seenRetrievalModes: string[] = [];
+  const service = createGuideSiteGuiService({
+    async runTurn(options) {
+      assert.equal(options.runtimeConfig.runtimeMode, "live");
+      assert.equal(options.runtimeConfig.retrievalMode, "sanity");
+      assert.deepEqual(options.runtimeConfig.sanityQueryConfig, {
+        projectId: "project-123",
+        dataset: "production",
+        apiVersion: "2025-02-19",
+        readToken: "read-token",
+      });
+      assert.deepEqual(options.runtimeConfig.promptUnderstandingConfig, {
+        apiKey: "openai-key",
+        model: "gpt-test",
+      });
+      seenRetrievalModes.push(options.runtimeConfig.retrievalMode);
+      return createAnsweredRun();
+    },
+  });
+
+  const result = await service.startDemo({
+    env: {
+      SANITY_PROJECT_ID: "project-123",
+      SANITY_DATASET: "production",
+      SANITY_API_VERSION: "2025-02-19",
+      SANITY_READ_TOKEN: "read-token",
+      OPENAI_API_KEY: "openai-key",
+      OPENAI_PROMPT_UNDERSTANDING_MODEL: "gpt-test",
+    },
+    envFilePath: ".guidesite-gui-runtime-test.env",
+  });
+
+  assert.deepEqual(seenRetrievalModes, ["sanity"]);
+  assert.equal(result.presentation.answer.status, "assembled_answer");
+});
+
+test("GuideSite GUI service reports missing live config loudly and does not run fixture retrieval", async () => {
+  let runTurnCalled = false;
+  const service = createGuideSiteGuiService({
+    async runTurn() {
+      runTurnCalled = true;
+      return createAnsweredRun();
+    },
+  });
+
+  const result = await service.startDemo({
+    env: {},
+    envFilePath: ".guidesite-gui-runtime-test.env",
+  });
+
+  assert.equal(runTurnCalled, false);
+  assert.equal(result.presentation.answer.status, "technical_failure");
+  assert.match(result.presentation.operatorDiagnostics.diagnostics[0] ?? "", /Missing required Sanity config/);
+  assert.match(result.presentation.operatorDiagnostics.diagnostics[0] ?? "", /SANITY_PROJECT_ID/);
+  assert.doesNotMatch(result.presentation.operatorDiagnostics.diagnostics[0] ?? "", /fixture/i);
+});
+
 test("GuideSite GUI fixture mode keeps vague required-context replies in the context-gathering loop", async () => {
   const service = createGuideSiteGuiService({
     readRuntimeConfig() {

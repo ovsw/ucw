@@ -16,6 +16,11 @@ export type OpenAIPromptUnderstandingEnv = {
   OPENAI_API_KEY?: string;
   OPENAI_PROMPT_UNDERSTANDING_MODEL?: string;
 };
+export type OpenAIPromptUnderstandingConfigReadOptions = {
+  requireExplicitModel?: boolean;
+  errorContext?: string;
+};
+
 
 export type PromptUnderstandingProviderResult = {
   understanding: PromptUnderstanding;
@@ -162,16 +167,28 @@ export class PromptUnderstandingProviderError extends Error {
 
 export function readOpenAIPromptUnderstandingConfig(
   env: OpenAIPromptUnderstandingEnv = process.env as OpenAIPromptUnderstandingEnv,
+  options: OpenAIPromptUnderstandingConfigReadOptions = {},
 ): OpenAIPromptUnderstandingConfig {
   const apiKey = normalize(env.OPENAI_API_KEY);
+  const model = normalize(env.OPENAI_PROMPT_UNDERSTANDING_MODEL);
+  const missingKeys: string[] = [];
 
   if (!apiKey) {
-    throw new Error("Missing required OpenAI config for GuideSite Prompt Understanding: OPENAI_API_KEY.");
+    missingKeys.push("OPENAI_API_KEY");
+  }
+
+  if (options.requireExplicitModel && !model) {
+    missingKeys.push("OPENAI_PROMPT_UNDERSTANDING_MODEL");
+  }
+
+  if (missingKeys.length > 0) {
+    const context = options.errorContext ?? "GuideSite Prompt Understanding";
+    throw new Error(`Missing required OpenAI config for ${context}: ${missingKeys.join(", ")}.`);
   }
 
   return {
-    apiKey,
-    model: normalize(env.OPENAI_PROMPT_UNDERSTANDING_MODEL) ?? DEFAULT_OPENAI_PROMPT_UNDERSTANDING_MODEL,
+    apiKey: apiKey as string,
+    model: model ?? DEFAULT_OPENAI_PROMPT_UNDERSTANDING_MODEL,
   };
 }
 
