@@ -2,6 +2,7 @@
 
 import React from "react";
 import type {
+  GuideSiteCitation,
   GuideSitePresentation,
   GuideSitePresentationSection,
   GuideSiteRequiredQuestion,
@@ -30,14 +31,32 @@ function StatusChip({ label }: { label: string }) {
   );
 }
 
+function SelectedContentEntityStub({ citation }: { citation: GuideSiteCitation }) {
+  return (
+    <div className="rounded-[1.1rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-900">{citation.label}</p>
+        <span className="rounded-full border border-amber-900/10 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-950">
+          {citation.sourceType}
+        </span>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-slate-600">
+        {citation.fieldPath} · {citation.sourceRevision}
+      </p>
+    </div>
+  );
+}
+
 function SectionCard({ section }: { section: GuideSitePresentationSection }) {
+  const citations = section.citations;
+
   return (
     <article className="rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">{section.title}</p>
-        {section.citations.length > 0 ? (
+        {citations.length > 0 ? (
           <div className="flex flex-wrap justify-end gap-2">
-            {section.citations.map((citation) => (
+            {citations.map((citation) => (
               <span
                 key={citation.sourceId}
                 className="rounded-full border border-amber-900/10 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-950"
@@ -61,21 +80,11 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
           ))}
         </ul>
       ) : null}
-      {section.citations.length > 0 ? (
+      {citations.length > 0 ? (
         <div className="mt-4 grid gap-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected content entities</p>
-          {section.citations.map((citation) => (
-            <div key={citation.sourceId} className="rounded-[1.1rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-900">{citation.label}</p>
-                <span className="rounded-full border border-amber-900/10 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-950">
-                  {citation.sourceType}
-                </span>
-              </div>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                {citation.fieldPath} · {citation.sourceRevision}
-              </p>
-            </div>
+          {citations.map((citation) => (
+            <SelectedContentEntityStub key={citation.sourceId} citation={citation} />
           ))}
         </div>
       ) : null}

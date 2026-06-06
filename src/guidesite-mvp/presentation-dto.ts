@@ -252,13 +252,13 @@ function mapAssembledAnswerPresentation(answerComposition: AnswerComposition): G
 
 function mapResponsibleAbstentionPresentation(
   answerComposition: AnswerComposition,
-  options: { conversationalFraming?: string } = {},
+  conversationalFraming?: string,
 ): GuideSiteResponsibleAbstentionPresentation {
   const suggestedNextSteps = answerComposition.suggestedPrompts.map((prompt) => prompt.text);
 
   return {
     status: "responsible_abstention",
-    conversationalFraming: options.conversationalFraming ?? answerComposition.conversationalFraming,
+    conversationalFraming: conversationalFraming ?? answerComposition.conversationalFraming,
     nextSteps: suggestedNextSteps.length > 0 ? suggestedNextSteps : ["Provide more context in a follow-up turn."],
   };
 }
@@ -299,6 +299,7 @@ export function mapGuideSiteRunStateToPresentation(
 
   const camp = resolveCampTheme(options);
   const unresolvedContextNeeds = run.understanding ? collectUnresolvedContextNeeds(run) : [];
+  const hasUnresolvedContextNeeds = unresolvedContextNeeds.length > 0;
   const hasSourceBackedCoverage = run.retrieval?.coverage.status === "source_backed";
   const answerComposition = run.answerComposition;
   const operatorDiagnostics = createOperatorDiagnostics(run, run.diagnostics);
@@ -319,16 +320,6 @@ export function mapGuideSiteRunStateToPresentation(
     };
   }
 
-  if ((answerComposition.status === "answered" || answerComposition.status === "partial") && unresolvedContextNeeds.length > 0) {
-    return {
-      camp,
-      answer: mapContextGatheringPresentation(run, answerComposition),
-      operatorDiagnostics: createGatedOperatorDiagnostics(run, [
-        `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
-      ]),
-    };
-  }
-
   if (answerComposition.status === "needs_context") {
     return {
       camp,
@@ -345,21 +336,29 @@ export function mapGuideSiteRunStateToPresentation(
     };
   }
 
-  if (answerComposition.status === "partial" || !hasSourceBackedCoverage) {
-    return {
-      camp,
-      answer: mapResponsibleAbstentionPresentation(answerComposition, {
-        conversationalFraming: "The GuideSite cannot responsibly answer this prompt yet.",
-      }),
-      operatorDiagnostics: createGatedOperatorDiagnostics(run, [
-        answerComposition.status === "partial"
-          ? "assembled_answer_gated_by_partial_source_coverage"
-          : "assembled_answer_gated_by_insufficient_source_coverage",
-      ]),
-    };
-  }
+  if (answerComposition.status === "answered" || answerComposition.status === "partial") {
+    if (hasUnresolvedContextNeeds) {
+      return {
+        camp,
+        answer: mapContextGatheringPresentation(run, answerComposition),
+        operatorDiagnostics: createGatedOperatorDiagnostics(run, [
+          `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
+        ]),
+      };
+    }
 
-  if (answerComposition.status === "answered") {
+    if (answerComposition.status === "partial" || !hasSourceBackedCoverage) {
+      return {
+        camp,
+        answer: mapResponsibleAbstentionPresentation(answerComposition, "The GuideSite cannot responsibly answer this prompt yet."),
+        operatorDiagnostics: createGatedOperatorDiagnostics(run, [
+          answerComposition.status === "partial"
+            ? "assembled_answer_gated_by_partial_source_coverage"
+            : "assembled_answer_gated_by_insufficient_source_coverage",
+        ]),
+      };
+    }
+
     return {
       camp,
       answer: mapAssembledAnswerPresentation(answerComposition),
