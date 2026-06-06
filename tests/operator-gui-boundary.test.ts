@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { createGuideSiteMemoryStores, startGuideSiteRun } from "../src/guidesite-mvp/run-lifecycle.js";
 import type { AnswerComposition, RunState } from "../src/guidesite-mvp/types.js";
-import type { GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
+import { createGuideSiteLoadingPresentation, type GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
 import {
   DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
   createGuideSiteGuiService,
@@ -253,56 +253,14 @@ test("Operator demo actions adapt form submissions into service calls", async ()
     service: {
       startDemo: async () => ({
         promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
-        presentation: {
-          camp: {
-            campId: "ultimate-camp-website",
-            campName: "Ultimate Camp Website",
-            answerAccent: "amber",
-            surfaceTone: "warm-sand",
-            operatorChrome: "slate",
-          },
-          answer: {
-            status: "loading",
-            headline: "Ultimate Camp Website answer presentation",
-            message: "Loading the operator demo surface.",
-          },
-          operatorDiagnostics: {
-            runId: null,
-            sessionId: null,
-            runStatus: "loading",
-            provider: null,
-            model: null,
-            diagnostics: [],
-          },
-        },
+        presentation: createGuideSiteLoadingPresentation(),
       }),
       submitPrompt: async ({ promptText, sessionId }: { promptText: string; sessionId?: string }) => {
         seenPromptTexts.push(promptText);
         seenSessionIds.push(sessionId);
         return {
           promptText,
-          presentation: {
-            camp: {
-              campId: "ultimate-camp-website",
-              campName: "Ultimate Camp Website",
-              answerAccent: "amber",
-              surfaceTone: "warm-sand",
-              operatorChrome: "slate",
-            },
-            answer: {
-              status: "loading",
-              headline: "Ultimate Camp Website answer presentation",
-              message: "Loading the operator demo surface.",
-            },
-            operatorDiagnostics: {
-              runId: null,
-              sessionId: null,
-              runStatus: "loading",
-              provider: null,
-              model: null,
-              diagnostics: [],
-            },
-          },
+          presentation: createGuideSiteLoadingPresentation(),
         };
       },
     },
@@ -341,11 +299,7 @@ test("operator demo client renders assembled answers as text-first sections with
             body: "The camp offers overnight programming for age-appropriate campers.",
             citations: [
               {
-                sourceId: "program_overnight",
                 label: "Overnight Camp Program",
-                sourceType: "campProgram",
-                fieldPath: "summary",
-                sourceRevision: "mock_rev_program_overnight_001",
               },
             ],
           },
@@ -354,29 +308,17 @@ test("operator demo client renders assembled answers as text-first sections with
             body: "The homesickness policy outlines the support path.",
             citations: [
               {
-                sourceId: "policy_homesickness",
                 label: "Homesickness Support Policy",
-                sourceType: "policy",
-                fieldPath: "summary",
-                sourceRevision: "mock_rev_policy_homesickness_001",
               },
             ],
           },
         ],
         citations: [
           {
-            sourceId: "program_overnight",
             label: "Overnight Camp Program",
-            sourceType: "campProgram",
-            fieldPath: "summary",
-            sourceRevision: "mock_rev_program_overnight_001",
           },
           {
-            sourceId: "policy_homesickness",
             label: "Homesickness Support Policy",
-            sourceType: "policy",
-            fieldPath: "summary",
-            sourceRevision: "mock_rev_policy_homesickness_001",
           },
         ],
       },
@@ -388,6 +330,7 @@ test("operator demo client renders assembled answers as text-first sections with
         model: "gpt-test",
         diagnostics: [],
       },
+      operatorInspection: createGuideSiteLoadingPresentation().operatorInspection,
     },
   };
 
@@ -403,15 +346,15 @@ test("operator demo client renders assembled answers as text-first sections with
   assert.match(markup, /The approved source material explains how overnight camp supports the Child\./);
   assert.ok(markup.indexOf("Summary") < markup.indexOf("Overnight Camp Program"));
   assert.ok(markup.indexOf("Overnight Camp Program") < markup.indexOf("The camp offers overnight programming for age-appropriate campers."));
-  assert.match(markup, /campProgram/);
-  assert.match(markup, /summary · mock_rev_program_overnight_001/);
+  assert.doesNotMatch(markup, /campProgram/);
+  assert.doesNotMatch(markup, /summary · mock_rev_program_overnight_001/);
   assert.ok(markup.indexOf("Concerns") < markup.indexOf("Homesickness Support Policy"));
   assert.ok(markup.indexOf("Homesickness Support Policy") < markup.indexOf("The homesickness policy outlines the support path."));
   assert.doesNotMatch(markup, /Contact Path/);
 });
 
 test("operator demo client renders every allowed presentation state distinctly", () => {
-  const basePresentation: Pick<GuideSitePresentation, "camp" | "operatorDiagnostics"> = {
+  const basePresentation: Pick<GuideSitePresentation, "camp" | "operatorDiagnostics" | "operatorInspection"> = {
     camp: {
       campId: "ultimate-camp-website",
       campName: "Ultimate Camp Website",
@@ -427,6 +370,7 @@ test("operator demo client renders every allowed presentation state distinctly",
       model: null,
       diagnostics: [],
     },
+    operatorInspection: createGuideSiteLoadingPresentation().operatorInspection,
   };
 
   const cases: Array<{
@@ -557,6 +501,7 @@ test("operator demo client hides unsupported answer statuses behind technical fa
         model: "gpt-test",
         diagnostics: [],
       },
+      operatorInspection: createGuideSiteLoadingPresentation().operatorInspection,
     },
   } as unknown as GuideSiteGuiActionResult;
 

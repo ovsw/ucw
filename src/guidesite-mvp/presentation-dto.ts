@@ -1,4 +1,4 @@
-import type { AnswerComposition, AnswerCompositionSection, RunState, SuggestedPrompt } from "./types.ts";
+import type { AnswerComposition, AnswerCompositionSection, PromptUnderstandingProviderTrace, RetrievalResults, RunState, SuggestedPrompt } from "./types.ts";
 import { collectUnresolvedContextNeeds } from "./context-needs.ts";
 
 export interface GuideSiteCampThemeStub {
@@ -18,11 +18,7 @@ export const ULTIMATE_CAMP_WEBSITE_THEME_STUB: GuideSiteCampThemeStub = {
 };
 
 export interface GuideSiteCitation {
-  sourceId: string;
   label: string;
-  sourceType: string;
-  fieldPath: string;
-  sourceRevision: string;
 }
 
 export interface GuideSitePresentationSection {
@@ -52,6 +48,95 @@ export interface GuideSiteOperatorDiagnostics {
   provider: string | null;
   model: string | null;
   diagnostics: string[];
+}
+
+export interface GuideSitePromptUnderstandingInspection {
+  summary: {
+    goal: NonNullable<RunState["understanding"]>["goal"] | null;
+    promptType: NonNullable<RunState["understanding"]>["promptType"] | null;
+    fitQuestion: string | null;
+    factCount: number;
+    concernCount: number;
+    retrievalNeeds: string[];
+    contextNeeds: string[];
+  };
+  details: RunState["understanding"];
+}
+
+export interface GuideSiteRetrievalInspection {
+  summary: {
+    adapterId: string | null;
+    adapterLabel: string | null;
+    coverageStatus: NonNullable<RunState["retrieval"]>["coverage"]["status"] | "not_run";
+    matchedSourceCount: number;
+    retrievedSourceCount: number;
+    needs: string[];
+    concerns: string[];
+  };
+  sourceCoverage: Array<{
+    sourceId: string;
+    sourceType: string;
+    title: string;
+    rank: number;
+    fieldPath: string;
+    sourceRevision: string;
+    matched: boolean;
+  }>;
+  details: RetrievalResults | null;
+}
+
+export interface GuideSiteValidationInspection {
+  summary: {
+    answerDisposition: GuideSitePresentationAnswer["status"] | "not_rendered";
+    promptUnderstandingValid: boolean | null;
+    answerCompositionValid: boolean | null;
+    reasoning: string[];
+  };
+  details: {
+    promptUnderstanding: RunState["promptUnderstandingValidation"];
+    answerComposition: RunState["answerCompositionValidation"];
+    rejectedAnswerComposition: RunState["rejectedAnswerComposition"];
+  };
+}
+
+export interface GuideSiteProviderInspection {
+  summary: {
+    provider: PromptUnderstandingProviderTrace["provider"] | null;
+    model: string | null;
+    diagnosticCount: number;
+  };
+  details: PromptUnderstandingProviderTrace | null;
+}
+
+export interface GuideSiteRawStructuredOutputInspection {
+  summary: {
+    hasProviderRawOutput: boolean;
+    hasProviderParsedOutput: boolean;
+    hasPromptUnderstanding: boolean;
+    hasRetrieval: boolean;
+    hasAnswerComposition: boolean;
+    hasRejectedAnswerComposition: boolean;
+  };
+  details: {
+    providerRawOutput: string | null;
+    providerParsedOutput: unknown;
+    promptUnderstanding: RunState["understanding"];
+    retrieval: RunState["retrieval"];
+    answerComposition: RunState["answerComposition"];
+    rejectedAnswerComposition: RunState["rejectedAnswerComposition"];
+  };
+}
+
+export interface GuideSiteOperatorInspection {
+  promptUnderstanding: GuideSitePromptUnderstandingInspection;
+  retrieval: GuideSiteRetrievalInspection;
+  validation: GuideSiteValidationInspection;
+  diagnostics: {
+    summary: string[];
+    details: string[];
+  };
+  providerMetadata: GuideSiteProviderInspection;
+  rawStructuredOutput: GuideSiteRawStructuredOutputInspection;
 }
 
 export interface GuideSiteLoadingPresentation {
@@ -98,6 +183,7 @@ export interface GuideSitePresentation {
   camp: GuideSiteCampThemeStub;
   answer: GuideSitePresentationAnswer;
   operatorDiagnostics: GuideSiteOperatorDiagnostics;
+  operatorInspection: GuideSiteOperatorInspection;
 }
 
 function resolveCampTheme(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSiteCampThemeStub {
@@ -117,11 +203,7 @@ function createOperatorDiagnostics(run: RunState | null, diagnostics: string[] =
 
 function collectSectionCitations(section: AnswerCompositionSection): GuideSiteCitation[] {
   return (section.sourceRefs ?? []).map((sourceRef) => ({
-    sourceId: sourceRef.sourceId,
     label: sourceRef.title,
-    sourceType: sourceRef.sourceType,
-    fieldPath: sourceRef.fieldPath,
-    sourceRevision: sourceRef.sourceRevision,
   }));
 }
 
@@ -137,17 +219,178 @@ function collectPresentationSections(answerComposition: AnswerComposition): Guid
 }
 
 function collectAnswerCitations(sections: GuideSitePresentationSection[]): GuideSiteCitation[] {
-  const citationsBySourceId = new Map<string, GuideSiteCitation>();
+  const citationsByLabel = new Map<string, GuideSiteCitation>();
 
   for (const section of sections) {
     for (const citation of section.citations) {
-      if (!citationsBySourceId.has(citation.sourceId)) {
-        citationsBySourceId.set(citation.sourceId, citation);
+      if (!citationsByLabel.has(citation.label)) {
+        citationsByLabel.set(citation.label, citation);
       }
     }
   }
 
-  return [...citationsBySourceId.values()];
+  return [...citationsByLabel.values()];
+}
+
+function createPromptUnderstandingInspection(run: RunState | null): GuideSitePromptUnderstandingInspection {
+  const understanding = run?.understanding ?? null;
+
+  return {
+    summary: {
+      goal: understanding?.goal ?? null,
+      promptType: understanding?.promptType ?? null,
+      fitQuestion: understanding?.fitQuestion ?? null,
+      factCount: understanding ? Object.keys(understanding.facts).length : 0,
+      concernCount: understanding?.concerns.length ?? 0,
+      retrievalNeeds: understanding?.retrievalNeeds ?? [],
+      contextNeeds: understanding?.contextNeeds ?? [],
+    },
+    details: understanding,
+  };
+}
+
+function createRetrievalInspection(run: RunState | null): GuideSiteRetrievalInspection {
+  const retrieval = run?.retrieval ?? null;
+  const matchedSourceIds = new Set(retrieval?.coverage.matchedSourceIds ?? []);
+
+  return {
+    summary: {
+      adapterId: retrieval?.adapterId ?? null,
+      adapterLabel: retrieval?.adapterLabel ?? null,
+      coverageStatus: retrieval?.coverage.status ?? "not_run",
+      matchedSourceCount: matchedSourceIds.size,
+      retrievedSourceCount: retrieval?.results.length ?? 0,
+      needs: retrieval?.needs ?? [],
+      concerns: retrieval?.concerns ?? [],
+    },
+    sourceCoverage: (retrieval?.results ?? []).map((result) => ({
+      sourceId: result.sourceId,
+      sourceType: result.sourceType,
+      title: result.title,
+      rank: result.rank,
+      fieldPath: result.fieldPath,
+      sourceRevision: result.sourceRevision,
+      matched: matchedSourceIds.has(result.sourceId),
+    })),
+    details: retrieval,
+  };
+}
+
+function createValidationReasoning(
+  run: RunState | null,
+  answerDisposition: GuideSiteValidationInspection["summary"]["answerDisposition"],
+  diagnostics: string[],
+): string[] {
+  if (!run) {
+    return ["No run has started yet."];
+  }
+
+  const reasoning: string[] = [];
+
+  if (run.promptUnderstandingValidation && !run.promptUnderstandingValidation.valid) {
+    reasoning.push("Prompt understanding failed validation before retrieval or answer composition.");
+  }
+
+  if (run.answerCompositionValidation && !run.answerCompositionValidation.valid) {
+    reasoning.push("Answer composition failed validation before a Parent-shaped answer could be rendered.");
+  }
+
+  if (answerDisposition === "responsible_abstention") {
+    reasoning.push("The system abstained rather than presenting an unsupported answer.");
+  }
+
+  if (answerDisposition === "context_gathering_response") {
+    reasoning.push("The system requested required Visitor Context before answering.");
+  }
+
+  if (answerDisposition === "technical_failure") {
+    reasoning.push("A technical failure prevented product answer rendering.");
+  }
+
+  if (diagnostics.length > 0) {
+    reasoning.push(...diagnostics);
+  }
+
+  return reasoning;
+}
+
+function createValidationInspection(
+  run: RunState | null,
+  diagnostics: string[],
+  answerDisposition: GuideSiteValidationInspection["summary"]["answerDisposition"],
+): GuideSiteValidationInspection {
+  return {
+    summary: {
+      answerDisposition,
+      promptUnderstandingValid: run?.promptUnderstandingValidation?.valid ?? null,
+      answerCompositionValid: run?.answerCompositionValidation?.valid ?? null,
+      reasoning: createValidationReasoning(run, answerDisposition, diagnostics),
+    },
+    details: {
+      promptUnderstanding: run?.promptUnderstandingValidation ?? null,
+      answerComposition: run?.answerCompositionValidation ?? null,
+      rejectedAnswerComposition: run?.rejectedAnswerComposition ?? null,
+    },
+  };
+}
+
+function createProviderInspection(run: RunState | null): GuideSiteProviderInspection {
+  const providerTrace = run?.promptUnderstandingProvider ?? null;
+
+  return {
+    summary: {
+      provider: providerTrace?.provider ?? null,
+      model: providerTrace?.model ?? null,
+      diagnosticCount: providerTrace?.diagnostics.length ?? 0,
+    },
+    details: providerTrace,
+  };
+}
+
+function createRawStructuredOutputInspection(run: RunState | null): GuideSiteRawStructuredOutputInspection {
+  const providerTrace = run?.promptUnderstandingProvider ?? null;
+  const providerParsedOutput = providerTrace?.parsedOutput ?? null;
+  const promptUnderstanding = run?.understanding ?? null;
+  const retrieval = run?.retrieval ?? null;
+  const answerComposition = run?.answerComposition ?? null;
+  const rejectedAnswerComposition = run?.rejectedAnswerComposition ?? null;
+
+  return {
+    summary: {
+      hasProviderRawOutput: providerTrace?.rawOutput !== null && providerTrace?.rawOutput !== undefined,
+      hasProviderParsedOutput: providerParsedOutput !== null && providerParsedOutput !== undefined,
+      hasPromptUnderstanding: promptUnderstanding !== null,
+      hasRetrieval: retrieval !== null,
+      hasAnswerComposition: answerComposition !== null,
+      hasRejectedAnswerComposition: rejectedAnswerComposition !== null,
+    },
+    details: {
+      providerRawOutput: providerTrace?.rawOutput ?? null,
+      providerParsedOutput,
+      promptUnderstanding,
+      retrieval,
+      answerComposition,
+      rejectedAnswerComposition,
+    },
+  };
+}
+
+function createOperatorInspection(
+  run: RunState | null,
+  diagnostics: string[] = [],
+  answerDisposition: GuideSiteValidationInspection["summary"]["answerDisposition"] = "not_rendered",
+): GuideSiteOperatorInspection {
+  return {
+    promptUnderstanding: createPromptUnderstandingInspection(run),
+    retrieval: createRetrievalInspection(run),
+    validation: createValidationInspection(run, diagnostics, answerDisposition),
+    diagnostics: {
+      summary: diagnostics,
+      details: diagnostics,
+    },
+    providerMetadata: createProviderInspection(run),
+    rawStructuredOutput: createRawStructuredOutputInspection(run),
+  };
 }
 
 function collectContextNeedRationales(answerComposition: AnswerComposition): Map<string, string> {
@@ -287,6 +530,14 @@ function mapValidationFailurePresentation(
       },
       diagnostics,
     ),
+    operatorInspection: createOperatorInspection(
+      {
+        ...run,
+        status: "validation_failed",
+      },
+      diagnostics,
+      "technical_failure",
+    ),
   };
 }
 
@@ -305,6 +556,19 @@ export function createGuideSiteLoadingPresentation(options: { camp?: GuideSiteCa
       message: "Loading the operator demo surface.",
     },
     operatorDiagnostics: createOperatorDiagnostics(null),
+    operatorInspection: createOperatorInspection(null, [], "loading"),
+  };
+}
+
+export function createGuideSiteTechnicalFailurePresentation(
+  diagnostics: string[],
+  options: { camp?: GuideSiteCampThemeStub } = {},
+): GuideSitePresentation {
+  return {
+    camp: resolveCampTheme(options),
+    answer: mapTechnicalFailurePresentation(),
+    operatorDiagnostics: createOperatorDiagnostics(null, diagnostics),
+    operatorInspection: createOperatorInspection(null, diagnostics, "technical_failure"),
   };
 }
 
@@ -323,6 +587,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapTechnicalFailurePresentation(),
       operatorDiagnostics: createOperatorDiagnostics(run, run.diagnostics),
+      operatorInspection: createOperatorInspection(run, run.diagnostics, "technical_failure"),
     };
   }
 
@@ -341,6 +606,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapTechnicalFailurePresentation(),
       operatorDiagnostics,
+      operatorInspection: createOperatorInspection(run, run.diagnostics, "technical_failure"),
     };
   }
 
@@ -349,6 +615,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapContextGatheringPresentation(run, answerComposition),
       operatorDiagnostics,
+      operatorInspection: createOperatorInspection(run, run.diagnostics, "context_gathering_response"),
     };
   }
 
@@ -357,6 +624,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapResponsibleAbstentionPresentation(answerComposition),
       operatorDiagnostics,
+      operatorInspection: createOperatorInspection(run, run.diagnostics, "responsible_abstention"),
     };
   }
 
@@ -376,6 +644,10 @@ export function mapGuideSiteRunStateToPresentation(
         operatorDiagnostics: createGatedOperatorDiagnostics(run, [
           `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
         ]),
+        operatorInspection: createOperatorInspection(run, [
+          ...run.diagnostics,
+          `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
+        ], "context_gathering_response"),
       };
     }
 
@@ -388,6 +660,12 @@ export function mapGuideSiteRunStateToPresentation(
             ? "assembled_answer_gated_by_partial_source_coverage"
             : "assembled_answer_gated_by_insufficient_source_coverage",
         ]),
+        operatorInspection: createOperatorInspection(run, [
+          ...run.diagnostics,
+          answerComposition.status === "partial"
+            ? "assembled_answer_gated_by_partial_source_coverage"
+            : "assembled_answer_gated_by_insufficient_source_coverage",
+        ], "responsible_abstention"),
       };
     }
 
@@ -395,6 +673,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapAssembledAnswerPresentation(answerComposition),
       operatorDiagnostics,
+      operatorInspection: createOperatorInspection(run, run.diagnostics, "assembled_answer"),
     };
   }
 

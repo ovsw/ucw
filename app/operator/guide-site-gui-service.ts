@@ -1,7 +1,7 @@
 import { createFixtureGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.ts";
 import { readGuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeEnv } from "../../src/guidesite-mvp/gui-runtime.ts";
 import { createOpenAIPromptUnderstandingProvider, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
-import { createGuideSiteLoadingPresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
+import { createGuideSiteLoadingPresentation, createGuideSiteTechnicalFailurePresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
 import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
 import { createGuideSiteFileSessionStore } from "../../src/guidesite-mvp/session-store.ts";
 import { createSanityGuideSiteRetrievalAdapterResolver } from "../../src/guidesite-mvp/sanity-retrieval.ts";
@@ -54,28 +54,7 @@ function normalizePromptText(promptText: string): string {
 function createGuideSiteGuiTechnicalFailurePresentation(error: unknown): GuideSitePresentation {
   const message = error instanceof Error ? error.message : String(error);
 
-  return {
-    camp: {
-      campId: "ultimate-camp-website",
-      campName: "Ultimate Camp Website",
-      answerAccent: "amber",
-      surfaceTone: "warm-sand",
-      operatorChrome: "slate",
-    },
-    answer: {
-      status: "technical_failure",
-      title: "Technical failure",
-      message: "The GuideSite turn failed before a product answer could be rendered.",
-    },
-    operatorDiagnostics: {
-      runId: null,
-      sessionId: null,
-      runStatus: "loading",
-      provider: null,
-      model: null,
-      diagnostics: [message],
-    },
-  };
+  return createGuideSiteTechnicalFailurePresentation([message]);
 }
 
 function createCanonicalFixturePromptUnderstanding() {

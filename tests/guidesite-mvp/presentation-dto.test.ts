@@ -34,6 +34,8 @@ test("presentation DTO exposes the Ultimate Camp Website theme stub and loading 
   assert.equal(presentation.camp.campId, "ultimate-camp-website");
   assert.equal(presentation.answer.status, "loading");
   assert.equal(presentation.operatorDiagnostics.runStatus, "loading");
+  assert.equal(presentation.operatorInspection.validation.summary.answerDisposition, "loading");
+  assert.equal(presentation.operatorInspection.rawStructuredOutput.summary.hasPromptUnderstanding, false);
 });
 
 test("presentation DTO maps required questions apart from optional suggested prompts", () => {
@@ -303,6 +305,30 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   const answeredRun: RunState = {
     ...run,
     status: "composed",
+    understanding: {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+      facts: {
+        child_age: {
+          value: 8,
+          provenance: {
+            source: "explicit",
+            promptText: "8-year-old",
+          },
+        },
+      },
+      concerns: [
+        {
+          key: "homesickness",
+          label: "Homesickness",
+          status: "open",
+          provenance: "implied",
+        },
+      ],
+      retrievalNeeds: ["overnight_readiness"],
+      contextNeeds: [],
+    },
     retrieval: {
       adapterId: "fixture",
       adapterLabel: "Fixture",
@@ -336,8 +362,16 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
     promptUnderstandingProvider: {
       provider: "openai",
       model: "gpt-test",
-      rawOutput: null,
-      parsedOutput: null,
+      rawOutput: "{\"goal\":\"assess_fit\"}",
+      parsedOutput: { goal: "assess_fit" },
+      diagnostics: [],
+    },
+    promptUnderstandingValidation: {
+      valid: true,
+      diagnostics: [],
+    },
+    answerCompositionValidation: {
+      valid: true,
       diagnostics: [],
     },
   };
@@ -350,33 +384,62 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal(presentation.answer.sections.some((section) => section.title === "Sources"), false);
   assert.deepEqual(presentation.answer.sections[0].citations, [
     {
-      sourceId: "program_overnight",
       label: "Overnight Camp Program",
-      sourceType: "campProgram",
-      fieldPath: "summary",
-      sourceRevision: "mock_rev_program_overnight_001",
     },
   ]);
   assert.deepEqual(presentation.answer.citations, [
     {
-      sourceId: "program_overnight",
       label: "Overnight Camp Program",
-      sourceType: "campProgram",
-      fieldPath: "summary",
-      sourceRevision: "mock_rev_program_overnight_001",
     },
     {
-      sourceId: "policy_homesickness",
       label: "Homesickness Support Policy",
-      sourceType: "policy",
-      fieldPath: "summary",
-      sourceRevision: "mock_rev_policy_homesickness_001",
     },
   ]);
+  assert.equal("sourceType" in presentation.answer.sections[0].citations[0], false);
+  assert.equal("fieldPath" in presentation.answer.sections[0].citations[0], false);
+  assert.equal("sourceRevision" in presentation.answer.sections[0].citations[0], false);
   assert.equal("provider" in presentation.answer, false);
   assert.equal("model" in presentation.answer, false);
   assert.equal(presentation.operatorDiagnostics.provider, "openai");
   assert.equal(presentation.operatorDiagnostics.model, "gpt-test");
+  assert.equal(presentation.operatorInspection.providerMetadata.summary.provider, "openai");
+  assert.equal(presentation.operatorInspection.providerMetadata.summary.model, "gpt-test");
+  assert.equal(presentation.operatorInspection.retrieval.summary.coverageStatus, "source_backed");
+  assert.deepEqual(presentation.operatorInspection.retrieval.sourceCoverage, [
+    {
+      sourceId: "program_overnight",
+      sourceType: "campProgram",
+      title: "Overnight Camp Program",
+      rank: 1,
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_program_overnight_001",
+      matched: true,
+    },
+    {
+      sourceId: "policy_homesickness",
+      sourceType: "policy",
+      title: "Homesickness Support Policy",
+      rank: 2,
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_policy_homesickness_001",
+      matched: true,
+    },
+  ]);
+  assert.deepEqual(presentation.operatorInspection.promptUnderstanding.summary, {
+    goal: "assess_fit",
+    promptType: "fit",
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+    factCount: 1,
+    concernCount: 1,
+    retrievalNeeds: ["overnight_readiness"],
+    contextNeeds: [],
+  });
+  assert.equal(presentation.operatorInspection.validation.summary.answerDisposition, "assembled_answer");
+  assert.equal(presentation.operatorInspection.validation.summary.promptUnderstandingValid, true);
+  assert.equal(presentation.operatorInspection.validation.summary.answerCompositionValid, true);
+  assert.equal(presentation.operatorInspection.rawStructuredOutput.summary.hasProviderRawOutput, true);
+  assert.deepEqual(presentation.operatorInspection.rawStructuredOutput.details.providerParsedOutput, { goal: "assess_fit" });
+  assert.equal(presentation.operatorInspection.rawStructuredOutput.details.providerRawOutput, "{\"goal\":\"assess_fit\"}");
 });
 
 test("presentation DTO gates answered output back to context gathering when required context is unresolved", () => {
@@ -550,6 +613,13 @@ test("presentation DTO hides invalid answer candidates behind technical failure"
   assert.deepEqual(presentation.operatorDiagnostics.diagnostics, [
     "answer_composition_citation_program_overnight_unsupported_source_ref",
   ]);
+  assert.equal(presentation.operatorInspection.validation.summary.answerDisposition, "technical_failure");
+  assert.equal(presentation.operatorInspection.validation.summary.answerCompositionValid, false);
+  assert.match(presentation.operatorInspection.validation.summary.reasoning[0] ?? "", /failed validation/);
+  assert.equal(
+    presentation.operatorInspection.rawStructuredOutput.details.rejectedAnswerComposition?.status,
+    "answered",
+  );
 });
 
 test("presentation DTO gates incomplete source coverage back to responsible abstention", () => {
@@ -617,6 +687,9 @@ test("presentation DTO gates incomplete source coverage back to responsible abst
   assert.equal(presentation.answer.status, "responsible_abstention");
   assert.equal(presentation.answer.conversationalFraming, "The GuideSite cannot responsibly answer this prompt yet.");
   assert.equal(presentation.operatorDiagnostics.diagnostics[0], "assembled_answer_gated_by_insufficient_source_coverage");
+  assert.equal(presentation.operatorInspection.validation.summary.answerDisposition, "responsible_abstention");
+  assert.match(presentation.operatorInspection.validation.summary.reasoning[0] ?? "", /abstained/);
+  assert.equal(presentation.operatorInspection.retrieval.summary.coverageStatus, "empty_retrieval");
 });
 
 test("presentation DTO maps abstention distinctly from technical failure", () => {
@@ -653,4 +726,7 @@ test("presentation DTO maps abstention distinctly from technical failure", () =>
   assert.equal(technicalFailure.answer.status, "technical_failure");
   assert.equal(technicalFailure.answer.title, "Technical failure");
   assert.equal(technicalFailure.operatorDiagnostics.diagnostics[0], "retrieval_failed: fixture retrieval broke");
+  assert.equal(abstention.operatorInspection.validation.summary.answerDisposition, "responsible_abstention");
+  assert.equal(technicalFailure.operatorInspection.validation.summary.answerDisposition, "technical_failure");
+  assert.match(technicalFailure.operatorInspection.validation.summary.reasoning[0] ?? "", /technical failure/i);
 });
