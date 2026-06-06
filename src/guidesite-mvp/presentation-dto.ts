@@ -272,6 +272,24 @@ function mapTechnicalFailurePresentation(): GuideSiteTechnicalFailurePresentatio
   };
 }
 
+function mapValidationFailurePresentation(
+  run: RunState,
+  diagnostics: string[],
+  options: { camp?: GuideSiteCampThemeStub } = {},
+): GuideSitePresentation {
+  return {
+    camp: resolveCampTheme(options),
+    answer: mapTechnicalFailurePresentation(),
+    operatorDiagnostics: createOperatorDiagnostics(
+      {
+        ...run,
+        status: "validation_failed",
+      },
+      diagnostics,
+    ),
+  };
+}
+
 function createGatedOperatorDiagnostics(run: RunState, diagnostics: string[]): GuideSiteOperatorDiagnostics {
   return createOperatorDiagnostics(run, [...run.diagnostics, ...diagnostics]);
 }
@@ -311,6 +329,13 @@ export function mapGuideSiteRunStateToPresentation(
       answer: mapTechnicalFailurePresentation(),
       operatorDiagnostics,
     };
+  }
+
+  if (run.answerCompositionValidation && !run.answerCompositionValidation.valid) {
+    return mapValidationFailurePresentation(run, [
+      ...run.diagnostics,
+      ...run.answerCompositionValidation.diagnostics,
+    ], options);
   }
 
   if (!answerComposition) {
