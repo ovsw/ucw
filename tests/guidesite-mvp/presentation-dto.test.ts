@@ -485,6 +485,73 @@ test("presentation DTO gates answered output back to context gathering when requ
   assert.equal(presentation.operatorDiagnostics.diagnostics[0], "assembled_answer_gated_by_unresolved_context_needs: prior_sleepaway_experience");
 });
 
+test("presentation DTO hides invalid answer candidates behind technical failure", () => {
+  const run = createBaseRun();
+  const invalidAnswerComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The source-backed answer is ready.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Summary",
+        body: "The camp offers overnight programming for age-appropriate campers.",
+        sourceRefs: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+        ],
+      },
+    ],
+    suggestedPrompts: [],
+    citations: ["program_overnight"],
+    diagnostics: [],
+  };
+  const invalidAnswerRun: RunState = {
+    ...run,
+    status: "composed",
+    retrieval: {
+      adapterId: "fixture",
+      adapterLabel: "Fixture",
+      needs: [],
+      concerns: [],
+      results: [
+        {
+          sourceId: "program_overnight",
+          sourceType: "campProgram",
+          title: "Overnight Camp Program",
+          rank: 1,
+          fieldPath: "summary",
+          sourceRevision: "mock_rev_program_overnight_001",
+        },
+      ],
+      diagnostics: [],
+      coverage: {
+        status: "source_backed",
+        matchedSourceIds: ["program_overnight"],
+      },
+    },
+    answerComposition: invalidAnswerComposition,
+    answerCompositionValidation: {
+      valid: false,
+      diagnostics: ["answer_composition_citation_program_overnight_unsupported_source_ref"],
+    },
+    rejectedAnswerComposition: invalidAnswerComposition,
+  };
+
+  const presentation = mapGuideSiteRunStateToPresentation(invalidAnswerRun);
+
+  assert.equal(presentation.answer.status, "technical_failure");
+  assert.match(presentation.answer.message, /failed before a product answer could be rendered/i);
+  assert.equal(presentation.operatorDiagnostics.runStatus, "validation_failed");
+  assert.deepEqual(presentation.operatorDiagnostics.diagnostics, [
+    "answer_composition_citation_program_overnight_unsupported_source_ref",
+  ]);
+});
+
 test("presentation DTO gates incomplete source coverage back to responsible abstention", () => {
   const run = createBaseRun();
   const answerComposition: AnswerComposition = {

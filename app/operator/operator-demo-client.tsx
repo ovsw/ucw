@@ -194,6 +194,16 @@ function SessionIdField({ sessionId }: { sessionId: string }) {
   return <input type="hidden" name="sessionId" value={sessionId} />;
 }
 
+function TechnicalFailureCard({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-5 py-6">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">Technical failure</p>
+      <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">{title}</h2>
+      <p className="mt-3 text-sm leading-6 text-slate-700">{message}</p>
+    </div>
+  );
+}
+
 function renderAnswerContent(
   answer: GuideSitePresentation["answer"],
   submitPromptAction: FormAction,
@@ -310,12 +320,13 @@ function renderAnswerContent(
         </div>
       );
     case "technical_failure":
+      return <TechnicalFailureCard title={answer.title} message={answer.message} />;
+    default:
       return (
-        <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-5 py-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">Technical failure</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">{answer.title}</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-700">{answer.message}</p>
-        </div>
+        <TechnicalFailureCard
+          title="Technical failure"
+          message="The GuideSite turn failed before a product answer could be rendered."
+        />
       );
   }
 }

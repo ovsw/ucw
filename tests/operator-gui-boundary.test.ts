@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { createGuideSiteMemoryStores, startGuideSiteRun } from "../src/guidesite-mvp/run-lifecycle.js";
 import type { AnswerComposition, RunState } from "../src/guidesite-mvp/types.js";
+import type { GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
 import {
   DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
   createGuideSiteGuiService,
@@ -349,6 +350,170 @@ test("operator demo client renders assembled answers as text-first sections with
   assert.ok(markup.indexOf("Concerns") < markup.indexOf("Homesickness Support Policy"));
   assert.ok(markup.indexOf("Homesickness Support Policy") < markup.indexOf("The homesickness policy outlines the support path."));
   assert.doesNotMatch(markup, /Contact Path/);
+});
+
+test("operator demo client renders every allowed presentation state distinctly", () => {
+  const basePresentation: Pick<GuideSitePresentation, "camp" | "operatorDiagnostics"> = {
+    camp: {
+      campId: "ultimate-camp-website",
+      campName: "Ultimate Camp Website",
+      answerAccent: "amber",
+      surfaceTone: "warm-sand",
+      operatorChrome: "slate",
+    },
+    operatorDiagnostics: {
+      runId: "run_operator_gui_boundary",
+      sessionId: "session_operator_gui_boundary",
+      runStatus: "composed",
+      provider: null,
+      model: null,
+      diagnostics: [],
+    },
+  };
+
+  const cases: Array<{
+    label: string;
+    result: GuideSiteGuiActionResult;
+    expectations: RegExp[];
+  }> = [
+    {
+      label: "loading",
+      result: {
+        promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+        presentation: {
+          ...basePresentation,
+          answer: {
+            status: "loading",
+            headline: "Ultimate Camp Website answer presentation",
+            message: "Loading the operator demo surface.",
+          },
+        },
+      },
+      expectations: [/Loading/, /Loading the operator demo surface/],
+    },
+    {
+      label: "context gathering response",
+      result: {
+        promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+        presentation: {
+          ...basePresentation,
+          answer: {
+            status: "context_gathering_response",
+            conversationalFraming: "The GuideSite needs more Visitor Context before it can honestly answer.",
+            requiredQuestions: [
+              {
+                id: "prompt_prior_sleepaway_experience",
+                text: "Has your child slept away from home before?",
+                rationale: "The next turn should gather the minimum required context before the answer can continue.",
+                controlledReplies: [
+                  {
+                    id: "prompt_prior_sleepaway_experience",
+                    text: "Has your child slept away from home before?",
+                    purpose: "gather_fit_context",
+                  },
+                ],
+              },
+            ],
+            suggestedPrompts: [
+              {
+                id: "prompt_child_readiness",
+                text: "How does your child handle new routines away from home?",
+                purpose: "gather_fit_context",
+              },
+            ],
+          },
+        },
+      },
+      expectations: [/Context Gathering Response/, /Required context/, /Controlled replies/, /Freeform reply/, /Suggested prompts/],
+    },
+    {
+      label: "responsible abstention",
+      result: {
+        promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+        presentation: {
+          ...basePresentation,
+          answer: {
+            status: "responsible_abstention",
+            conversationalFraming: "The GuideSite cannot responsibly answer this prompt yet.",
+            nextSteps: ["Provide more context in a follow-up turn."],
+          },
+        },
+      },
+      expectations: [/Responsible abstention/, /Provide more context in a follow-up turn\./],
+    },
+    {
+      label: "technical failure",
+      result: {
+        promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+        presentation: {
+          ...basePresentation,
+          answer: {
+            status: "technical_failure",
+            title: "Technical failure",
+            message: "The GuideSite turn failed before a product answer could be rendered.",
+          },
+        },
+      },
+      expectations: [/Technical failure/, /The GuideSite turn failed before a product answer could be rendered\./],
+    },
+  ];
+
+  for (const { label, result, expectations } of cases) {
+    const markup = renderToStaticMarkup(
+      React.createElement(OperatorDemoClient, {
+        result,
+        startDemoAction: async () => result,
+        submitPromptAction: async () => result,
+      }),
+    );
+
+    for (const expectation of expectations) {
+      assert.match(markup, expectation, label);
+    }
+  }
+});
+
+test("operator demo client hides unsupported answer statuses behind technical failure", () => {
+  const result = {
+    promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    presentation: {
+      camp: {
+        campId: "ultimate-camp-website",
+        campName: "Ultimate Camp Website",
+        answerAccent: "amber",
+        surfaceTone: "warm-sand",
+        operatorChrome: "slate",
+      },
+      answer: {
+        status: "partial",
+        completeness: "partial",
+        conversationalFraming: "A hedged partial answer should never be shown as a product answer.",
+        sections: [],
+        citations: [],
+      },
+      operatorDiagnostics: {
+        runId: "run_operator_gui_boundary",
+        sessionId: "session_operator_gui_boundary",
+        runStatus: "composed",
+        provider: "openai",
+        model: "gpt-test",
+        diagnostics: [],
+      },
+    },
+  } as unknown as GuideSiteGuiActionResult;
+
+  const markup = renderToStaticMarkup(
+    React.createElement(OperatorDemoClient, {
+      result,
+      startDemoAction: async () => result,
+      submitPromptAction: async () => result,
+    }),
+  );
+
+  assert.match(markup, /Technical failure/);
+  assert.match(markup, /The GuideSite turn failed before a product answer could be rendered\./);
+  assert.doesNotMatch(markup, /A hedged partial answer should never be shown as a product answer\./);
+  assert.doesNotMatch(markup, /partial answer should never be shown/i);
 });
 
 test("operator demo client stays free of server-only GuideSite imports", () => {

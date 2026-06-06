@@ -30,6 +30,9 @@ test("operator shell renders the canonical demo surface", async () => {
     ]) {
       assert.match(markup, expected);
     }
+    for (const forbidden of [/Technical failure/, /Responsible abstention/, /Assembled answer/]) {
+      assert.doesNotMatch(markup, forbidden);
+    }
     assert.doesNotMatch(markup, /uncertain/i);
     assert.doesNotMatch(markup, /chat transcript/i);
     assert.doesNotMatch(markup, /Session State editing/i);
