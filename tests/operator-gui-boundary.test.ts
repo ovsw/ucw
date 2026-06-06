@@ -284,6 +284,9 @@ test("operator demo client renders assembled answers as text-first sections with
               {
                 sourceId: "program_overnight",
                 label: "Overnight Camp Program",
+                sourceType: "campProgram",
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_program_overnight_001",
               },
             ],
           },
@@ -294,6 +297,9 @@ test("operator demo client renders assembled answers as text-first sections with
               {
                 sourceId: "policy_homesickness",
                 label: "Homesickness Support Policy",
+                sourceType: "policy",
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_homesickness_001",
               },
             ],
           },
@@ -302,10 +308,16 @@ test("operator demo client renders assembled answers as text-first sections with
           {
             sourceId: "program_overnight",
             label: "Overnight Camp Program",
+            sourceType: "campProgram",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
           },
           {
             sourceId: "policy_homesickness",
             label: "Homesickness Support Policy",
+            sourceType: "policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_homesickness_001",
           },
         ],
       },
@@ -332,8 +344,11 @@ test("operator demo client renders assembled answers as text-first sections with
   assert.match(markup, /The approved source material explains how overnight camp supports the Child\./);
   assert.ok(markup.indexOf("Summary") < markup.indexOf("Overnight Camp Program"));
   assert.ok(markup.indexOf("Overnight Camp Program") < markup.indexOf("The camp offers overnight programming for age-appropriate campers."));
+  assert.match(markup, /campProgram/);
+  assert.match(markup, /summary · mock_rev_program_overnight_001/);
   assert.ok(markup.indexOf("Concerns") < markup.indexOf("Homesickness Support Policy"));
   assert.ok(markup.indexOf("Homesickness Support Policy") < markup.indexOf("The homesickness policy outlines the support path."));
+  assert.doesNotMatch(markup, /Contact Path/);
 });
 
 test("operator demo client stays free of server-only GuideSite imports", () => {

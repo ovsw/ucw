@@ -61,6 +61,24 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
           ))}
         </ul>
       ) : null}
+      {section.citations.length > 0 ? (
+        <div className="mt-4 grid gap-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected content entities</p>
+          {section.citations.map((citation) => (
+            <div key={citation.sourceId} className="rounded-[1.1rem] border border-slate-900/10 bg-slate-50 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900">{citation.label}</p>
+                <span className="rounded-full border border-amber-900/10 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-950">
+                  {citation.sourceType}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                {citation.fieldPath} · {citation.sourceRevision}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 }

@@ -20,6 +20,9 @@ export const ULTIMATE_CAMP_WEBSITE_THEME_STUB: GuideSiteCampThemeStub = {
 export interface GuideSiteCitation {
   sourceId: string;
   label: string;
+  sourceType: string;
+  fieldPath: string;
+  sourceRevision: string;
 }
 
 export interface GuideSitePresentationSection {
@@ -116,12 +119,15 @@ function collectSectionCitations(section: AnswerCompositionSection): GuideSiteCi
   return (section.sourceRefs ?? []).map((sourceRef) => ({
     sourceId: sourceRef.sourceId,
     label: sourceRef.title,
+    sourceType: sourceRef.sourceType,
+    fieldPath: sourceRef.fieldPath,
+    sourceRevision: sourceRef.sourceRevision,
   }));
 }
 
 function collectPresentationSections(answerComposition: AnswerComposition): GuideSitePresentationSection[] {
   return answerComposition.sections
-    .filter((section) => section.kind !== "diagnostics")
+    .filter((section) => section.kind !== "diagnostics" && section.kind !== "sources")
     .map((section) => ({
       title: section.title,
       body: section.body,

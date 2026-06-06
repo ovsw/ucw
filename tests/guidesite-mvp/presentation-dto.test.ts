@@ -266,6 +266,31 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
         ],
       },
       {
+        kind: "sources",
+        title: "Sources",
+        body: "Approved source material from the fixture retrieval adapter was retrieved for the assembled answer.",
+        items: [
+          "Overnight Camp Program (program_overnight)",
+          "Homesickness Support Policy (policy_homesickness)",
+        ],
+        sourceRefs: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+          {
+            sourceId: "policy_homesickness",
+            sourceType: "policy",
+            title: "Homesickness Support Policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_homesickness_001",
+          },
+        ],
+      },
+      {
         kind: "diagnostics",
         title: "Diagnostics",
         body: "Provider metadata stays out of the Parent-shaped answer output.",
@@ -322,20 +347,30 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal(presentation.answer.status, "assembled_answer");
   assert.equal(presentation.answer.completeness, "complete");
   assert.equal(presentation.answer.sections.length, 2);
+  assert.equal(presentation.answer.sections.some((section) => section.title === "Sources"), false);
   assert.deepEqual(presentation.answer.sections[0].citations, [
     {
       sourceId: "program_overnight",
       label: "Overnight Camp Program",
+      sourceType: "campProgram",
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_program_overnight_001",
     },
   ]);
   assert.deepEqual(presentation.answer.citations, [
     {
       sourceId: "program_overnight",
       label: "Overnight Camp Program",
+      sourceType: "campProgram",
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_program_overnight_001",
     },
     {
       sourceId: "policy_homesickness",
       label: "Homesickness Support Policy",
+      sourceType: "policy",
+      fieldPath: "summary",
+      sourceRevision: "mock_rev_policy_homesickness_001",
     },
   ]);
   assert.equal("provider" in presentation.answer, false);
