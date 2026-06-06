@@ -363,7 +363,7 @@ function JourneyTimeline({ timeline }: { timeline: GuideSitePresentation["journe
           <div className="mt-2 grid gap-2">
             {safeTimeline.prompts.length > 0 ? (
               safeTimeline.prompts.map((prompt, index) => (
-                <div key={prompt.runId || `prompt-${index}`} className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2">
+                <div key={prompt.runId.length > 0 ? prompt.runId : `prompt-${index}`} className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2">
                   <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Prompt {index + 1} · {prompt.source.replace(/_/g, " ")}
                   </div>
