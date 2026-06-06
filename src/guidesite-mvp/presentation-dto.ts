@@ -227,12 +227,13 @@ function splitSuggestedPrompts(run: RunState, answerComposition: AnswerCompositi
 function mapContextGatheringPresentation(
   run: RunState,
   answerComposition: AnswerComposition,
+  conversationalFraming?: string,
 ): GuideSiteContextGatheringResponsePresentation {
   const prompts = splitSuggestedPrompts(run, answerComposition);
 
   return {
     status: "context_gathering_response",
-    conversationalFraming: answerComposition.conversationalFraming,
+    conversationalFraming: conversationalFraming ?? answerComposition.conversationalFraming,
     requiredQuestions: prompts.requiredQuestions,
     suggestedPrompts: prompts.suggestedPrompts,
   };
@@ -340,7 +341,11 @@ export function mapGuideSiteRunStateToPresentation(
     if (hasUnresolvedContextNeeds) {
       return {
         camp,
-        answer: mapContextGatheringPresentation(run, answerComposition),
+        answer: mapContextGatheringPresentation(
+          run,
+          answerComposition,
+          "The GuideSite needs more Visitor Context before it can honestly answer.",
+        ),
         operatorDiagnostics: createGatedOperatorDiagnostics(run, [
           `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
         ]),

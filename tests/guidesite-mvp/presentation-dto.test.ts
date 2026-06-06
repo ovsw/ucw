@@ -466,6 +466,8 @@ test("presentation DTO gates answered output back to context gathering when requ
   const presentation = mapGuideSiteRunStateToPresentation(unresolvedContextRun);
 
   assert.equal(presentation.answer.status, "context_gathering_response");
+  assert.equal(presentation.answer.conversationalFraming, "The GuideSite needs more Visitor Context before it can honestly answer.");
+  assert.doesNotMatch(presentation.answer.conversationalFraming, /source-backed answer is ready/i);
   assert.deepEqual(presentation.answer.requiredQuestions, [
     {
       id: "prompt_prior_sleepaway_experience",
