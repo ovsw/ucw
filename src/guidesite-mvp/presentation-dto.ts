@@ -317,17 +317,12 @@ export function mapGuideSiteRunStateToPresentation(
   }
 
   const camp = resolveCampTheme(options);
-  const unresolvedContextNeeds = run.understanding ? collectUnresolvedContextNeeds(run) : [];
-  const hasUnresolvedContextNeeds = unresolvedContextNeeds.length > 0;
-  const hasSourceBackedCoverage = run.retrieval?.coverage.status === "source_backed";
-  const answerComposition = run.answerComposition;
-  const operatorDiagnostics = createOperatorDiagnostics(run, run.diagnostics);
 
   if (run.status === "prompt_understanding_failed" || run.status === "retrieval_failed" || run.status === "validation_failed") {
     return {
       camp,
       answer: mapTechnicalFailurePresentation(),
-      operatorDiagnostics,
+      operatorDiagnostics: createOperatorDiagnostics(run, run.diagnostics),
     };
   }
 
@@ -337,6 +332,9 @@ export function mapGuideSiteRunStateToPresentation(
       ...run.answerCompositionValidation.diagnostics,
     ], options);
   }
+
+  const operatorDiagnostics = createOperatorDiagnostics(run, run.diagnostics);
+  const answerComposition = run.answerComposition;
 
   if (!answerComposition) {
     return {
@@ -361,6 +359,10 @@ export function mapGuideSiteRunStateToPresentation(
       operatorDiagnostics,
     };
   }
+
+  const unresolvedContextNeeds = run.understanding ? collectUnresolvedContextNeeds(run) : [];
+  const hasUnresolvedContextNeeds = unresolvedContextNeeds.length > 0;
+  const hasSourceBackedCoverage = run.retrieval?.coverage.status === "source_backed";
 
   if (answerComposition.status === "answered" || answerComposition.status === "partial") {
     if (hasUnresolvedContextNeeds) {
