@@ -29,6 +29,8 @@ test("operator shell renders the canonical demo surface", async () => {
       /Answer in your own words/,
       /Open a new demo/,
       /name="sessionId"/,
+      /Open Sanity admin/,
+      /href="\/admin"/,
     ]) {
       assert.match(markup, expected);
     }
@@ -38,6 +40,8 @@ test("operator shell renders the canonical demo surface", async () => {
     assert.doesNotMatch(markup, /uncertain/i);
     assert.doesNotMatch(markup, /chat transcript/i);
     assert.doesNotMatch(markup, /Session State editing/i);
+    assert.doesNotMatch(markup, /NextStudio/);
+    assert.doesNotMatch(markup, /Sanity Studio embedded/i);
   } finally {
     rmSync(join(process.cwd(), DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY), {
       recursive: true,
