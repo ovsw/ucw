@@ -33,7 +33,21 @@ function StatusChip({ label }: { label: string }) {
 function SectionCard({ section }: { section: GuideSitePresentationSection }) {
   return (
     <article className="rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">{section.title}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">{section.title}</p>
+        {section.citations.length > 0 ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {section.citations.map((citation) => (
+              <span
+                key={citation.sourceId}
+                className="rounded-full border border-amber-900/10 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-950"
+              >
+                {citation.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
       <p className="mt-3 text-sm leading-6 text-slate-700">{section.body}</p>
       {section.items && section.items.length > 0 ? (
         <ul className="mt-4 space-y-2">
@@ -46,18 +60,6 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
             </li>
           ))}
         </ul>
-      ) : null}
-      {section.citations.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {section.citations.map((citation) => (
-            <span
-              key={citation.sourceId}
-              className="rounded-full border border-amber-900/10 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-950"
-            >
-              {citation.label}
-            </span>
-          ))}
-        </div>
       ) : null}
     </article>
   );
