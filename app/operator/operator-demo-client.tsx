@@ -31,6 +31,24 @@ function StatusChip({ label }: { label: string }) {
   );
 }
 
+const SANITY_ADMIN_BASE_PATH = "/admin";
+
+function createSanityAdminIntentPath(source: {
+  sourceId: string;
+  sourceType: string;
+  fieldPath?: string;
+}): string {
+  const params = new URLSearchParams({
+    id: source.sourceId,
+    type: source.sourceType,
+  });
+
+  if (source.fieldPath) {
+    params.set("path", source.fieldPath);
+  }
+
+  return `${SANITY_ADMIN_BASE_PATH}/intent/edit?${params.toString()}`;
+}
 
 function SectionCard({ section }: { section: GuideSitePresentationSection }) {
   const citations = section.citations;
@@ -489,6 +507,14 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
                         Source ID: {source.sourceId} · Field path: {source.fieldPath || "Not available"} · Revision:{" "}
                         {source.sourceRevision || "Not available"}
                       </div>
+                      <a
+                        href={createSanityAdminIntentPath(source)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-800 transition hover:border-amber-500 hover:bg-amber-50"
+                      >
+                        Inspect source in Sanity admin
+                      </a>
                     </li>
                   ))}
                 </ul>
@@ -578,6 +604,14 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <a
+                href={SANITY_ADMIN_BASE_PATH}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-amber-500 hover:bg-amber-50"
+              >
+                Open Sanity admin
+              </a>
               <StatusChip label="Canonical journey" />
               <StatusChip label="Desktop-first" />
               <StatusChip label={isActionPending ? "updating" : answerStateLabel} />

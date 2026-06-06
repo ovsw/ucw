@@ -432,6 +432,34 @@ test("operator inspection drawer renders summaries first with raw structured out
   assert.match(markup, /hasProviderRawOutput/);
 });
 
+test("operator source inspection links to separate Sanity admin without entering the answer surface", () => {
+  const presentation = mapGuideSiteRunStateToPresentation(createAnsweredRun());
+  const result: GuideSiteGuiActionResult = {
+    promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    presentation,
+  };
+
+  const markup = renderToStaticMarkup(
+    React.createElement(OperatorDemoClient, {
+      result,
+      startDemoAction: async () => result,
+      submitPromptAction: async () => result,
+    }),
+  );
+  const answerSurfaceIndex = markup.indexOf("Parent-shaped output");
+  const inspectionIndex = markup.indexOf("Inspection drawer");
+
+  assert.match(markup, /Open Sanity admin/);
+  assert.match(markup, /href="\/admin"/);
+  assert.match(markup, /Inspect source in Sanity admin/);
+  assert.match(markup, /href="\/admin\/intent\/edit\?id=program_overnight&amp;type=campProgram&amp;path=summary"/);
+  assert.ok(answerSurfaceIndex >= 0);
+  assert.ok(inspectionIndex > answerSurfaceIndex);
+  assert.doesNotMatch(markup.slice(answerSurfaceIndex, inspectionIndex), /Inspect source in Sanity admin|\/admin\/intent\/edit/);
+  assert.doesNotMatch(markup, /<iframe/i);
+  assert.doesNotMatch(markup, /NextStudio/);
+});
+
 test("operator client keeps provider metadata out of the answer surface", () => {
   const presentation = mapGuideSiteRunStateToPresentation(createAnsweredRun());
   const result: GuideSiteGuiActionResult = {
