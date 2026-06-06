@@ -246,12 +246,13 @@ function mapAssembledAnswerPresentation(answerComposition: AnswerComposition): G
 
 function mapResponsibleAbstentionPresentation(
   answerComposition: AnswerComposition,
+  options: { conversationalFraming?: string } = {},
 ): GuideSiteResponsibleAbstentionPresentation {
   const suggestedNextSteps = answerComposition.suggestedPrompts.map((prompt) => prompt.text);
 
   return {
     status: "responsible_abstention",
-    conversationalFraming: answerComposition.conversationalFraming,
+    conversationalFraming: options.conversationalFraming ?? answerComposition.conversationalFraming,
     nextSteps: suggestedNextSteps.length > 0 ? suggestedNextSteps : ["Provide more context in a follow-up turn."],
   };
 }
@@ -262,6 +263,10 @@ function mapTechnicalFailurePresentation(): GuideSiteTechnicalFailurePresentatio
     title: "Technical failure",
     message: "The GuideSite turn failed before a product answer could be rendered.",
   };
+}
+
+function createGatedOperatorDiagnostics(run: RunState, diagnostics: string[]): GuideSiteOperatorDiagnostics {
+  return createOperatorDiagnostics(run, [...run.diagnostics, ...diagnostics]);
 }
 
 export function createGuideSiteLoadingPresentation(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSitePresentation {
@@ -287,20 +292,19 @@ export function mapGuideSiteRunStateToPresentation(
   }
 
   const camp = resolveCampTheme(options);
+  const unresolvedContextNeeds = run.understanding ? collectUnresolvedContextNeeds(run) : [];
+  const hasSourceBackedCoverage = run.retrieval?.coverage.status === "source_backed";
+  const answerComposition = run.answerComposition;
   const operatorDiagnostics = createOperatorDiagnostics(run, run.diagnostics);
 
-  switch (run.status) {
-    case "prompt_understanding_failed":
-    case "retrieval_failed":
-    case "validation_failed":
-      return {
-        camp,
-        answer: mapTechnicalFailurePresentation(),
-        operatorDiagnostics,
-      };
+  if (run.status === "prompt_understanding_failed" || run.status === "retrieval_failed" || run.status === "validation_failed") {
+    return {
+      camp,
+      answer: mapTechnicalFailurePresentation(),
+      operatorDiagnostics,
+    };
   }
 
-  const answerComposition = run.answerComposition;
   if (!answerComposition) {
     return {
       camp,
@@ -309,26 +313,52 @@ export function mapGuideSiteRunStateToPresentation(
     };
   }
 
-  switch (answerComposition.status) {
-    case "needs_context":
-      return {
-        camp,
-        answer: mapContextGatheringPresentation(run, answerComposition),
-        operatorDiagnostics,
-      };
-    case "answered":
-    case "partial":
-      return {
-        camp,
-        answer: mapAssembledAnswerPresentation(answerComposition),
-        operatorDiagnostics,
-      };
-    case "fallback":
-      return {
-        camp,
-        answer: mapResponsibleAbstentionPresentation(answerComposition),
-        operatorDiagnostics,
-      };
+  if ((answerComposition.status === "answered" || answerComposition.status === "partial") && unresolvedContextNeeds.length > 0) {
+    return {
+      camp,
+      answer: mapContextGatheringPresentation(run, answerComposition),
+      operatorDiagnostics: createGatedOperatorDiagnostics(run, [
+        `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
+      ]),
+    };
+  }
+
+  if (answerComposition.status === "needs_context") {
+    return {
+      camp,
+      answer: mapContextGatheringPresentation(run, answerComposition),
+      operatorDiagnostics,
+    };
+  }
+
+  if (answerComposition.status === "fallback") {
+    return {
+      camp,
+      answer: mapResponsibleAbstentionPresentation(answerComposition),
+      operatorDiagnostics,
+    };
+  }
+
+  if (answerComposition.status === "partial" || !hasSourceBackedCoverage) {
+    return {
+      camp,
+      answer: mapResponsibleAbstentionPresentation(answerComposition, {
+        conversationalFraming: "The GuideSite cannot responsibly answer this prompt yet.",
+      }),
+      operatorDiagnostics: createGatedOperatorDiagnostics(run, [
+        answerComposition.status === "partial"
+          ? "assembled_answer_gated_by_partial_source_coverage"
+          : "assembled_answer_gated_by_insufficient_source_coverage",
+      ]),
+    };
+  }
+
+  if (answerComposition.status === "answered") {
+    return {
+      camp,
+      answer: mapAssembledAnswerPresentation(answerComposition),
+      operatorDiagnostics,
+    };
   }
 
   throw new Error(`Unsupported GuideSite answer composition status: ${(answerComposition as AnswerComposition).status}`);

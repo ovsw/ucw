@@ -46,6 +46,27 @@ function createAnsweredRun(): RunState {
   return {
     ...started,
     status: "composed",
+    retrieval: {
+      adapterId: "fixture",
+      adapterLabel: "Fixture",
+      needs: [],
+      concerns: [],
+      results: [
+        {
+          sourceId: "program_overnight",
+          sourceType: "campProgram",
+          title: "Overnight Camp Program",
+          rank: 1,
+          fieldPath: "summary",
+          sourceRevision: "mock_rev_program_overnight_001",
+        },
+      ],
+      diagnostics: [],
+      coverage: {
+        status: "source_backed",
+        matchedSourceIds: ["program_overnight"],
+      },
+    },
     answerComposition,
   };
 }

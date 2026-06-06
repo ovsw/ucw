@@ -278,6 +278,35 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   const answeredRun: RunState = {
     ...run,
     status: "composed",
+    retrieval: {
+      adapterId: "fixture",
+      adapterLabel: "Fixture",
+      needs: [],
+      concerns: [],
+      results: [
+        {
+          sourceId: "program_overnight",
+          sourceType: "campProgram",
+          title: "Overnight Camp Program",
+          rank: 1,
+          fieldPath: "summary",
+          sourceRevision: "mock_rev_program_overnight_001",
+        },
+        {
+          sourceId: "policy_homesickness",
+          sourceType: "policy",
+          title: "Homesickness Support Policy",
+          rank: 2,
+          fieldPath: "summary",
+          sourceRevision: "mock_rev_policy_homesickness_001",
+        },
+      ],
+      diagnostics: [],
+      coverage: {
+        status: "source_backed",
+        matchedSourceIds: ["program_overnight", "policy_homesickness"],
+      },
+    },
     answerComposition,
     promptUnderstandingProvider: {
       provider: "openai",
@@ -313,6 +342,177 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal("model" in presentation.answer, false);
   assert.equal(presentation.operatorDiagnostics.provider, "openai");
   assert.equal(presentation.operatorDiagnostics.model, "gpt-test");
+});
+
+test("presentation DTO gates answered output back to context gathering when required context is unresolved", () => {
+  const run = createBaseRun();
+  const answerComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The source-backed answer is ready.",
+    sections: [
+      {
+        kind: "context_needs",
+        title: "Missing Visitor Context",
+        body: "The next turn should gather the minimum required context before the answer can continue.",
+        items: ["prior_sleepaway_experience"],
+      },
+      {
+        kind: "summary",
+        title: "Summary",
+        body: "The camp offers overnight programming for age-appropriate campers.",
+        sourceRefs: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+        ],
+      },
+    ],
+    suggestedPrompts: [
+      {
+        id: "prompt_prior_sleepaway_experience",
+        purpose: "gather_fit_context",
+        text: "Has your child slept away from home before?",
+        contextNeeds: ["prior_sleepaway_experience"],
+        concerns: ["homesickness"],
+        templateId: "ask_sleepaway_experience",
+      },
+    ],
+    citations: ["program_overnight"],
+    diagnostics: [],
+  };
+  const unresolvedContextRun: RunState = {
+    ...run,
+    status: "composed",
+    understanding: {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+      facts: {
+        child_age: {
+          value: 8,
+          provenance: {
+            source: "explicit",
+            promptText: "8-year-old",
+          },
+        },
+      },
+      concerns: [],
+      retrievalNeeds: ["overnight_readiness"],
+      contextNeeds: ["prior_sleepaway_experience"],
+    },
+    retrieval: {
+      adapterId: "fixture",
+      adapterLabel: "Fixture",
+      needs: ["overnight_readiness"],
+      concerns: [],
+      results: [
+        {
+          sourceId: "program_overnight",
+          sourceType: "campProgram",
+          title: "Overnight Camp Program",
+          rank: 1,
+          fieldPath: "summary",
+          sourceRevision: "mock_rev_program_overnight_001",
+        },
+      ],
+      diagnostics: [],
+      coverage: {
+        status: "source_backed",
+        matchedSourceIds: ["program_overnight"],
+      },
+    },
+    answerComposition,
+  };
+
+  const presentation = mapGuideSiteRunStateToPresentation(unresolvedContextRun);
+
+  assert.equal(presentation.answer.status, "context_gathering_response");
+  assert.deepEqual(presentation.answer.requiredQuestions, [
+    {
+      id: "prompt_prior_sleepaway_experience",
+      text: "Has your child slept away from home before?",
+      rationale: "The next turn should gather the minimum required context before the answer can continue.",
+      controlledReplies: [
+        {
+          id: "prompt_prior_sleepaway_experience",
+          text: "Has your child slept away from home before?",
+          purpose: "gather_fit_context",
+        },
+      ],
+    },
+  ]);
+  assert.equal(presentation.operatorDiagnostics.diagnostics[0], "assembled_answer_gated_by_unresolved_context_needs: prior_sleepaway_experience");
+});
+
+test("presentation DTO gates incomplete source coverage back to responsible abstention", () => {
+  const run = createBaseRun();
+  const answerComposition: AnswerComposition = {
+    status: "answered",
+    conversationalFraming: "The source-backed answer is ready.",
+    sections: [
+      {
+        kind: "summary",
+        title: "Summary",
+        body: "The camp offers overnight programming for age-appropriate campers.",
+        sourceRefs: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+        ],
+      },
+    ],
+    suggestedPrompts: [],
+    citations: ["program_overnight"],
+    diagnostics: [],
+  };
+  const incompleteCoverageRun: RunState = {
+    ...run,
+    status: "composed",
+    understanding: {
+      goal: "assess_fit",
+      promptType: "fit",
+      fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+      facts: {
+        child_age: {
+          value: 8,
+          provenance: {
+            source: "explicit",
+            promptText: "8-year-old",
+          },
+        },
+      },
+      concerns: [],
+      retrievalNeeds: ["overnight_readiness"],
+      contextNeeds: [],
+    },
+    retrieval: {
+      adapterId: "fixture",
+      adapterLabel: "Fixture",
+      needs: ["overnight_readiness"],
+      concerns: [],
+      results: [],
+      diagnostics: ["fixture_retrieval_empty"],
+      coverage: {
+        status: "empty_retrieval",
+        matchedSourceIds: [],
+      },
+    },
+    answerComposition,
+  };
+
+  const presentation = mapGuideSiteRunStateToPresentation(incompleteCoverageRun);
+
+  assert.equal(presentation.answer.status, "responsible_abstention");
+  assert.equal(presentation.answer.conversationalFraming, "The GuideSite cannot responsibly answer this prompt yet.");
+  assert.equal(presentation.operatorDiagnostics.diagnostics[0], "assembled_answer_gated_by_insufficient_source_coverage");
 });
 
 test("presentation DTO maps abstention distinctly from technical failure", () => {
