@@ -400,6 +400,29 @@ test("presentation DTO maps source-backed assembled answers with lightweight cit
   assert.equal("sourceRevision" in presentation.answer.sections[0].citations[0], false);
   assert.equal("provider" in presentation.answer, false);
   assert.equal("model" in presentation.answer, false);
+  assert.deepEqual(presentation.journeyTimeline.prompts, [
+    {
+      runId: "run_presentation_dto",
+      text: canonicalPrompt,
+      source: "typed",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(presentation.journeyTimeline.visitorContext, [
+    {
+      key: "child_age",
+      label: "Child Age",
+      value: "8",
+      source: "explicit",
+    },
+  ]);
+  assert.deepEqual(presentation.journeyTimeline.concerns, [
+    {
+      key: "homesickness",
+      label: "Homesickness",
+      status: "addressed",
+    },
+  ]);
   assert.equal(presentation.operatorDiagnostics.provider, "openai");
   assert.equal(presentation.operatorDiagnostics.model, "gpt-test");
   assert.equal(presentation.operatorInspection.providerMetadata.summary.provider, "openai");

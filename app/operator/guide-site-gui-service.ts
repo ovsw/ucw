@@ -2,7 +2,7 @@ import { createFixtureGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/
 import { readGuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeEnv } from "../../src/guidesite-mvp/gui-runtime.ts";
 import { createOpenAIPromptUnderstandingProvider, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
 import { createGuideSiteLoadingPresentation, createGuideSiteTechnicalFailurePresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
-import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
+import { buildHardcodedSessionPatch, commitSessionPatch, createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
 import { createGuideSiteFileSessionStore } from "../../src/guidesite-mvp/session-store.ts";
 import { createSanityGuideSiteRetrievalAdapterResolver } from "../../src/guidesite-mvp/sanity-retrieval.ts";
 
@@ -294,11 +294,26 @@ async function executeGuideSiteGuiTurn(
     createRunId: request.createRunId,
   });
 
-  return withProviderBackedUnderstandingAndComposition(started.run, promptUnderstandingProvider, {
+  const composed = await withProviderBackedUnderstandingAndComposition(started.run, promptUnderstandingProvider, {
     now: request.now,
     retrievalAdapter,
     sanityRetrievalAdapterResolver,
   });
+
+  if (
+    composed.promptUnderstandingValidation?.valid &&
+    (composed.answerComposition?.status === "needs_context" || composed.answerComposition?.status === "answered")
+  ) {
+    const patch = buildHardcodedSessionPatch(composed);
+    return commitSessionPatch({
+      stores: request.stores,
+      run: composed,
+      patch,
+      now: request.now,
+    }).run;
+  }
+
+  return composed;
 }
 
 export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDependencies = {}) {

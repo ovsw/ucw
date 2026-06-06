@@ -257,6 +257,9 @@ test("GuideSite GUI fixture mode keeps vague required-context replies in the con
 
   const started = await service.startDemo({ sessionId: "session_gui_required_context" });
   assert.equal(started.presentation.answer.status, "context_gathering_response");
+  assert.deepEqual(started.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+  ]);
 
   const vagueReply = await service.submitPrompt({
     promptText: "I don't know, maybe sometimes.",
@@ -268,6 +271,11 @@ test("GuideSite GUI fixture mode keeps vague required-context replies in the con
   assert.equal(vagueReply.presentation.answer.requiredQuestions.length > 0, true);
   assert.notEqual(vagueReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
   assert.notEqual(vagueReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
+  assert.deepEqual(vagueReply.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    "I don't know, maybe sometimes.",
+  ]);
+  assert.ok(vagueReply.presentation.journeyTimeline.visitorContext.some((fact) => fact.key === "child_age"));
 });
 
 test("GuideSite GUI fixture mode renders withheld required-context replies as responsible abstention", async () => {
@@ -380,6 +388,7 @@ test("operator demo client renders assembled answers as text-first sections with
         model: "gpt-test",
         diagnostics: [],
       },
+      journeyTimeline: createGuideSiteLoadingPresentation().journeyTimeline,
       operatorInspection: createGuideSiteLoadingPresentation().operatorInspection,
     },
   };
@@ -401,6 +410,37 @@ test("operator demo client renders assembled answers as text-first sections with
   assert.ok(markup.indexOf("Concerns") < markup.indexOf("Homesickness Support Policy"));
   assert.ok(markup.indexOf("Homesickness Support Policy") < markup.indexOf("The homesickness policy outlines the support path."));
   assert.doesNotMatch(markup, /Contact Path/);
+});
+
+test("operator demo client renders Journey Timeline as secondary non-replay context", () => {
+  const presentation = mapGuideSiteRunStateToPresentation(createAnsweredRun());
+  const result: GuideSiteGuiActionResult = {
+    promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    presentation,
+  };
+
+  const markup = renderToStaticMarkup(
+    React.createElement(OperatorDemoClient, {
+      result,
+      startDemoAction: async () => result,
+      submitPromptAction: async () => result,
+    }),
+  );
+
+  const answerIndex = markup.indexOf("Answer Presentation");
+  const timelineIndex = markup.indexOf("Journey Timeline");
+  const inspectionIndex = markup.indexOf("Inspection drawer");
+
+  assert.ok(answerIndex >= 0);
+  assert.ok(timelineIndex > answerIndex);
+  assert.ok(inspectionIndex > timelineIndex);
+  assert.match(markup, /Secondary operator context/);
+  assert.match(markup, /Prior prompts/);
+  assert.match(markup, /Is overnight camp right for my 8-year-old\?/);
+  assert.match(markup, /Visitor Context/);
+  assert.match(markup, /Child Age/);
+  assert.match(markup, /Homesickness: open/);
+  assert.doesNotMatch(markup, /replay prior turn|answer history|chat transcript/i);
 });
 
 test("operator inspection drawer renders summaries first with raw structured output one level deeper", () => {
