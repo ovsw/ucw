@@ -20,6 +20,9 @@ export const ULTIMATE_CAMP_WEBSITE_THEME_STUB: GuideSiteCampThemeStub = {
 export interface GuideSiteCitation {
   sourceId: string;
   label: string;
+  sourceType: string;
+  fieldPath: string;
+  sourceRevision: string;
 }
 
 export interface GuideSitePresentationSection {
@@ -116,12 +119,15 @@ function collectSectionCitations(section: AnswerCompositionSection): GuideSiteCi
   return (section.sourceRefs ?? []).map((sourceRef) => ({
     sourceId: sourceRef.sourceId,
     label: sourceRef.title,
+    sourceType: sourceRef.sourceType,
+    fieldPath: sourceRef.fieldPath,
+    sourceRevision: sourceRef.sourceRevision,
   }));
 }
 
 function collectPresentationSections(answerComposition: AnswerComposition): GuideSitePresentationSection[] {
   return answerComposition.sections
-    .filter((section) => section.kind !== "diagnostics")
+    .filter((section) => section.kind !== "diagnostics" && section.kind !== "sources")
     .map((section) => ({
       title: section.title,
       body: section.body,
@@ -221,12 +227,13 @@ function splitSuggestedPrompts(run: RunState, answerComposition: AnswerCompositi
 function mapContextGatheringPresentation(
   run: RunState,
   answerComposition: AnswerComposition,
+  conversationalFraming?: string,
 ): GuideSiteContextGatheringResponsePresentation {
   const prompts = splitSuggestedPrompts(run, answerComposition);
 
   return {
     status: "context_gathering_response",
-    conversationalFraming: answerComposition.conversationalFraming,
+    conversationalFraming: conversationalFraming ?? answerComposition.conversationalFraming,
     requiredQuestions: prompts.requiredQuestions,
     suggestedPrompts: prompts.suggestedPrompts,
   };
@@ -246,12 +253,13 @@ function mapAssembledAnswerPresentation(answerComposition: AnswerComposition): G
 
 function mapResponsibleAbstentionPresentation(
   answerComposition: AnswerComposition,
+  conversationalFraming?: string,
 ): GuideSiteResponsibleAbstentionPresentation {
   const suggestedNextSteps = answerComposition.suggestedPrompts.map((prompt) => prompt.text);
 
   return {
     status: "responsible_abstention",
-    conversationalFraming: answerComposition.conversationalFraming,
+    conversationalFraming: conversationalFraming ?? answerComposition.conversationalFraming,
     nextSteps: suggestedNextSteps.length > 0 ? suggestedNextSteps : ["Provide more context in a follow-up turn."],
   };
 }
@@ -262,6 +270,10 @@ function mapTechnicalFailurePresentation(): GuideSiteTechnicalFailurePresentatio
     title: "Technical failure",
     message: "The GuideSite turn failed before a product answer could be rendered.",
   };
+}
+
+function createGatedOperatorDiagnostics(run: RunState, diagnostics: string[]): GuideSiteOperatorDiagnostics {
+  return createOperatorDiagnostics(run, [...run.diagnostics, ...diagnostics]);
 }
 
 export function createGuideSiteLoadingPresentation(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSitePresentation {
@@ -287,20 +299,20 @@ export function mapGuideSiteRunStateToPresentation(
   }
 
   const camp = resolveCampTheme(options);
+  const unresolvedContextNeeds = run.understanding ? collectUnresolvedContextNeeds(run) : [];
+  const hasUnresolvedContextNeeds = unresolvedContextNeeds.length > 0;
+  const hasSourceBackedCoverage = run.retrieval?.coverage.status === "source_backed";
+  const answerComposition = run.answerComposition;
   const operatorDiagnostics = createOperatorDiagnostics(run, run.diagnostics);
 
-  switch (run.status) {
-    case "prompt_understanding_failed":
-    case "retrieval_failed":
-    case "validation_failed":
-      return {
-        camp,
-        answer: mapTechnicalFailurePresentation(),
-        operatorDiagnostics,
-      };
+  if (run.status === "prompt_understanding_failed" || run.status === "retrieval_failed" || run.status === "validation_failed") {
+    return {
+      camp,
+      answer: mapTechnicalFailurePresentation(),
+      operatorDiagnostics,
+    };
   }
 
-  const answerComposition = run.answerComposition;
   if (!answerComposition) {
     return {
       camp,
@@ -309,26 +321,54 @@ export function mapGuideSiteRunStateToPresentation(
     };
   }
 
-  switch (answerComposition.status) {
-    case "needs_context":
+  if (answerComposition.status === "needs_context") {
+    return {
+      camp,
+      answer: mapContextGatheringPresentation(run, answerComposition),
+      operatorDiagnostics,
+    };
+  }
+
+  if (answerComposition.status === "fallback") {
+    return {
+      camp,
+      answer: mapResponsibleAbstentionPresentation(answerComposition),
+      operatorDiagnostics,
+    };
+  }
+
+  if (answerComposition.status === "answered" || answerComposition.status === "partial") {
+    if (hasUnresolvedContextNeeds) {
       return {
         camp,
-        answer: mapContextGatheringPresentation(run, answerComposition),
-        operatorDiagnostics,
+        answer: mapContextGatheringPresentation(
+          run,
+          answerComposition,
+          "The GuideSite needs more Visitor Context before it can honestly answer.",
+        ),
+        operatorDiagnostics: createGatedOperatorDiagnostics(run, [
+          `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
+        ]),
       };
-    case "answered":
-    case "partial":
+    }
+
+    if (answerComposition.status === "partial" || !hasSourceBackedCoverage) {
       return {
         camp,
-        answer: mapAssembledAnswerPresentation(answerComposition),
-        operatorDiagnostics,
+        answer: mapResponsibleAbstentionPresentation(answerComposition, "The GuideSite cannot responsibly answer this prompt yet."),
+        operatorDiagnostics: createGatedOperatorDiagnostics(run, [
+          answerComposition.status === "partial"
+            ? "assembled_answer_gated_by_partial_source_coverage"
+            : "assembled_answer_gated_by_insufficient_source_coverage",
+        ]),
       };
-    case "fallback":
-      return {
-        camp,
-        answer: mapResponsibleAbstentionPresentation(answerComposition),
-        operatorDiagnostics,
-      };
+    }
+
+    return {
+      camp,
+      answer: mapAssembledAnswerPresentation(answerComposition),
+      operatorDiagnostics,
+    };
   }
 
   throw new Error(`Unsupported GuideSite answer composition status: ${(answerComposition as AnswerComposition).status}`);

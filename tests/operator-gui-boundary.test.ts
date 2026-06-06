@@ -2,16 +2,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { createGuideSiteMemoryStores, startGuideSiteRun } from "../src/guidesite-mvp/run-lifecycle.js";
 import type { AnswerComposition, RunState } from "../src/guidesite-mvp/types.js";
 import {
   DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
   createGuideSiteGuiService,
+  type GuideSiteGuiActionResult,
 } from "../app/operator/guide-site-gui-service.js";
 import {
   createGuideSiteOperatorDemoActions,
 } from "../app/operator/actions.js";
+import OperatorDemoClient from "../app/operator/operator-demo-client.js";
 
 function createAnsweredRun(): RunState {
   const stores = createGuideSiteMemoryStores();
@@ -42,6 +46,27 @@ function createAnsweredRun(): RunState {
   return {
     ...started,
     status: "composed",
+    retrieval: {
+      adapterId: "fixture",
+      adapterLabel: "Fixture",
+      needs: [],
+      concerns: [],
+      results: [
+        {
+          sourceId: "program_overnight",
+          sourceType: "campProgram",
+          title: "Overnight Camp Program",
+          rank: 1,
+          fieldPath: "summary",
+          sourceRevision: "mock_rev_program_overnight_001",
+        },
+      ],
+      diagnostics: [],
+      coverage: {
+        status: "source_backed",
+        matchedSourceIds: ["program_overnight"],
+      },
+    },
     answerComposition,
   };
 }
@@ -234,6 +259,96 @@ test("Operator demo actions adapt form submissions into service calls", async ()
   assert.deepEqual(seenPromptTexts, ["  Is overnight camp right for my 8-year-old?  "]);
   assert.deepEqual(seenSessionIds, ["session_operator_gui_boundary"]);
   assert.equal(submitted.promptText, "  Is overnight camp right for my 8-year-old?  ");
+});
+
+test("operator demo client renders assembled answers as text-first sections with inline citations", () => {
+  const result: GuideSiteGuiActionResult = {
+    promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    presentation: {
+      camp: {
+        campId: "ultimate-camp-website",
+        campName: "Ultimate Camp Website",
+        answerAccent: "amber",
+        surfaceTone: "warm-sand",
+        operatorChrome: "slate",
+      },
+      answer: {
+        status: "assembled_answer",
+        completeness: "complete",
+        conversationalFraming: "The approved source material explains how overnight camp supports the Child.",
+        sections: [
+          {
+            title: "Summary",
+            body: "The camp offers overnight programming for age-appropriate campers.",
+            citations: [
+              {
+                sourceId: "program_overnight",
+                label: "Overnight Camp Program",
+                sourceType: "campProgram",
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_program_overnight_001",
+              },
+            ],
+          },
+          {
+            title: "Concerns",
+            body: "The homesickness policy outlines the support path.",
+            citations: [
+              {
+                sourceId: "policy_homesickness",
+                label: "Homesickness Support Policy",
+                sourceType: "policy",
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_homesickness_001",
+              },
+            ],
+          },
+        ],
+        citations: [
+          {
+            sourceId: "program_overnight",
+            label: "Overnight Camp Program",
+            sourceType: "campProgram",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+          },
+          {
+            sourceId: "policy_homesickness",
+            label: "Homesickness Support Policy",
+            sourceType: "policy",
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_policy_homesickness_001",
+          },
+        ],
+      },
+      operatorDiagnostics: {
+        runId: "run_operator_gui_boundary",
+        sessionId: "session_operator_gui_boundary",
+        runStatus: "composed",
+        provider: "openai",
+        model: "gpt-test",
+        diagnostics: [],
+      },
+    },
+  };
+
+  const markup = renderToStaticMarkup(
+    React.createElement(OperatorDemoClient, {
+      result,
+      startDemoAction: async () => result,
+      submitPromptAction: async () => result,
+    }),
+  );
+
+  assert.match(markup, /Assembled answer/);
+  assert.match(markup, /The approved source material explains how overnight camp supports the Child\./);
+  assert.ok(markup.indexOf("Summary") < markup.indexOf("Overnight Camp Program"));
+  assert.ok(markup.indexOf("Overnight Camp Program") < markup.indexOf("The camp offers overnight programming for age-appropriate campers."));
+  assert.match(markup, /campProgram/);
+  assert.match(markup, /summary · mock_rev_program_overnight_001/);
+  assert.ok(markup.indexOf("Concerns") < markup.indexOf("Homesickness Support Policy"));
+  assert.ok(markup.indexOf("Homesickness Support Policy") < markup.indexOf("The homesickness policy outlines the support path."));
+  assert.doesNotMatch(markup, /Contact Path/);
 });
 
 test("operator demo client stays free of server-only GuideSite imports", () => {
