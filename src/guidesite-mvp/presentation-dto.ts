@@ -40,6 +40,33 @@ export interface GuideSiteRequiredQuestion {
   rationale: string | null;
   controlledReplies: GuideSiteSuggestedPromptSummary[];
 }
+export interface GuideSiteJourneyTimelinePrompt {
+  runId: string;
+  text: string;
+  source: RunState["prompt"]["source"];
+  createdAt: string;
+}
+
+export interface GuideSiteJourneyTimelineFact {
+  key: string;
+  label: string;
+  value: string;
+  source: string;
+}
+
+export interface GuideSiteJourneyTimelineConcern {
+  key: string;
+  label: string;
+  status: "open" | "addressed";
+}
+
+export interface GuideSiteJourneyTimeline {
+  prompts: GuideSiteJourneyTimelinePrompt[];
+  visitorContext: GuideSiteJourneyTimelineFact[];
+  concerns: GuideSiteJourneyTimelineConcern[];
+  sessionSummary: string | null;
+}
+
 
 export interface GuideSiteOperatorDiagnostics {
   runId: string | null;
@@ -175,6 +202,106 @@ export interface GuideSiteTechnicalFailurePresentation {
   message: string;
 }
 
+function titleCaseIdentifier(identifier: string): string {
+  return identifier
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .split("_")
+    .filter((part) => part.length > 0)
+    .map((part) => part[0].toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatTimelineValue(value: string | number | boolean): string {
+  return typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+}
+
+function createJourneyTimeline(run: RunState | null): GuideSiteJourneyTimeline {
+  if (!run) {
+    return {
+      prompts: [],
+      visitorContext: [],
+      concerns: [],
+      sessionSummary: null,
+    };
+  }
+
+  const session = run.committedSessionState ?? run.snapshot;
+  const promptHistory = session.promptHistory && session.promptHistory.length > 0
+    ? session.promptHistory
+    : [
+        {
+          runId: run.runId,
+          text: run.prompt.text,
+          source: run.prompt.source,
+          selectedSuggestedPromptId: run.prompt.selectedSuggestedPromptId,
+          createdAt: run.createdAt,
+        },
+      ];
+  const factMap = new Map<string, GuideSiteJourneyTimelineFact>();
+  const concernLabelByKey = new Map<string, string>();
+  const concernStatusByKey = new Map<string, "open" | "addressed">();
+
+  for (const [key, fact] of Object.entries(session.visitorFacts)) {
+    if (fact.status !== "active") {
+      continue;
+    }
+    factMap.set(key, {
+      key,
+      label: titleCaseIdentifier(key),
+      value: formatTimelineValue(fact.value),
+      source: fact.source,
+    });
+  }
+
+  for (const [key, fact] of Object.entries(run.understanding?.facts ?? {})) {
+    factMap.set(key, {
+      key,
+      label: titleCaseIdentifier(key),
+      value: formatTimelineValue(fact.value),
+      source: fact.provenance.source,
+    });
+  }
+
+  for (const [key, concern] of Object.entries(session.concerns)) {
+    if (concern.status === "open" || concern.status === "addressed") {
+      concernLabelByKey.set(key, titleCaseIdentifier(key));
+      concernStatusByKey.set(key, concern.status);
+    }
+  }
+
+  for (const concern of run.understanding?.concerns ?? []) {
+    if (concern.status === "open" || concern.status === "addressed") {
+      concernLabelByKey.set(concern.key, concern.label);
+      concernStatusByKey.set(concern.key, concern.status);
+    }
+  }
+
+  if (run.answerComposition?.status === "answered") {
+    for (const addressedConcernKey of run.answerComposition.sections
+      .filter((section) => section.kind === "concerns")
+      .flatMap((section) => section.items ?? [])) {
+      concernLabelByKey.set(addressedConcernKey, concernLabelByKey.get(addressedConcernKey) ?? titleCaseIdentifier(addressedConcernKey));
+      concernStatusByKey.set(addressedConcernKey, "addressed");
+    }
+  }
+
+  return {
+    prompts: promptHistory.map((prompt) => ({
+      runId: prompt.runId,
+      text: prompt.text,
+      source: prompt.source,
+      createdAt: prompt.createdAt,
+    })),
+    visitorContext: [...factMap.values()],
+    concerns: [...concernStatusByKey.entries()].map(([key, status]) => ({
+      key,
+      label: concernLabelByKey.get(key) ?? titleCaseIdentifier(key),
+      status,
+    })),
+    sessionSummary: session.summary.trim() || null,
+  };
+}
+
 export type GuideSitePresentationAnswer =
   | GuideSiteLoadingPresentation
   | GuideSiteContextGatheringResponsePresentation
@@ -186,6 +313,7 @@ export interface GuideSitePresentation {
   camp: GuideSiteCampThemeStub;
   answer: GuideSitePresentationAnswer;
   operatorDiagnostics: GuideSiteOperatorDiagnostics;
+  journeyTimeline: GuideSiteJourneyTimeline;
   operatorInspection: GuideSiteOperatorInspection;
 }
 
@@ -592,6 +720,7 @@ function mapValidationFailurePresentation(
       },
       diagnostics,
     ),
+    journeyTimeline: createJourneyTimeline(run),
     operatorInspection: createOperatorInspection(
       {
         ...run,
@@ -618,6 +747,7 @@ export function createGuideSiteLoadingPresentation(options: { camp?: GuideSiteCa
       message: "Loading the operator demo surface.",
     },
     operatorDiagnostics: createOperatorDiagnostics(null),
+    journeyTimeline: createJourneyTimeline(null),
     operatorInspection: createOperatorInspection(null, [], "loading"),
   };
 }
@@ -630,6 +760,7 @@ export function createGuideSiteTechnicalFailurePresentation(
     camp: resolveCampTheme(options),
     answer: mapTechnicalFailurePresentation(),
     operatorDiagnostics: createOperatorDiagnostics(null, diagnostics),
+    journeyTimeline: createJourneyTimeline(null),
     operatorInspection: createOperatorInspection(null, diagnostics, "technical_failure"),
   };
 }
@@ -649,6 +780,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapTechnicalFailurePresentation(),
       operatorDiagnostics: createOperatorDiagnostics(run, run.diagnostics),
+      journeyTimeline: createJourneyTimeline(run),
       operatorInspection: createOperatorInspection(run, run.diagnostics, "technical_failure"),
     };
   }
@@ -668,6 +800,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapTechnicalFailurePresentation(),
       operatorDiagnostics,
+      journeyTimeline: createJourneyTimeline(run),
       operatorInspection: createOperatorInspection(run, run.diagnostics, "technical_failure"),
     };
   }
@@ -677,6 +810,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapContextGatheringPresentation(run, answerComposition),
       operatorDiagnostics,
+      journeyTimeline: createJourneyTimeline(run),
       operatorInspection: createOperatorInspection(run, run.diagnostics, "context_gathering_response"),
     };
   }
@@ -686,6 +820,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapResponsibleAbstentionPresentation(answerComposition),
       operatorDiagnostics,
+      journeyTimeline: createJourneyTimeline(run),
       operatorInspection: createOperatorInspection(run, run.diagnostics, "responsible_abstention"),
     };
   }
@@ -706,6 +841,7 @@ export function mapGuideSiteRunStateToPresentation(
         operatorDiagnostics: createGatedOperatorDiagnostics(run, [
           `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
         ]),
+        journeyTimeline: createJourneyTimeline(run),
         operatorInspection: createOperatorInspection(run, [
           ...run.diagnostics,
           `assembled_answer_gated_by_unresolved_context_needs: ${unresolvedContextNeeds.join(", ")}`,
@@ -722,6 +858,7 @@ export function mapGuideSiteRunStateToPresentation(
             ? "assembled_answer_gated_by_partial_source_coverage"
             : "assembled_answer_gated_by_insufficient_source_coverage",
         ]),
+        journeyTimeline: createJourneyTimeline(run),
         operatorInspection: createOperatorInspection(run, [
           ...run.diagnostics,
           answerComposition.status === "partial"
@@ -735,6 +872,7 @@ export function mapGuideSiteRunStateToPresentation(
       camp,
       answer: mapAssembledAnswerPresentation(answerComposition),
       operatorDiagnostics,
+      journeyTimeline: createJourneyTimeline(run),
       operatorInspection: createOperatorInspection(run, run.diagnostics, "assembled_answer"),
     };
   }

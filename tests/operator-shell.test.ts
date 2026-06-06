@@ -18,6 +18,8 @@ test("operator shell renders the canonical demo surface", async () => {
       /Operator Demo Surface/,
       /GuideSite operator shell/,
       /Answer Presentation/,
+      /Journey Timeline/,
+      /Secondary operator context/,
       /Context Gathering Response/,
       /Required context/,
       /Controlled replies/,

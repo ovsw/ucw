@@ -317,6 +317,103 @@ function renderAnswerContent(
       );
   }
 }
+function JourneyTimeline({ timeline }: { timeline: GuideSitePresentation["journeyTimeline"] | undefined }) {
+  const safeTimeline = timeline ?? {
+    prompts: [],
+    visitorContext: [],
+    concerns: [],
+    sessionSummary: null,
+  };
+  return (
+    <aside
+      aria-labelledby="journey-timeline-title"
+      className="rounded-[2rem] border border-black/10 bg-white/82 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)]"
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Journey Timeline</p>
+      <h2 id="journey-timeline-title" className="mt-3 text-xl font-semibold tracking-[-0.05em] text-slate-950">
+        Secondary operator context
+      </h2>
+      <p className="mt-2 text-sm leading-6 text-slate-700">
+        Compact Prompt path, learned Visitor Context, and Concerns. This panel is context only, not a replay surface.
+      </p>
+
+      <div className="mt-5 grid gap-4">
+        <section aria-labelledby="journey-prompts-title">
+          <p id="journey-prompts-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Prior prompts
+          </p>
+          <div className="mt-2 grid gap-2">
+            {safeTimeline.prompts.length > 0 ? (
+              safeTimeline.prompts.map((prompt, index) => (
+                <div key={`${prompt.runId}-${index}`} className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Prompt {index + 1} · {prompt.source.replace(/_/g, " ")}
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-slate-800">{prompt.text}</p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+                No prior Prompts in this GuideSite Session yet.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="journey-context-title">
+          <p id="journey-context-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Visitor Context
+          </p>
+          <div className="mt-2 grid gap-2">
+            {safeTimeline.visitorContext.length > 0 ? (
+              safeTimeline.visitorContext.map((fact) => (
+                <div key={fact.key} className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{fact.label}</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-800">
+                    {fact.value} <span className="text-slate-500">({fact.source})</span>
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+                No learned Visitor Context yet.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="journey-concerns-title">
+          <p id="journey-concerns-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Concerns
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {safeTimeline.concerns.length > 0 ? (
+              safeTimeline.concerns.map((concern) => (
+                <span
+                  key={concern.key}
+                  className="rounded-full border border-slate-900/10 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
+                >
+                  {concern.label}: {concern.status}
+                </span>
+              ))
+            ) : (
+              <span className="rounded-full border border-slate-900/10 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+                No open or addressed Concerns yet
+              </span>
+            )}
+          </div>
+        </section>
+
+        {safeTimeline.sessionSummary ? (
+          <div className="rounded-[1rem] border border-amber-900/10 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
+            {safeTimeline.sessionSummary}
+          </div>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 
 function InspectionSummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -534,7 +631,6 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
     </aside>
   );
 }
-
 export default function OperatorDemoClient({ result, startDemoAction, submitPromptAction }: OperatorDemoClientProps) {
   const [currentResult, operatorDemoFormAction, isActionPending] = React.useActionState(
     async (_previousResult: GuideSiteGuiActionResult, formData: FormData) => {
@@ -625,7 +721,10 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
             </div>
           </article>
 
-          {renderDiagnostics(presentation, currentResult.promptText)}
+          <div className="space-y-6">
+            <JourneyTimeline timeline={presentation.journeyTimeline} />
+            {renderDiagnostics(presentation, currentResult.promptText)}
+          </div>
         </section>
 
         <section aria-label="Prompt controls" className="rounded-[2rem] border border-black/10 bg-white/82 p-6 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:p-8">

@@ -184,6 +184,14 @@ export type SessionPatchOperation =
       summary: string;
     };
 
+export interface SessionPromptSummary {
+  runId: string;
+  text: string;
+  source: PromptSource;
+  selectedSuggestedPromptId: string | null;
+  createdAt: string;
+}
+
 export interface SessionState {
   schemaVersion: 1;
   sessionId: string;
@@ -195,6 +203,7 @@ export interface SessionState {
   concerns: Record<string, ConcernState>;
   focus: SessionFocus;
   suggestedPrompts: SuggestedPrompt[];
+  promptHistory?: SessionPromptSummary[];
   summary: string;
 }
 

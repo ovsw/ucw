@@ -156,6 +156,7 @@ function createEmptySessionState(sessionId: string, timestamp: string): SessionS
       contextNeeds: [],
     },
     suggestedPrompts: [],
+    promptHistory: [],
     summary: "",
   };
 }
@@ -1026,6 +1027,16 @@ export function commitSessionPatch(options: CommitSessionPatchOptions): CommitSe
   const patchedSession = applySessionPatchOperations(liveSession, options.patch.operations);
   const committedSession: SessionState = {
     ...patchedSession,
+    promptHistory: [
+      ...(liveSession.promptHistory ?? []),
+      {
+        runId: options.run.runId,
+        text: options.run.prompt.text,
+        source: options.run.prompt.source,
+        selectedSuggestedPromptId: options.run.prompt.selectedSuggestedPromptId,
+        createdAt: options.run.createdAt,
+      },
+    ],
     revision: liveSession.revision + 1,
     updatedAt: timestamp,
   };
