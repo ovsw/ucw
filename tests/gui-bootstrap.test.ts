@@ -29,6 +29,8 @@ test("App Router bootstraps the root route into the operator surface", () => {
   assert.match(rootLayoutSource, /GuideSite Operator Demo Surface/);
   assert.match(operatorPageSource, /createGuideSiteGuiService/);
   assert.match(operatorPageSource, /OperatorDemoClient/);
+  assert.match(operatorPageSource, /restoreDemo\(\{\s*sessionId/s);
+  assert.doesNotMatch(operatorPageSource, /startDemo\(\{\s*sessionId/s);
   assert.match(adminPageSource, /NextStudio/);
 });
 

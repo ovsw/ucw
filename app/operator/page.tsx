@@ -38,7 +38,7 @@ async function readInitialGuideSiteSessionId(): Promise<string | undefined> {
 
 export default async function OperatorPage() {
   const sessionId = await readInitialGuideSiteSessionId();
-  const initialPresentation = await guiService.startDemo({
+  const initialPresentation = await guiService.restoreDemo({
     sessionId,
   });
 

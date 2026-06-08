@@ -152,10 +152,10 @@ test("GuideSite GUI service starts from the canonical prompt and maps technical 
     },
   });
 
-  const startResult = await service.startDemo({ sessionId: "session_gui_reload" });
+  const startResult = await service.startDemo({ createSessionId: () => "session_gui_reload" });
   assert.deepEqual(seenRuntimeModes, ["fixture"]);
   assert.deepEqual(seenPrompts, [DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT]);
-  assert.deepEqual(seenSessionIds, ["session_gui_reload"]);
+  assert.deepEqual(seenSessionIds, [undefined]);
   assert.equal(startResult.promptText, DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT);
   assert.equal(startResult.presentation.answer.status, "assembled_answer");
 
@@ -351,7 +351,7 @@ test("GuideSite GUI fixture mode keeps vague required-context replies in the con
     createStores: () => createGuideSiteMemoryStores(),
   });
 
-  const started = await service.startDemo({ sessionId: "session_gui_required_context" });
+  const started = await service.startDemo({ createSessionId: () => "session_gui_required_context" });
   assert.equal(started.presentation.answer.status, "context_gathering_response");
   assert.deepEqual(started.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
     DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
@@ -385,7 +385,7 @@ test("GuideSite GUI fixture mode records controlled replies through the Prompt p
     createStores: () => createGuideSiteMemoryStores(),
   });
 
-  const started = await service.startDemo({ sessionId: "session_gui_controlled_context" });
+  const started = await service.startDemo({ createSessionId: () => "session_gui_controlled_context" });
   assert.equal(started.presentation.answer.status, "context_gathering_response");
   if (started.presentation.answer.status !== "context_gathering_response") {
     assert.fail("Expected the canonical prompt to gather required Visitor Context first");
@@ -471,7 +471,7 @@ test("GuideSite GUI fixture mode records no-prior-sleepaway controlled replies",
     createStores: () => createGuideSiteMemoryStores(),
   });
 
-  const started = await service.startDemo({ sessionId: "session_gui_no_sleepaway_context" });
+  const started = await service.startDemo({ createSessionId: () => "session_gui_no_sleepaway_context" });
   assert.equal(started.presentation.answer.status, "context_gathering_response");
 
   const sleepawayReply = await service.submitPrompt({
@@ -509,7 +509,7 @@ test("GuideSite GUI fixture mode renders withheld required-context replies as re
     createStores: () => createGuideSiteMemoryStores(),
   });
 
-  const started = await service.startDemo({ sessionId: "session_gui_withheld_context" });
+  const started = await service.startDemo({ createSessionId: () => "session_gui_withheld_context" });
   assert.equal(started.presentation.answer.status, "context_gathering_response");
 
   const withheldReply = await service.submitPrompt({
@@ -535,7 +535,7 @@ test("GuideSite GUI fixture mode assembles the canonical Fit answer after requir
     createStores: () => createGuideSiteMemoryStores(),
   });
 
-  const started = await service.startDemo({ sessionId: "session_gui_completed_required_context" });
+  const started = await service.startDemo({ createSessionId: () => "session_gui_completed_required_context" });
   assert.equal(started.presentation.answer.status, "context_gathering_response");
   if (started.presentation.answer.status !== "context_gathering_response") {
     assert.fail("Expected the canonical prompt to gather required Visitor Context first");
@@ -586,6 +586,57 @@ test("GuideSite GUI fixture mode assembles the canonical Fit answer after requir
     ["child_age", "child_readiness", "prior_sleepaway_experience"],
   );
 });
+
+test("GuideSite GUI service restores latest existing demo session without rerunning the canonical Prompt", async () => {
+  const stores = createGuideSiteMemoryStores();
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => stores,
+  });
+  const sessionId = "session_gui_restore_existing";
+
+  const started = await service.startDemo({ createSessionId: () => sessionId });
+  assert.equal(started.presentation.answer.status, "context_gathering_response");
+
+  const sleepawayReply = await service.submitPrompt({
+    promptText: priorSleepawayYesReply,
+    sessionId,
+  });
+  assert.equal(sleepawayReply.presentation.answer.status, "context_gathering_response");
+
+  const readinessReply = await service.submitPrompt({
+    promptText: childReadinessPositiveReply,
+    sessionId,
+  });
+  assert.equal(readinessReply.presentation.answer.status, "assembled_answer");
+
+  const restored = await service.restoreDemo({ sessionId });
+
+  assert.equal(restored.promptText, childReadinessPositiveReply);
+  assert.equal(restored.presentation.answer.status, "assembled_answer");
+  assert.equal(restored.presentation.operatorDiagnostics.sessionId, sessionId);
+  assert.deepEqual(restored.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    priorSleepawayYesReply,
+    childReadinessPositiveReply,
+  ]);
+
+  const newDemo = await service.startDemo({
+    createSessionId: () => "session_gui_restore_new_demo",
+    createRunId: () => "run_gui_restore_new_demo",
+  });
+
+  assert.equal(newDemo.presentation.operatorDiagnostics.sessionId, "session_gui_restore_new_demo");
+  assert.deepEqual(newDemo.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+  ]);
+});
+
 
 test("GuideSite GUI service abstains when completed canonical Fit context lacks source coverage", async () => {
   const stores = createGuideSiteMemoryStores();
@@ -706,12 +757,17 @@ test("GuideSite GUI service abstains when completed canonical Fit context lacks 
 test("Operator demo actions adapt form submissions into service calls", async () => {
   const seenPromptTexts: string[] = [];
   const seenSessionIds: Array<string | undefined> = [];
+  const seenStartSessionIds: Array<string | undefined> = [];
   const actions = createGuideSiteOperatorDemoActions({
     service: {
-      startDemo: async () => ({
-        promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
-        presentation: createGuideSiteLoadingPresentation(),
-      }),
+      startDemo: async (options?: unknown) => {
+        const startOptions = options && typeof options === "object" ? (options as { sessionId?: string }) : undefined;
+        seenStartSessionIds.push(startOptions?.sessionId);
+        return {
+          promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+          presentation: createGuideSiteLoadingPresentation(),
+        };
+      },
       submitPrompt: async ({ promptText, sessionId }: { promptText: string; sessionId?: string }) => {
         seenPromptTexts.push(promptText);
         seenSessionIds.push(sessionId);
@@ -723,13 +779,16 @@ test("Operator demo actions adapt form submissions into service calls", async ()
     },
   });
 
-  const started = await actions.startGuideSiteOperatorDemoAction(new FormData());
+  const startFormData = new FormData();
+  startFormData.append("sessionId", "session_operator_gui_existing");
+  const started = await actions.startGuideSiteOperatorDemoAction(startFormData);
   const submittedFormData = new FormData();
   submittedFormData.append("promptText", "  Is overnight camp right for my 8-year-old?  ");
   submittedFormData.append("sessionId", "session_operator_gui_boundary");
   const submitted = await actions.submitGuideSiteOperatorPromptAction(submittedFormData);
 
   assert.equal(started.promptText, DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT);
+  assert.deepEqual(seenStartSessionIds, [undefined]);
   assert.deepEqual(seenPromptTexts, ["  Is overnight camp right for my 8-year-old?  "]);
   assert.deepEqual(seenSessionIds, ["session_operator_gui_boundary"]);
   assert.equal(submitted.promptText, "  Is overnight camp right for my 8-year-old?  ");

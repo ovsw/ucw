@@ -5,7 +5,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import OperatorPage from "../app/operator/page.js";
 import OperatorLoading from "../app/operator/loading.js";
-import { DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY } from "../app/operator/guide-site-gui-service.js";
+import { DEFAULT_GUIDESITE_GUI_RUN_STORE_DIRECTORY, DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY } from "../app/operator/guide-site-gui-service.js";
 
 test("operator shell renders the canonical demo surface", async () => {
   const previousRuntimeMode = process.env.GUIDESITE_GUI_RUNTIME_MODE;
@@ -50,6 +50,10 @@ test("operator shell renders the canonical demo surface", async () => {
     assert.doesNotMatch(markup, /Sanity Studio embedded/i);
   } finally {
     rmSync(join(process.cwd(), DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY), {
+      recursive: true,
+      force: true,
+    });
+    rmSync(join(process.cwd(), DEFAULT_GUIDESITE_GUI_RUN_STORE_DIRECTORY), {
       recursive: true,
       force: true,
     });

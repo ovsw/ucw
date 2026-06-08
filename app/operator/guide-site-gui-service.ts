@@ -3,6 +3,7 @@ import { readGuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeConfig, type Gui
 import { createOpenAIPromptUnderstandingProvider, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
 import { createGuideSiteLoadingPresentation, createGuideSiteTechnicalFailurePresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
 import { buildHardcodedSessionPatch, commitSessionPatch, createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
+import { createGuideSiteFileRunStore } from "../../src/guidesite-mvp/run-store.ts";
 import { createGuideSiteFileSessionStore } from "../../src/guidesite-mvp/session-store.ts";
 import { createSanityGuideSiteRetrievalAdapterResolver } from "../../src/guidesite-mvp/sanity-retrieval.ts";
 
@@ -10,6 +11,7 @@ import type { GuideSiteStores, PromptUnderstanding, PromptUnderstandingSessionCo
 
 export const DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT = "Is overnight camp right for my 8-year-old?";
 export const DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY = ".guidesite/operator-demo-sessions";
+export const DEFAULT_GUIDESITE_GUI_RUN_STORE_DIRECTORY = ".guidesite/operator-demo-runs";
 
 export type GuideSiteGuiActionResult = {
   promptText: string;
@@ -25,6 +27,9 @@ export type GuideSiteGuiTurnRequest = {
   createSessionId?: () => string;
   createRunId?: () => string;
 };
+
+export type GuideSiteGuiStartDemoRequest = Omit<GuideSiteGuiTurnRequest, "promptText" | "sessionId">;
+export type GuideSiteGuiRestoreRequest = Omit<GuideSiteGuiTurnRequest, "promptText">;
 
 export type GuideSiteGuiRuntimeReader = (options?: {
   env?: GuideSiteGuiRuntimeEnv;
@@ -331,7 +336,39 @@ function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider
 function createDefaultGuideSiteGuiStores(): GuideSiteStores {
   return createGuideSiteMemoryStores({
     sessions: createGuideSiteFileSessionStore(DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY),
+    runs: createGuideSiteFileRunStore(DEFAULT_GUIDESITE_GUI_RUN_STORE_DIRECTORY),
   });
+}
+
+function isRestorableGuideSiteGuiRun(run: RunState, sessionId: string): boolean {
+  return run.sessionId === sessionId && run.promptUnderstandingValidation?.valid === true && run.answerComposition !== null;
+}
+
+function readLatestRestorableGuideSiteGuiRun(stores: GuideSiteStores, sessionId: string | undefined): RunState | null {
+  if (!sessionId) {
+    return null;
+  }
+
+  const session = stores.sessions.read(sessionId);
+  const latestPrompt = session?.promptHistory?.at(-1);
+  if (!session || !latestPrompt) {
+    return null;
+  }
+
+  const run = stores.runs.read(latestPrompt.runId);
+  if (!run || !isRestorableGuideSiteGuiRun(run, session.sessionId)) {
+    return null;
+  }
+
+  return {
+    ...run,
+    committedSessionState: run.committedSessionState ?? session,
+  };
+}
+
+function createNewDemoRequest(options: GuideSiteGuiRestoreRequest | GuideSiteGuiStartDemoRequest = {}): GuideSiteGuiStartDemoRequest {
+  const { sessionId: _sessionId, ...newDemoRequest } = options as GuideSiteGuiRestoreRequest;
+  return newDemoRequest;
 }
 
 async function executeGuideSiteGuiTurn(
@@ -426,8 +463,26 @@ export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDepen
   return {
     createInitialPresentation: () => createGuideSiteLoadingPresentation(),
     readRuntimeConfig,
-    startDemo(options: Omit<GuideSiteGuiTurnRequest, "promptText"> = {}) {
-      return executePrompt(DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT, options);
+    startDemo(options: GuideSiteGuiStartDemoRequest = {}) {
+      return executePrompt(DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT, createNewDemoRequest(options));
+    },
+    async restoreDemo(options: GuideSiteGuiRestoreRequest = {}) {
+      try {
+        const restoredRun = readLatestRestorableGuideSiteGuiRun(stores, options.sessionId);
+        if (restoredRun) {
+          return {
+            promptText: restoredRun.prompt.text,
+            presentation: mapGuideSiteRunStateToPresentation(restoredRun),
+          };
+        }
+      } catch (error) {
+        return {
+          promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+          presentation: createGuideSiteGuiTechnicalFailurePresentation(error),
+        };
+      }
+
+      return executePrompt(DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT, createNewDemoRequest(options));
     },
     submitPrompt(options: GuideSiteGuiTurnRequest) {
       return executePrompt(options.promptText, options);
