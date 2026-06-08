@@ -128,6 +128,37 @@ const PRECISE_SLEEPAWAY_MARKERS = [
   "away from home",
   "overnight at",
 ] as const;
+const NO_PRIOR_SLEEPAWAY_MARKERS = [
+  "has not slept away",
+  "hasn't slept away",
+  "not slept away",
+  "never slept away",
+  "no prior sleepaway",
+] as const;
+const PRECISE_CHILD_READINESS_MARKERS = [
+  "handles new routines",
+  "new routines",
+  "time away",
+  "asks adults",
+  "asks for help",
+  "does great",
+  "did great",
+  "does well",
+  "separation",
+  "independent",
+  "ready",
+] as const;
+const CONCERNING_CHILD_READINESS_MARKERS = [
+  "struggles",
+  "struggle",
+  "anxious",
+  "cries",
+  "not ready",
+  "doesn't handle",
+  "does not handle",
+  "needs more readiness support",
+  "needs more support",
+] as const;
 
 function createRequiredContextConcerns(): PromptUnderstanding["concerns"] {
   return [
@@ -170,29 +201,57 @@ function createVagueRequiredContextUnderstanding(
   };
 }
 
+function createPriorSleepawayExperienceFactValue(normalizedPromptText: string): string {
+  return includesAnyMarker(normalizedPromptText, NO_PRIOR_SLEEPAWAY_MARKERS)
+    ? "no_prior_sleepaway_experience"
+    : "slept_with_grandparents";
+}
+
+function createChildReadinessFactValue(normalizedPromptText: string): string {
+  return includesAnyMarker(normalizedPromptText, CONCERNING_CHILD_READINESS_MARKERS)
+    ? "needs_more_readiness_support"
+    : "handles_new_routines_well";
+}
+
 function createPreciseRequiredContextUnderstanding(
   promptText: string,
+  normalizedPromptText: string,
   context?: PromptUnderstandingSessionContext,
 ): PromptUnderstanding {
   const pendingContextNeeds = getPendingContextNeeds(context);
-  const remainingContextNeeds = pendingContextNeeds.filter((need) => need !== "prior_sleepaway_experience");
+  const facts: PromptUnderstanding["facts"] = {};
+  const answeredContextNeeds = new Set<string>();
+
+  if (pendingContextNeeds.includes("prior_sleepaway_experience") && looksPreciseSleepawayReply(normalizedPromptText)) {
+    facts.prior_sleepaway_experience = {
+      value: createPriorSleepawayExperienceFactValue(normalizedPromptText),
+      provenance: {
+        source: "explicit",
+        promptText,
+      },
+    };
+    answeredContextNeeds.add("prior_sleepaway_experience");
+  }
+
+  if (pendingContextNeeds.includes("child_readiness") && looksPreciseChildReadinessReply(normalizedPromptText)) {
+    facts.child_readiness = {
+      value: createChildReadinessFactValue(normalizedPromptText),
+      provenance: {
+        source: "explicit",
+        promptText,
+      },
+    };
+    answeredContextNeeds.add("child_readiness");
+  }
 
   return {
     goal: "assess_fit",
     promptType: "fit",
-    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning about prior sleepaway experience.",
-    facts: {
-      prior_sleepaway_experience: {
-        value: "slept_with_grandparents",
-        provenance: {
-          source: "explicit",
-          promptText,
-        },
-      },
-    },
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's Child after learning required Visitor Context.",
+    facts,
     concerns: createRequiredContextConcerns(),
     retrievalNeeds: [...REQUIRED_CONTEXT_RETRIEVAL_NEEDS],
-    contextNeeds: remainingContextNeeds.length > 0 ? remainingContextNeeds : ["child_readiness"],
+    contextNeeds: pendingContextNeeds.filter((need) => !answeredContextNeeds.has(need)),
   };
 }
 
@@ -220,6 +279,14 @@ function looksPreciseSleepawayReply(normalizedPromptText: string): boolean {
   return includesAnyMarker(normalizedPromptText, PRECISE_SLEEPAWAY_MARKERS);
 }
 
+function looksPreciseChildReadinessReply(normalizedPromptText: string): boolean {
+  return includesAnyMarker(normalizedPromptText, PRECISE_CHILD_READINESS_MARKERS);
+}
+
+function looksPreciseRequiredContextReply(normalizedPromptText: string): boolean {
+  return looksPreciseSleepawayReply(normalizedPromptText) || looksPreciseChildReadinessReply(normalizedPromptText);
+}
+
 function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider {
   return {
     async understandPrompt(promptText, context) {
@@ -231,8 +298,8 @@ function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider
         understanding = createCanonicalFixturePromptUnderstanding();
       } else if (looksWithheldRequiredContextReply(normalizedPromptText)) {
         understanding = createWithheldRequiredContextUnderstanding();
-      } else if (looksPreciseSleepawayReply(normalizedPromptText)) {
-        understanding = createPreciseRequiredContextUnderstanding(trimmedPromptText, context);
+      } else if (looksPreciseRequiredContextReply(normalizedPromptText)) {
+        understanding = createPreciseRequiredContextUnderstanding(trimmedPromptText, normalizedPromptText, context);
       } else if (looksVagueRequiredContextReply(normalizedPromptText)) {
         understanding = createVagueRequiredContextUnderstanding(context);
       } else {

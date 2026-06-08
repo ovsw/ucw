@@ -77,7 +77,9 @@ function createSessionSummary(run: RunState): string {
   const clauses: string[] = [];
   const priorSleepawayExperience = activeFacts.get("prior_sleepaway_experience");
   if (priorSleepawayExperience !== undefined) {
-    if (typeof priorSleepawayExperience === "string" && priorSleepawayExperience === "slept_with_grandparents") {
+    if (typeof priorSleepawayExperience === "string" && priorSleepawayExperience === "no_prior_sleepaway_experience") {
+      clauses.push("The Child has not slept away from home yet");
+    } else if (typeof priorSleepawayExperience === "string" && priorSleepawayExperience === "slept_with_grandparents") {
       clauses.push("The Child has prior sleepaway experience with grandparents");
     } else {
       clauses.push("The Child has prior sleepaway experience");

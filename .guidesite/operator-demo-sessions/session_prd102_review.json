@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "session_prd102_review",
+  "revision": 4,
+  "status": "active",
+  "createdAt": "2026-06-08T04:45:44.150Z",
+  "updatedAt": "2026-06-08T04:45:44.157Z",
+  "visitorFacts": {
+    "child_age": {
+      "value": 8,
+      "source": "explicit",
+      "sourceRunId": "run_d1673467-a397-44bc-9f1f-204023cd57ab",
+      "status": "active"
+    },
+    "prior_sleepaway_experience": {
+      "value": "slept_with_grandparents",
+      "source": "explicit",
+      "sourceRunId": "run_a8d12b94-4af9-4264-bd35-3a4b7dd2a6c2",
+      "status": "active"
+    },
+    "child_readiness": {
+      "value": "handles_new_routines_well",
+      "source": "explicit",
+      "sourceRunId": "run_fbcd0ba4-6ef1-40ba-85e5-d371a678e1fc",
+      "status": "active"
+    }
+  },
+  "concerns": {
+    "homesickness": {
+      "status": "addressed",
+      "sourceRunIds": [
+        "run_fbcd0ba4-6ef1-40ba-85e5-d371a678e1fc"
+      ]
+    },
+    "child_readiness": {
+      "status": "addressed",
+      "sourceRunIds": [
+        "run_fbcd0ba4-6ef1-40ba-85e5-d371a678e1fc"
+      ]
+    }
+  },
+  "focus": {
+    "goal": "assess_fit",
+    "contextNeeds": []
+  },
+  "suggestedPrompts": [],
+  "promptHistory": [
+    {
+      "runId": "run_d1673467-a397-44bc-9f1f-204023cd57ab",
+      "text": "Is overnight camp right for my 8-year-old?",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T04:45:44.150Z"
+    },
+    {
+      "runId": "run_a8d12b94-4af9-4264-bd35-3a4b7dd2a6c2",
+      "text": "She slept away at her grandparents last summer.",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T04:45:44.155Z"
+    },
+    {
+      "runId": "run_fbcd0ba4-6ef1-40ba-85e5-d371a678e1fc",
+      "text": "She handles new routines well and asks adults for help when she needs it.",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T04:45:44.156Z"
+    }
+  ],
+  "summary": "Parent is assessing overnight camp Fit for an 8-year-old Child. The Child has prior sleepaway experience with grandparents; Homesickness and Child Readiness have been addressed."
+}

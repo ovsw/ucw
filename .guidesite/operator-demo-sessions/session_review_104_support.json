@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "session_review_104_support",
+  "revision": 4,
+  "status": "active",
+  "createdAt": "2026-06-08T10:51:25.255Z",
+  "updatedAt": "2026-06-08T10:51:25.259Z",
+  "visitorFacts": {
+    "child_age": {
+      "value": 8,
+      "source": "explicit",
+      "sourceRunId": "run_47bd1661-e1e4-4f5b-9aa9-c2c9d811467d",
+      "status": "active"
+    },
+    "prior_sleepaway_experience": {
+      "value": "slept_with_grandparents",
+      "source": "explicit",
+      "sourceRunId": "run_1bcb697e-e463-43ae-86b2-8a4dbe51213d",
+      "status": "active"
+    },
+    "child_readiness": {
+      "value": "needs_more_readiness_support",
+      "source": "explicit",
+      "sourceRunId": "run_5d55c723-cf67-407c-b3d2-2bd12961c1d5",
+      "status": "active"
+    }
+  },
+  "concerns": {
+    "homesickness": {
+      "status": "addressed",
+      "sourceRunIds": [
+        "run_5d55c723-cf67-407c-b3d2-2bd12961c1d5"
+      ]
+    },
+    "child_readiness": {
+      "status": "addressed",
+      "sourceRunIds": [
+        "run_5d55c723-cf67-407c-b3d2-2bd12961c1d5"
+      ]
+    }
+  },
+  "focus": {
+    "goal": "assess_fit",
+    "contextNeeds": []
+  },
+  "suggestedPrompts": [],
+  "promptHistory": [
+    {
+      "runId": "run_47bd1661-e1e4-4f5b-9aa9-c2c9d811467d",
+      "text": "Is overnight camp right for my 8-year-old?",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T10:51:25.255Z"
+    },
+    {
+      "runId": "run_1bcb697e-e463-43ae-86b2-8a4dbe51213d",
+      "text": "Yes, with grandparents.",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T10:51:25.257Z"
+    },
+    {
+      "runId": "run_5d55c723-cf67-407c-b3d2-2bd12961c1d5",
+      "text": "Needs more readiness support with new routines and time away.",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T10:51:25.258Z"
+    }
+  ],
+  "summary": "Parent is assessing overnight camp Fit for an 8-year-old Child. The Child has prior sleepaway experience with grandparents; Homesickness and Child Readiness have been addressed."
+}

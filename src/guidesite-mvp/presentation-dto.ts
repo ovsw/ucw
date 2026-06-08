@@ -40,6 +40,34 @@ export interface GuideSiteRequiredQuestion {
   rationale: string | null;
   controlledReplies: GuideSiteSuggestedPromptSummary[];
 }
+
+type RequiredContextControlledReplyOption = {
+  idSuffix: string;
+  text: string;
+};
+
+const REQUIRED_CONTEXT_CONTROLLED_REPLY_OPTIONS: Record<string, readonly RequiredContextControlledReplyOption[]> = {
+  prior_sleepaway_experience: [
+    {
+      idSuffix: "yes_grandparents",
+      text: "Yes, with grandparents.",
+    },
+    {
+      idSuffix: "no_not_yet",
+      text: "No, not yet - she has not slept away from home.",
+    },
+  ],
+  child_readiness: [
+    {
+      idSuffix: "handles_new_routines",
+      text: "Yes, handles new routines well and asks adults for help.",
+    },
+    {
+      idSuffix: "needs_more_support",
+      text: "Needs more readiness support with new routines and time away.",
+    },
+  ],
+};
 export interface GuideSiteJourneyTimelinePrompt {
   runId: string;
   text: string;
@@ -613,6 +641,16 @@ function joinRequiredPromptRationales(rationales: string[]): string | null {
   return uniqueRationales.join(" ");
 }
 
+function createRequiredQuestionControlledReplies(prompt: SuggestedPrompt): GuideSiteSuggestedPromptSummary[] {
+  return prompt.contextNeeds.flatMap((contextNeed) =>
+    (REQUIRED_CONTEXT_CONTROLLED_REPLY_OPTIONS[contextNeed] ?? []).map((reply) => ({
+      id: `${prompt.id}_${reply.idSuffix}`,
+      text: reply.text,
+      purpose: prompt.purpose,
+    })),
+  );
+}
+
 function splitSuggestedPrompts(run: RunState, answerComposition: AnswerComposition): {
   requiredQuestions: GuideSiteRequiredQuestion[];
   suggestedPrompts: GuideSiteSuggestedPromptSummary[];
@@ -645,7 +683,7 @@ function splitSuggestedPrompts(run: RunState, answerComposition: AnswerCompositi
         id: prompt.id,
         text: prompt.text,
         rationale: joinRequiredPromptRationales(matchingRequiredRationales),
-        controlledReplies: [promptSummary],
+        controlledReplies: createRequiredQuestionControlledReplies(prompt),
       });
       continue;
     }

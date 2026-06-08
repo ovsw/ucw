@@ -39,6 +39,7 @@ import { formatChildAge } from "./age-formatting.ts";
 import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.ts";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
+const canonicalFitQuestionText = "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.";
 
 function createDefaultSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -464,7 +465,7 @@ function createCanonicalUnderstanding(): PromptUnderstanding {
   return {
     goal: "assess_fit",
     promptType: "fit",
-    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+    fitQuestion: canonicalFitQuestionText,
     facts: {
       child_age: {
         value: 8,
@@ -527,8 +528,15 @@ type SuggestedPromptDerivation = {
   suggestedPrompts: AnswerComposition["suggestedPrompts"];
   diagnostics: string[];
 };
+const canonicalRequiredContextNeedIds = ["prior_sleepaway_experience", "child_readiness"] as const;
 const canonicalSummarySourceIds = ["program_overnight"] as const;
 const canonicalConcernSourceIds = ["policy_homesickness", "policy_parent_communication"] as const;
+const canonicalFitAnswerSourceIds = [
+  "program_overnight",
+  "concern_homesickness",
+  "policy_homesickness",
+  "policy_parent_communication",
+] as const;
 
 function formatList(items: string[]): string {
   if (items.length === 0) {
@@ -552,6 +560,37 @@ function titleCaseIdentifier(identifier: string): string {
     .filter((part) => part.length > 0)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function isCanonicalFitJourney(run: RunState): boolean {
+  if (run.understanding?.goal !== "assess_fit") {
+    return false;
+  }
+
+  if (run.prompt.text === canonicalPromptText) {
+    return true;
+  }
+
+  if ((run.snapshot.promptHistory ?? []).some((prompt) => prompt.text === canonicalPromptText)) {
+    return true;
+  }
+
+  const childAge = collectActiveFacts(run).get("child_age");
+  return childAge === 8 && run.understanding.fitQuestion === canonicalFitQuestionText;
+}
+
+function collectMissingRequiredCanonicalFitContextNeeds(run: RunState): string[] {
+  const activeFacts = collectActiveFacts(run);
+  return canonicalRequiredContextNeedIds.filter((contextNeed) => !activeFacts.has(contextNeed));
+}
+
+function collectUnresolvedCanonicalFitContextNeeds(run: RunState): string[] {
+  const unresolvedContextNeeds = collectUnresolvedContextNeeds(run);
+  if (!isCanonicalFitJourney(run)) {
+    return unresolvedContextNeeds;
+  }
+
+  return [...new Set([...unresolvedContextNeeds, ...collectMissingRequiredCanonicalFitContextNeeds(run)])];
 }
 
 function describeRetrievalAdapter(retrieval: NonNullable<RunState["retrieval"]>): string {
@@ -607,10 +646,34 @@ function createPriorSleepawayExperienceSummary(
   }
 
   if (typeof priorSleepawayExperience === "string") {
-    return "The Child has prior sleepaway experience with grandparents.";
+    if (priorSleepawayExperience === "no_prior_sleepaway_experience") {
+      return "The Parent reported that the Child has not slept away from home yet.";
+    }
+
+    if (priorSleepawayExperience === "slept_with_grandparents") {
+      return "The Child has prior sleepaway experience with grandparents.";
+    }
+
+    return "The Child has prior sleepaway experience.";
   }
 
   return "The Child has prior sleepaway experience.";
+}
+
+function createChildReadinessSummary(childReadiness: string | number | boolean | undefined): string | null {
+  if (childReadiness === undefined) {
+    return null;
+  }
+
+  if (typeof childReadiness === "string" && childReadiness === "needs_more_readiness_support") {
+    return "The Parent reported that the Child still needs more support with new routines or time away.";
+  }
+
+  return "The Parent reported that the Child handles new routines and time away from the Parent well.";
+}
+
+function isPositiveChildReadiness(childReadiness: string | number | boolean | undefined): boolean {
+  return childReadiness !== false && childReadiness !== "needs_more_readiness_support";
 }
 
 function createNeedContextSummary(run: RunState): string {
@@ -637,7 +700,7 @@ function createNeedsContextSections(
 ): AnswerComposition["sections"] {
   const concernLabels = run.understanding?.concerns.map((concern) => concern.label) ?? [];
   const concernKeys = run.understanding?.concerns.map((concern) => concern.key) ?? [];
-  const contextNeeds = collectUnresolvedContextNeeds(run);
+  const contextNeeds = collectUnresolvedCanonicalFitContextNeeds(run);
   const concernSourceRefs = createSourceRefs(canonicalConcernSourceIds, retrieval);
   const sections: AnswerComposition["sections"] = [
     {
@@ -711,7 +774,7 @@ function createSuggestedPrompts(run: RunState): SuggestedPromptDerivation {
     };
   }
 
-  const unresolvedContextNeeds = collectUnresolvedContextNeeds(run);
+  const unresolvedContextNeeds = collectUnresolvedCanonicalFitContextNeeds(run);
   const prompts: AnswerComposition["suggestedPrompts"] = [];
   const diagnostics: string[] = [];
 
@@ -897,6 +960,141 @@ function createHomesicknessConcernAnswerComposition(
   };
 }
 
+type CanonicalFitAnswerSourceMaterial = {
+  available: string[];
+  missingSources: string[];
+  missingSourceText: string[];
+  sourceTextById: Map<string, string>;
+};
+
+function collectCanonicalFitAnswerSourceMaterial(
+  retrieval: NonNullable<RunState["retrieval"]>,
+): CanonicalFitAnswerSourceMaterial {
+  const resultsById = new Map(retrieval.results.map((result) => [result.sourceId, result] as const));
+  const available: string[] = [];
+  const missingSources: string[] = [];
+  const missingSourceText: string[] = [];
+  const sourceTextById = new Map<string, string>();
+
+  for (const sourceId of canonicalFitAnswerSourceIds) {
+    const retrievalResult = resultsById.get(sourceId);
+    if (!retrievalResult) {
+      missingSources.push(sourceId);
+      continue;
+    }
+
+    const sourceText = retrievalResult.sourceText.trim();
+    if (!sourceText) {
+      missingSourceText.push(sourceId);
+      continue;
+    }
+
+    available.push(sourceId);
+    sourceTextById.set(sourceId, sourceText);
+  }
+
+  return {
+    available,
+    missingSources,
+    missingSourceText,
+    sourceTextById,
+  };
+}
+
+function createCanonicalFitAnswerDiagnostic(material: CanonicalFitAnswerSourceMaterial): string {
+  const gaps: string[] = [];
+
+  if (material.missingSources.length > 0) {
+    gaps.push(`missing sources: ${formatList(material.missingSources)}`);
+  }
+
+  if (material.missingSourceText.length > 0) {
+    gaps.push(`missing selected source text: ${formatList(material.missingSourceText)}`);
+  }
+
+  return `canonical_fit_answer_missing_source_material: ${gaps.join("; ") || "(none)"}`;
+}
+
+function createCanonicalFitAnswerComposition(
+  run: RunState,
+  retrieval: NonNullable<RunState["retrieval"]>,
+): AnswerComposition {
+  const material = collectCanonicalFitAnswerSourceMaterial(retrieval);
+  const diagnostics =
+    material.available.length === canonicalFitAnswerSourceIds.length ? [] : [createCanonicalFitAnswerDiagnostic(material)];
+
+  if (diagnostics.length > 0) {
+    return createInsufficientSourceAnswerComposition(retrieval, [
+      ...retrieval.diagnostics,
+      ...diagnostics,
+      "canonical_fit_answer_missing_source_material",
+    ]);
+  }
+
+  const activeFacts = collectActiveFacts(run);
+  const priorSleepawayExperience = activeFacts.get("prior_sleepaway_experience");
+  const childReadiness = activeFacts.get("child_readiness");
+  const fitIsSupported = isPositiveChildReadiness(childReadiness);
+  const programText = material.sourceTextById.get("program_overnight") ?? "";
+  const readinessText = material.sourceTextById.get("concern_homesickness") ?? "";
+  const homesicknessText = material.sourceTextById.get("policy_homesickness") ?? "";
+  const parentCommunicationText = material.sourceTextById.get("policy_parent_communication") ?? "";
+  const contextSummaries = [
+    createPriorSleepawayExperienceSummary(priorSleepawayExperience),
+    createChildReadinessSummary(childReadiness),
+  ].filter((summary): summary is string => summary !== null);
+  const fitAnswer = fitIsSupported
+    ? "The source-backed Fit answer is yes: overnight camp is a supported fit for this Child."
+    : "The source-backed Fit answer is not yet: overnight camp is not a supported fit for this Child until readiness concerns are resolved.";
+  const allSourceRefs = createSourceRefs(canonicalFitAnswerSourceIds, retrieval);
+  const sections: AnswerComposition["sections"] = [
+    {
+      kind: "summary",
+      title: "Fit Answer",
+      body: `${fitAnswer} ${programText}`,
+      sourceRefs: createSourceRefs(["program_overnight"], retrieval),
+    },
+    {
+      kind: "summary",
+      title: "Readiness Context",
+      body: `Required Visitor Context is complete. ${contextSummaries.join(" ")} ${readinessText}`,
+      sourceRefs: createSourceRefs(["concern_homesickness"], retrieval),
+    },
+    {
+      kind: "concerns",
+      title: "Homesickness and Parent Communication",
+      body: `${homesicknessText} ${parentCommunicationText}`,
+      items: ["homesickness", "child_readiness"],
+      sourceRefs: createSourceRefs(canonicalConcernSourceIds, retrieval),
+    },
+    {
+      kind: "sources",
+      title: "Sources",
+      body: `Approved source material from ${describeRetrievalAdapter(retrieval)} was retrieved for the completed Fit answer.`,
+      items: canonicalFitAnswerSourceIds.map((sourceId) => {
+        const result = retrieval.results.find((candidate) => candidate.sourceId === sourceId);
+        return result ? `${result.title} (${sourceId})` : sourceId;
+      }),
+      sourceRefs: allSourceRefs,
+    },
+    {
+      kind: "diagnostics",
+      title: "Diagnostics",
+      body: "Required Visitor Context and canonical Fit source material were complete.",
+    },
+  ];
+
+  return {
+    status: "answered",
+    conversationalFraming:
+      "The GuideSite can now answer Fit because required Visitor Context is complete and approved source material covers the program, readiness, homesickness support, and parent communication.",
+    sections,
+    suggestedPrompts: [],
+    citations: createSourceCitationIds(sections),
+    diagnostics: ["canonical_fit_answer_source_backed"],
+  };
+}
+
 function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
   const suggestedPromptDerivation = createSuggestedPrompts(run);
   const sections = createNeedsContextSections(run, retrieval, suggestedPromptDerivation.suggestedPrompts);
@@ -922,7 +1120,19 @@ function createCanonicalAnswerComposition(run: RunState, retrieval: NonNullable<
 
 function createValidatedAnswerComposition(run: RunState, retrieval: NonNullable<RunState["retrieval"]>): AnswerComposition {
   if (run.understanding?.goal === "assess_fit") {
-    return createCanonicalAnswerComposition(run, retrieval);
+    const unresolvedContextNeeds = collectUnresolvedCanonicalFitContextNeeds(run);
+    if (unresolvedContextNeeds.length > 0) {
+      return createCanonicalAnswerComposition(run, retrieval);
+    }
+
+    if (isCanonicalFitJourney(run)) {
+      return createCanonicalFitAnswerComposition(run, retrieval);
+    }
+
+    return createInsufficientSourceAnswerComposition(retrieval, [
+      ...retrieval.diagnostics,
+      "unsupported_fit_answer_composition_goal",
+    ]);
   }
 
   if (run.understanding?.concerns.some((concern) => concern.key === "homesickness")) {
@@ -973,7 +1183,7 @@ function createInsufficientSourceAnswerComposition(
       {
         kind: "diagnostics",
         title: "Insufficient Source Material",
-        body: `No approved source material from ${retrievalDescriptor} matched the validated Prompt Understanding, so the system is asking for more context instead of guessing.`,
+        body: `Approved source material from ${retrievalDescriptor} was missing or insufficient for the validated Prompt Understanding, so the system is abstaining instead of guessing.`,
       },
     ],
     suggestedPrompts: [],

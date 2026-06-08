@@ -9,6 +9,11 @@ import {
 import type { AnswerComposition, RunState } from "../../src/guidesite-mvp/types.js";
 
 const canonicalPrompt = "Is overnight camp right for my 8-year-old?";
+const priorSleepawayYesReply = "Yes, with grandparents.";
+const priorSleepawayNoReply = "No, not yet - she has not slept away from home.";
+const childReadinessPositiveReply = "Yes, handles new routines well and asks adults for help.";
+const childReadinessNeedsSupportReply = "Needs more readiness support with new routines and time away.";
+
 
 function createBaseRun(): RunState {
   const stores = createGuideSiteMemoryStores();
@@ -108,8 +113,13 @@ test("presentation DTO maps required questions apart from optional suggested pro
       rationale: "The next turn should gather the minimum required context before the answer can continue.",
       controlledReplies: [
         {
-          id: "prompt_prior_sleepaway_experience",
-          text: "Has your child slept away from home before?",
+          id: "prompt_prior_sleepaway_experience_yes_grandparents",
+          text: priorSleepawayYesReply,
+          purpose: "gather_fit_context",
+        },
+        {
+          id: "prompt_prior_sleepaway_experience_no_not_yet",
+          text: priorSleepawayNoReply,
           purpose: "gather_fit_context",
         },
       ],
@@ -120,8 +130,13 @@ test("presentation DTO maps required questions apart from optional suggested pro
       rationale: "The next turn should ask how the child responds to separation and new routines.",
       controlledReplies: [
         {
-          id: "prompt_child_readiness",
-          text: "How does your child handle new routines away from home?",
+          id: "prompt_child_readiness_handles_new_routines",
+          text: childReadinessPositiveReply,
+          purpose: "gather_fit_context",
+        },
+        {
+          id: "prompt_child_readiness_needs_more_support",
+          text: childReadinessNeedsSupportReply,
           purpose: "gather_fit_context",
         },
       ],
@@ -222,8 +237,13 @@ test("presentation DTO suppresses already-answered required prompts from the req
       rationale: "The next turn should gather the minimum required context before the answer can continue.",
       controlledReplies: [
         {
-          id: "prompt_child_readiness",
-          text: "How does your child handle new routines away from home?",
+          id: "prompt_child_readiness_handles_new_routines",
+          text: childReadinessPositiveReply,
+          purpose: "gather_fit_context",
+        },
+        {
+          id: "prompt_child_readiness_needs_more_support",
+          text: childReadinessNeedsSupportReply,
           purpose: "gather_fit_context",
         },
       ],
@@ -590,8 +610,13 @@ test("presentation DTO gates answered output back to context gathering when requ
       rationale: "The next turn should gather the minimum required context before the answer can continue.",
       controlledReplies: [
         {
-          id: "prompt_prior_sleepaway_experience",
-          text: "Has your child slept away from home before?",
+          id: "prompt_prior_sleepaway_experience_yes_grandparents",
+          text: priorSleepawayYesReply,
+          purpose: "gather_fit_context",
+        },
+        {
+          id: "prompt_prior_sleepaway_experience_no_not_yet",
+          text: priorSleepawayNoReply,
           purpose: "gather_fit_context",
         },
       ],

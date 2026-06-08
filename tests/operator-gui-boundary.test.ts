@@ -5,11 +5,12 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { createGuideSiteMemoryStores, startGuideSiteRun } from "../src/guidesite-mvp/run-lifecycle.js";
+import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../src/guidesite-mvp/run-lifecycle.js";
 import { runGuideSiteMvpTurn } from "../src/guidesite-mvp/turn.js";
 import { createSanityGuideSiteRetrievalAdapter } from "../src/guidesite-mvp/sanity-retrieval.js";
 import { createFakePromptUnderstandingProvider, homesicknessConcernUnderstanding } from "./guidesite-mvp/test-helpers.js";
-import type { AnswerComposition, RunState } from "../src/guidesite-mvp/types.js";
+import type { AnswerComposition, PromptUnderstanding, RunState } from "../src/guidesite-mvp/types.js";
+import type { GuideSiteRetrievalAdapter } from "../src/guidesite-mvp/fixture-retrieval.js";
 import { createGuideSiteLoadingPresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
 import {
   DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
@@ -20,6 +21,11 @@ import {
   createGuideSiteOperatorDemoActions,
 } from "../app/operator/actions.js";
 import OperatorDemoClient from "../app/operator/operator-demo-client.js";
+
+const priorSleepawayYesReply = "Yes, with grandparents.";
+const priorSleepawayNoReply = "No, not yet - she has not slept away from home.";
+const childReadinessPositiveReply = "Yes, handles new routines well and asks adults for help.";
+const childReadinessNeedsSupportReply = "Needs more readiness support with new routines and time away.";
 
 function createAnsweredRun(): RunState {
   const stores = createGuideSiteMemoryStores();
@@ -368,6 +374,130 @@ test("GuideSite GUI fixture mode keeps vague required-context replies in the con
   assert.ok(vagueReply.presentation.journeyTimeline.visitorContext.some((fact) => fact.key === "child_age"));
 });
 
+test("GuideSite GUI fixture mode records controlled replies through the Prompt path", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+
+  const started = await service.startDemo({ sessionId: "session_gui_controlled_context" });
+  assert.equal(started.presentation.answer.status, "context_gathering_response");
+  if (started.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected the canonical prompt to gather required Visitor Context first");
+  }
+
+  const sleepawayQuestion = started.presentation.answer.requiredQuestions.find(
+    (question) => question.id === "prompt_prior_sleepaway_experience",
+  );
+  const readinessQuestion = started.presentation.answer.requiredQuestions.find(
+    (question) => question.id === "prompt_child_readiness",
+  );
+  assert.ok(sleepawayQuestion);
+  assert.ok(readinessQuestion);
+  assert.deepEqual(sleepawayQuestion.controlledReplies.map((reply) => reply.text), [
+    priorSleepawayYesReply,
+    priorSleepawayNoReply,
+  ]);
+  assert.deepEqual(readinessQuestion.controlledReplies.map((reply) => reply.text), [
+    childReadinessPositiveReply,
+    childReadinessNeedsSupportReply,
+  ]);
+  assert.notDeepEqual(sleepawayQuestion.controlledReplies.map((reply) => reply.text), [sleepawayQuestion.text]);
+  assert.notDeepEqual(readinessQuestion.controlledReplies.map((reply) => reply.text), [readinessQuestion.text]);
+
+  const sleepawayReply = await service.submitPrompt({
+    promptText: priorSleepawayYesReply,
+    sessionId: "session_gui_controlled_context",
+  });
+
+  assert.equal(sleepawayReply.presentation.answer.status, "context_gathering_response");
+  assert.deepEqual(sleepawayReply.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    priorSleepawayYesReply,
+  ]);
+  assert.deepEqual(
+    sleepawayReply.presentation.journeyTimeline.visitorContext.find(
+      (fact) => fact.key === "prior_sleepaway_experience",
+    ),
+    {
+      key: "prior_sleepaway_experience",
+      label: "Prior Sleepaway Experience",
+      value: "slept_with_grandparents",
+      source: "explicit",
+    },
+  );
+  if (sleepawayReply.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected Child Readiness to remain required after the sleepaway reply");
+  }
+  assert.deepEqual(sleepawayReply.presentation.answer.requiredQuestions.map((question) => question.id), [
+    "prompt_child_readiness",
+  ]);
+
+  const readinessReply = await service.submitPrompt({
+    promptText: childReadinessPositiveReply,
+    sessionId: "session_gui_controlled_context",
+  });
+
+  assert.equal(readinessReply.presentation.answer.status, "assembled_answer");
+  assert.deepEqual(readinessReply.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    priorSleepawayYesReply,
+    childReadinessPositiveReply,
+  ]);
+  assert.deepEqual(
+    readinessReply.presentation.journeyTimeline.visitorContext.find((fact) => fact.key === "child_readiness"),
+    {
+      key: "child_readiness",
+      label: "Child Readiness",
+      value: "handles_new_routines_well",
+      source: "explicit",
+    },
+  );
+});
+
+test("GuideSite GUI fixture mode records no-prior-sleepaway controlled replies", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+
+  const started = await service.startDemo({ sessionId: "session_gui_no_sleepaway_context" });
+  assert.equal(started.presentation.answer.status, "context_gathering_response");
+
+  const sleepawayReply = await service.submitPrompt({
+    promptText: priorSleepawayNoReply,
+    sessionId: "session_gui_no_sleepaway_context",
+  });
+
+  assert.equal(sleepawayReply.presentation.answer.status, "context_gathering_response");
+  assert.deepEqual(sleepawayReply.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    priorSleepawayNoReply,
+  ]);
+  assert.deepEqual(
+    sleepawayReply.presentation.journeyTimeline.visitorContext.find(
+      (fact) => fact.key === "prior_sleepaway_experience",
+    ),
+    {
+      key: "prior_sleepaway_experience",
+      label: "Prior Sleepaway Experience",
+      value: "no_prior_sleepaway_experience",
+      source: "explicit",
+    },
+  );
+  assert.match(sleepawayReply.presentation.journeyTimeline.sessionSummary ?? "", /has not slept away from home/i);
+});
+
 test("GuideSite GUI fixture mode renders withheld required-context replies as responsible abstention", async () => {
   const service = createGuideSiteGuiService({
     readRuntimeConfig() {
@@ -393,6 +523,185 @@ test("GuideSite GUI fixture mode renders withheld required-context replies as re
   assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
   assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
 });
+
+test("GuideSite GUI fixture mode assembles the canonical Fit answer after required context", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+
+  const started = await service.startDemo({ sessionId: "session_gui_completed_required_context" });
+  assert.equal(started.presentation.answer.status, "context_gathering_response");
+  if (started.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected the canonical prompt to gather required Visitor Context first");
+  }
+  assert.deepEqual(started.presentation.answer.requiredQuestions.map((question) => question.id), [
+    "prompt_prior_sleepaway_experience",
+    "prompt_child_readiness",
+  ]);
+
+  const sleepawayReply = await service.submitPrompt({
+    promptText: "She slept away at her grandparents last summer.",
+    sessionId: "session_gui_completed_required_context",
+  });
+
+  assert.equal(sleepawayReply.presentation.answer.status, "context_gathering_response");
+  if (sleepawayReply.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected one answered required question to leave the remaining question");
+  }
+  assert.deepEqual(sleepawayReply.presentation.answer.requiredQuestions.map((question) => question.id), [
+    "prompt_child_readiness",
+  ]);
+
+  const readinessReply = await service.submitPrompt({
+    promptText: "She handles new routines well and asks adults for help when she needs it.",
+    sessionId: "session_gui_completed_required_context",
+  });
+
+  assert.equal(readinessReply.presentation.answer.status, "assembled_answer");
+  if (readinessReply.presentation.answer.status !== "assembled_answer") {
+    assert.fail("Expected completed required Visitor Context to produce an assembled Fit answer");
+  }
+  assert.equal("requiredQuestions" in readinessReply.presentation.answer, false);
+  assert.equal(readinessReply.presentation.answer.completeness, "complete");
+  const answerJson = JSON.stringify(readinessReply.presentation.answer);
+  assert.match(answerJson, /residential camp experience with cabin life/i);
+  assert.match(answerJson, /prior sleepaway experience, separation confidence/i);
+  assert.match(answerJson, /Cabin staff watch for homesickness/i);
+  assert.deepEqual(readinessReply.presentation.answer.citations, [
+    { label: "Overnight Camp Program" },
+    { label: "Homesickness and Child Readiness" },
+    { label: "Homesickness Support Policy" },
+    { label: "Parent Communication Policy" },
+  ]);
+  assert.doesNotMatch(answerJson, /program_overnight|mock_rev_|fieldPath|sourceRevision|sourceId|providerRawOutput/);
+  assert.match(JSON.stringify(readinessReply.presentation.operatorInspection), /program_overnight/);
+  assert.deepEqual(
+    readinessReply.presentation.journeyTimeline.visitorContext.map((fact) => fact.key).sort(),
+    ["child_age", "child_readiness", "prior_sleepaway_experience"],
+  );
+});
+
+test("GuideSite GUI service abstains when completed canonical Fit context lacks source coverage", async () => {
+  const stores = createGuideSiteMemoryStores();
+  const promptText = "Both required facts are present for my 8-year-old.";
+  const completedContextUnderstanding = {
+    goal: "assess_fit",
+    promptType: "fit",
+    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+    facts: {
+      child_age: {
+        value: 8,
+        provenance: {
+          source: "explicit",
+          promptText: "8-year-old",
+        },
+      },
+      prior_sleepaway_experience: {
+        value: "slept_with_grandparents",
+        provenance: {
+          source: "explicit",
+          promptText,
+        },
+      },
+      child_readiness: {
+        value: "handles_new_routines_well",
+        provenance: {
+          source: "explicit",
+          promptText,
+        },
+      },
+    },
+    concerns: [
+      {
+        key: "homesickness",
+        label: "Homesickness",
+        status: "open",
+        provenance: "implied",
+      },
+      {
+        key: "child_readiness",
+        label: "Child Readiness",
+        status: "open",
+        provenance: "implied",
+      },
+    ],
+    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    contextNeeds: [],
+  } satisfies PromptUnderstanding;
+  const partialFitRetrievalAdapter = {
+    id: "partial-fit",
+    label: "Partial Fit Sources",
+    retrieve(input) {
+      return {
+        adapterId: "partial-fit",
+        adapterLabel: "Partial Fit Sources",
+        needs: [...input.retrievalNeeds],
+        concerns: input.concerns.map((concern) => concern.key),
+        results: [
+          {
+            sourceId: "program_overnight",
+            sourceType: "campProgram",
+            title: "Overnight Camp Program",
+            rank: 1,
+            fieldPath: "summary",
+            sourceRevision: "mock_rev_program_overnight_001",
+            sourceText: "The overnight Camp Program gives children a residential camp experience.",
+          },
+        ],
+        diagnostics: ["missing_canonical_fit_sources"],
+        coverage: {
+          status: "source_backed",
+          matchedSourceIds: ["program_overnight"],
+        },
+      };
+    },
+  } satisfies GuideSiteRetrievalAdapter;
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    async runTurn(options) {
+      const started = startGuideSiteRun({
+        promptText: options.promptText,
+        stores,
+        sessionId: options.sessionId,
+        now: () => new Date("2026-01-01T00:00:00.000Z"),
+        createSessionId: () => "session_completed_context_partial_sources",
+        createRunId: () => "run_completed_context_partial_sources",
+      });
+      return withProviderBackedUnderstandingAndComposition(
+        started.run,
+        createFakePromptUnderstandingProvider(completedContextUnderstanding),
+        {
+          now: () => new Date("2026-01-01T00:00:00.000Z"),
+          retrievalAdapter: partialFitRetrievalAdapter,
+        },
+      );
+    },
+  });
+
+  const result = await service.submitPrompt({
+    promptText,
+    sessionId: "session_completed_context_partial_sources",
+  });
+
+  assert.equal(result.presentation.answer.status, "responsible_abstention");
+  assert.match(result.presentation.answer.conversationalFraming, /cannot responsibly answer/i);
+  assert.notEqual(result.presentation.operatorDiagnostics.runStatus, "validation_failed");
+  assert.notEqual(result.presentation.operatorDiagnostics.runStatus, "technical_failure");
+  assert.match(JSON.stringify(result.presentation.operatorInspection), /canonical_fit_answer_missing_source_material/);
+});
+
+
 
 test("Operator demo actions adapt form submissions into service calls", async () => {
   const seenPromptTexts: string[] = [];
@@ -672,8 +981,13 @@ test("operator demo client renders every allowed presentation state distinctly",
                 rationale: "The next turn should gather the minimum required context before the answer can continue.",
                 controlledReplies: [
                   {
-                    id: "prompt_prior_sleepaway_experience",
-                    text: "Has your child slept away from home before?",
+                    id: "prompt_prior_sleepaway_experience_yes_grandparents",
+                    text: priorSleepawayYesReply,
+                    purpose: "gather_fit_context",
+                  },
+                  {
+                    id: "prompt_prior_sleepaway_experience_no_not_yet",
+                    text: priorSleepawayNoReply,
                     purpose: "gather_fit_context",
                   },
                 ],
