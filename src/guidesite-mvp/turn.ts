@@ -39,6 +39,10 @@ export async function runGuideSiteMvpTurn(options: RunGuideSiteMvpTurnOptions): 
   });
   const storedRun = stores.runs.update(composedRun);
 
+  if (!storedRun.promptUnderstandingValidation?.valid) {
+    return storedRun;
+  }
+
   const answerCompositionStatus = storedRun.answerComposition?.status;
   if (answerCompositionStatus !== "needs_context" && answerCompositionStatus !== "answered") {
     return storedRun;

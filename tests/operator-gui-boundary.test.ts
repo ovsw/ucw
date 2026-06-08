@@ -29,6 +29,7 @@ const childReadinessNeedsSupportReply = "Needs more readiness support with new r
 const canonicalChildReadinessFreeformReply = "She handles new routines and time away from us well";
 const concerningChildReadinessFreeformReply = "She is not comfortable being away from us overnight.";
 const vagueChildReadinessFreeformReply = "Kind of ready, maybe.";
+const unknownChildReadinessFreeformReply = "She might settle eventually.";
 
 function createAnsweredRun(): RunState {
   const stores = createGuideSiteMemoryStores();
@@ -501,7 +502,7 @@ test("GuideSite GUI fixture mode records no-prior-sleepaway controlled replies",
   assert.match(sleepawayReply.presentation.journeyTimeline.sessionSummary ?? "", /has not slept away from home/i);
 });
 
-test("GuideSite GUI fixture mode renders withheld required-context replies as responsible abstention", async () => {
+test("GuideSite GUI fixture mode renders withheld or skipped required-context replies as responsible abstention", async () => {
   const service = createGuideSiteGuiService({
     readRuntimeConfig() {
       return {
@@ -511,20 +512,33 @@ test("GuideSite GUI fixture mode renders withheld required-context replies as re
     },
     createStores: () => createGuideSiteMemoryStores(),
   });
+  const withheldReplies = [
+    {
+      sessionId: "session_gui_withheld_context",
+      promptText: "I'd prefer not to say.",
+    },
+    {
+      sessionId: "session_gui_skipped_context",
+      promptText: "skip",
+    },
+  ];
 
-  const started = await service.startDemo({ createSessionId: () => "session_gui_withheld_context" });
-  assert.equal(started.presentation.answer.status, "context_gathering_response");
+  for (const withheldContextReply of withheldReplies) {
+    const started = await service.startDemo({ createSessionId: () => withheldContextReply.sessionId });
+    assert.equal(started.presentation.answer.status, "context_gathering_response");
 
-  const withheldReply = await service.submitPrompt({
-    promptText: "I'd prefer not to say.",
-    sessionId: "session_gui_withheld_context",
-  });
+    const withheldReply = await service.submitPrompt({
+      promptText: withheldContextReply.promptText,
+      sessionId: withheldContextReply.sessionId,
+    });
 
-  assert.equal(withheldReply.presentation.answer.status, "responsible_abstention");
-  assert.match(withheldReply.presentation.answer.conversationalFraming, /cannot responsibly answer/i);
-  assert.match(withheldReply.presentation.answer.nextSteps[0] ?? "", /Provide more context/i);
-  assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
-  assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
+    assert.equal(withheldReply.presentation.answer.status, "responsible_abstention");
+    assert.match(withheldReply.presentation.answer.conversationalFraming, /cannot responsibly answer/i);
+    assert.match(withheldReply.presentation.answer.nextSteps[0] ?? "", /Provide more context/i);
+    assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
+    assert.notEqual(withheldReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
+    assert.doesNotMatch(JSON.stringify(withheldReply.presentation.answer), /prompt_understanding_/);
+  }
 });
 
 test("GuideSite GUI fixture mode assembles the canonical Fit answer after required context", async () => {
@@ -667,6 +681,38 @@ test("GuideSite GUI fixture mode distinguishes specific Child Readiness replies 
     false,
   );
   assert.ok(vagueReply.presentation.operatorInspection.promptUnderstanding.summary.contextNeeds.includes("child_readiness"));
+
+  const unknownSessionId = "session_gui_unknown_child_readiness";
+  await service.startDemo({ createSessionId: () => unknownSessionId });
+  await service.submitPrompt({
+    promptText: priorSleepawayYesReply,
+    sessionId: unknownSessionId,
+  });
+  const unknownReply = await service.submitPrompt({
+    promptText: unknownChildReadinessFreeformReply,
+    sessionId: unknownSessionId,
+  });
+
+  assert.equal(unknownReply.presentation.answer.status, "context_gathering_response");
+  if (unknownReply.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected unknown Child Readiness wording to keep asking for the remaining required context");
+  }
+  assert.deepEqual(unknownReply.presentation.answer.requiredQuestions.map((question) => question.id), [
+    "prompt_child_readiness",
+  ]);
+  assert.equal(
+    unknownReply.presentation.journeyTimeline.visitorContext.some((fact) => fact.key === "child_readiness"),
+    false,
+  );
+  assert.notEqual(unknownReply.presentation.operatorDiagnostics.runStatus, "validation_failed");
+  assert.notEqual(unknownReply.presentation.operatorDiagnostics.runStatus, "technical_failure");
+  assert.equal(unknownReply.presentation.operatorInspection.validation.summary.promptUnderstandingValid, false);
+  assert.match(
+    JSON.stringify(unknownReply.presentation.operatorInspection.validation.details.promptUnderstanding),
+    /prompt_understanding_goal_required/,
+  );
+  assert.ok(unknownReply.presentation.operatorInspection.promptUnderstanding.summary.contextNeeds.includes("child_readiness"));
+  assert.doesNotMatch(JSON.stringify(unknownReply.presentation.answer), /prompt_understanding_/);
 });
 
 test("GuideSite GUI service restores latest existing demo session without rerunning the canonical Prompt", async () => {

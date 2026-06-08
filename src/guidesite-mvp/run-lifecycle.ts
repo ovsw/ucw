@@ -110,6 +110,222 @@ function createValidationFailedRun(
   };
 }
 
+const recoverablePromptUnderstandingUncertaintyDiagnostics = new Set([
+  "prompt_understanding_goal_required",
+  "prompt_understanding_prompt_type_required",
+  "prompt_understanding_fit_question_required",
+]);
+
+function isRecoverablePromptUnderstandingUncertainty(validation: PromptUnderstandingValidationResult): boolean {
+  return (
+    validation.diagnostics.length > 0 &&
+    validation.diagnostics.every((diagnostic) => recoverablePromptUnderstandingUncertaintyDiagnostics.has(diagnostic))
+  );
+}
+
+function collectActiveSnapshotFactKeys(session: SessionState): Set<string> {
+  return new Set(
+    Object.entries(session.visitorFacts)
+      .filter(([, fact]) => fact.status === "active")
+      .map(([factKey]) => factKey),
+  );
+}
+
+function appendApprovedContextNeed(
+  contextNeeds: string[],
+  seenContextNeeds: Set<string>,
+  activeFactKeys: Set<string>,
+  contextNeed: string,
+): void {
+  const normalizedContextNeed = contextNeed.trim();
+  if (
+    normalizedContextNeed.length === 0 ||
+    activeFactKeys.has(normalizedContextNeed) ||
+    seenContextNeeds.has(normalizedContextNeed) ||
+    !getApprovedContextNeedPromptTemplate(normalizedContextNeed)
+  ) {
+    return;
+  }
+
+  seenContextNeeds.add(normalizedContextNeed);
+  contextNeeds.push(normalizedContextNeed);
+}
+
+function collectRecoverableContextNeeds(run: RunState, candidate: PromptUnderstanding): string[] {
+  const contextNeeds: string[] = [];
+  const seenContextNeeds = new Set<string>();
+  const activeFactKeys = collectActiveSnapshotFactKeys(run.snapshot);
+
+  for (const contextNeed of run.snapshot.focus.contextNeeds) {
+    appendApprovedContextNeed(contextNeeds, seenContextNeeds, activeFactKeys, contextNeed);
+  }
+
+  for (const suggestedPrompt of run.snapshot.suggestedPrompts) {
+    for (const contextNeed of suggestedPrompt.contextNeeds) {
+      appendApprovedContextNeed(contextNeeds, seenContextNeeds, activeFactKeys, contextNeed);
+    }
+  }
+
+  for (const contextNeed of candidate.contextNeeds) {
+    appendApprovedContextNeed(contextNeeds, seenContextNeeds, activeFactKeys, contextNeed);
+  }
+
+  return contextNeeds;
+}
+
+function createProductUncertaintyConcerns(contextNeeds: string[]): PromptUnderstanding["concerns"] {
+  const concerns: PromptUnderstanding["concerns"] = [];
+  const concernKeys = new Set<string>();
+
+  function pushConcern(key: string, label: string): void {
+    if (concernKeys.has(key)) {
+      return;
+    }
+
+    concernKeys.add(key);
+    concerns.push({
+      key,
+      label,
+      status: "open",
+      provenance: "implied",
+    });
+  }
+
+  for (const contextNeed of contextNeeds) {
+    if (contextNeed === "prior_sleepaway_experience") {
+      pushConcern("homesickness", "Homesickness");
+    }
+
+    if (contextNeed === "child_readiness") {
+      pushConcern("child_readiness", "Child Readiness");
+    }
+  }
+
+  return concerns;
+}
+
+function createProductUncertaintyUnderstanding(
+  candidate: PromptUnderstanding,
+  contextNeeds: string[],
+): PromptUnderstanding {
+  if (contextNeeds.length === 0) {
+    return structuredClone(candidate);
+  }
+
+  return {
+    goal: "assess_fit",
+    promptType: "fit",
+    fitQuestion: canonicalFitQuestionText,
+    facts: {},
+    concerns: createProductUncertaintyConcerns(contextNeeds),
+    retrievalNeeds: ["overnight_readiness", "homesickness_support"],
+    contextNeeds,
+  };
+}
+
+function createSuggestedPromptsForContextNeeds(contextNeeds: string[]): AnswerComposition["suggestedPrompts"] {
+  return contextNeeds.flatMap((contextNeed) => {
+    const template = getApprovedContextNeedPromptTemplate(contextNeed);
+    if (!template) {
+      return [];
+    }
+
+    return [
+      {
+        id: `prompt_${contextNeed}`,
+        purpose: template.purpose,
+        text: template.text,
+        contextNeeds: [contextNeed],
+        concerns: [...template.concerns],
+        templateId: template.templateId,
+      },
+    ];
+  });
+}
+
+function createProductUncertaintyContextGatheringAnswerComposition(
+  contextNeeds: string[],
+  diagnostics: string[],
+): AnswerComposition {
+  const suggestedPrompts = createSuggestedPromptsForContextNeeds(contextNeeds);
+
+  return {
+    status: "needs_context",
+    conversationalFraming:
+      "I need a clearer answer before I can use that safely. Let's gather the missing Visitor Context before assessing Fit.",
+    sections: [
+      {
+        kind: "context_needs",
+        title: "Clarification Needed",
+        body: `The latest reply could not be interpreted confidently, so the next turn should gather ${formatList(contextNeeds.map((contextNeed) => titleCaseIdentifier(contextNeed)))}.`,
+        items: contextNeeds,
+      },
+      {
+        kind: "suggested_prompts",
+        title: "Suggested Prompts",
+        body: "Approved prompts gather the missing Visitor Context without exposing Prompt Understanding diagnostics to the Parent.",
+        items: suggestedPrompts.map((prompt) => prompt.id),
+      },
+      {
+        kind: "diagnostics",
+        title: "Prompt Understanding Uncertainty",
+        body: "Prompt Understanding validation diagnostics are preserved for operator inspection while the Parent surface stays in clarification.",
+      },
+    ],
+    suggestedPrompts,
+    citations: [],
+    diagnostics: ["prompt_understanding_product_uncertainty", ...diagnostics],
+  };
+}
+
+function createProductUncertaintyFallbackAnswerComposition(diagnostics: string[]): AnswerComposition {
+  return {
+    status: "fallback",
+    conversationalFraming: "I couldn't interpret that confidently enough to answer safely.",
+    sections: [
+      {
+        kind: "diagnostics",
+        title: "Prompt Understanding Uncertainty",
+        body: "Prompt Understanding validation diagnostics are preserved for operator inspection while the Parent surface abstains instead of treating the turn as broken.",
+      },
+    ],
+    suggestedPrompts: [],
+    citations: [],
+    diagnostics: ["prompt_understanding_product_uncertainty", ...diagnostics],
+  };
+}
+
+function createProductUncertaintyRun(
+  run: RunState,
+  candidate: PromptUnderstanding,
+  validation: PromptUnderstandingValidationResult,
+  options: {
+    now?: () => Date;
+    providerTrace?: PromptUnderstandingProviderTrace | null;
+  } = {},
+): RunState {
+  const timestamp = (options.now ?? (() => new Date()))().toISOString();
+  const contextNeeds = collectRecoverableContextNeeds(run, candidate);
+  const answerComposition =
+    contextNeeds.length > 0
+      ? createProductUncertaintyContextGatheringAnswerComposition(contextNeeds, validation.diagnostics)
+      : createProductUncertaintyFallbackAnswerComposition(validation.diagnostics);
+
+  return {
+    ...cloneRunWithClearedTransientState(run),
+    status: answerComposition.status === "needs_context" ? "composed" : "fallback",
+    updatedAt: timestamp,
+    promptUnderstandingProvider: options.providerTrace ? structuredClone(options.providerTrace) : null,
+    understanding: createProductUncertaintyUnderstanding(candidate, contextNeeds),
+    promptUnderstandingValidation: structuredClone(validation),
+    retrieval: null,
+    answerCompositionValidation: validateAnswerCompositionCandidate(answerComposition, null),
+    answerComposition,
+    rejectedAnswerComposition: null,
+    diagnostics: validation.diagnostics,
+  };
+}
+
 function normalizePromptCoverageText(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -287,6 +503,13 @@ export function withPromptUnderstandingCandidate(
   const validation = validatePromptUnderstandingCandidate(run.prompt.text, candidate);
 
   if (!validation.valid) {
+    if (isRecoverablePromptUnderstandingUncertainty(validation)) {
+      return createProductUncertaintyRun(run, candidate, validation, {
+        now: options.now,
+        providerTrace: options.providerTrace ?? null,
+      });
+    }
+
     return createValidationFailedRun(run, validation, {
       now: options.now,
       providerTrace: options.providerTrace ?? null,
@@ -412,6 +635,13 @@ export async function withProviderBackedUnderstandingAndComposition(
     const validation = validatePromptUnderstandingCandidate(run.prompt.text, providerResult.understanding);
 
     if (!validation.valid) {
+      if (isRecoverablePromptUnderstandingUncertainty(validation)) {
+        return createProductUncertaintyRun(run, providerResult.understanding, validation, {
+          now: options.now,
+          providerTrace: providerResult.trace,
+        });
+      }
+
       return createValidationFailedRun(run, validation, {
         now: options.now,
         providerTrace: providerResult.trace,

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createGuideSiteMemoryStores, renderGuideSiteRunOperatorOutput } from "../../src/guidesite-mvp/run-lifecycle.js";
+import { mapGuideSiteRunStateToPresentation } from "../../src/guidesite-mvp/presentation-dto.js";
 import { createGuideSiteFileRunStore } from "../../src/guidesite-mvp/run-store.js";
 import { runGuideSiteMvpTurn } from "../../src/guidesite-mvp/turn.js";
 import { createSanityGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/sanity-retrieval.js";
@@ -225,6 +226,12 @@ test("GuideSite turn preserves provider failures as inspectable Run State", asyn
     assert.equal(run.committedSessionState, null);
     assert.deepEqual(run.diagnostics, ["prompt_understanding_provider_failed: Prompt Understanding provider failed: provider unavailable"]);
 
+    const presentation = mapGuideSiteRunStateToPresentation(run);
+    assert.equal(presentation.answer.status, "technical_failure");
+    assert.equal(presentation.operatorDiagnostics.runStatus, "prompt_understanding_failed");
+    assert.deepEqual(presentation.operatorDiagnostics.diagnostics, run.diagnostics);
+    assert.doesNotMatch(JSON.stringify(presentation.answer), /provider unavailable/);
+
     const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_failure.json"), "utf8")) as typeof run;
     assert.equal(savedRun.status, "prompt_understanding_failed");
     assert.equal(savedRun.committedSessionState, null);
@@ -233,32 +240,40 @@ test("GuideSite turn preserves provider failures as inspectable Run State", asyn
   }
 });
 
-test("GuideSite turn preserves invalid Prompt Understanding diagnostics without composition or commit", async () => {
+test("GuideSite turn routes unknown Prompt Understanding to product-safe abstention", async () => {
   const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
   try {
     const stores = createGuideSiteMemoryStores({
       runs: createGuideSiteFileRunStore(runStateDirectory),
     });
+    const unknownUnderstanding = {
+      goal: "unknown" as const,
+      promptType: "unknown" as const,
+      fitQuestion: null,
+      facts: {},
+      concerns: [],
+      retrievalNeeds: [],
+      contextNeeds: [],
+    };
     const run = await runGuideSiteMvpTurn({
       promptText: canonicalGuideSitePrompt,
       stores,
       now: () => new Date("2026-01-01T00:00:00.000Z"),
-      createSessionId: () => "session_turn_invalid",
-      createRunId: () => "run_turn_invalid",
-      promptUnderstandingProvider: createFakePromptUnderstandingProvider({
-        goal: "unknown",
-        promptType: "unknown",
-        fitQuestion: null,
-        facts: {},
-        concerns: [],
-        retrievalNeeds: [],
-        contextNeeds: [],
-      }),
+      createSessionId: () => "session_turn_unknown_understanding",
+      createRunId: () => "run_turn_unknown_understanding",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(unknownUnderstanding),
     });
 
-    assert.equal(run.status, "validation_failed");
-    assert.equal(run.understanding, null);
-    assert.equal(run.answerComposition, null);
+    assert.equal(run.status, "fallback");
+    assert.deepEqual(run.understanding, unknownUnderstanding);
+    assert.deepEqual(run.promptUnderstandingValidation, {
+      valid: false,
+      diagnostics: [
+        "prompt_understanding_goal_required",
+        "prompt_understanding_prompt_type_required",
+      ],
+    });
+    assert.equal(run.answerComposition?.status, "fallback");
     assert.equal(run.patch, null);
     assert.equal(run.committedSessionState, null);
     assert.deepEqual(run.diagnostics, [
@@ -266,8 +281,19 @@ test("GuideSite turn preserves invalid Prompt Understanding diagnostics without 
       "prompt_understanding_prompt_type_required",
     ]);
 
-    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_invalid.json"), "utf8")) as typeof run;
-    assert.equal(savedRun.status, "validation_failed");
+    const presentation = mapGuideSiteRunStateToPresentation(run);
+    assert.equal(presentation.answer.status, "responsible_abstention");
+    assert.equal(presentation.operatorDiagnostics.runStatus, "fallback");
+    assert.deepEqual(presentation.operatorDiagnostics.diagnostics, run.diagnostics);
+    assert.match(
+      JSON.stringify(presentation.operatorInspection.validation.details.promptUnderstanding),
+      /prompt_understanding_goal_required/,
+    );
+    assert.doesNotMatch(JSON.stringify(presentation.answer), /prompt_understanding_/);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, "run_turn_unknown_understanding.json"), "utf8")) as typeof run;
+    assert.equal(savedRun.status, "fallback");
+    assert.equal(savedRun.answerComposition?.status, "fallback");
     assert.equal(savedRun.committedSessionState, null);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
