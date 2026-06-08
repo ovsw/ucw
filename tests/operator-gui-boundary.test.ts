@@ -26,6 +26,9 @@ const priorSleepawayYesReply = "Yes, with grandparents.";
 const priorSleepawayNoReply = "No, not yet - she has not slept away from home.";
 const childReadinessPositiveReply = "Yes, handles new routines well and asks adults for help.";
 const childReadinessNeedsSupportReply = "Needs more readiness support with new routines and time away.";
+const canonicalChildReadinessFreeformReply = "She handles new routines and time away from us well";
+const concerningChildReadinessFreeformReply = "She is not comfortable being away from us overnight.";
+const vagueChildReadinessFreeformReply = "Kind of ready, maybe.";
 
 function createAnsweredRun(): RunState {
   const stores = createGuideSiteMemoryStores();
@@ -559,7 +562,7 @@ test("GuideSite GUI fixture mode assembles the canonical Fit answer after requir
   ]);
 
   const readinessReply = await service.submitPrompt({
-    promptText: "She handles new routines well and asks adults for help when she needs it.",
+    promptText: canonicalChildReadinessFreeformReply,
     sessionId: "session_gui_completed_required_context",
   });
 
@@ -585,6 +588,85 @@ test("GuideSite GUI fixture mode assembles the canonical Fit answer after requir
     readinessReply.presentation.journeyTimeline.visitorContext.map((fact) => fact.key).sort(),
     ["child_age", "child_readiness", "prior_sleepaway_experience"],
   );
+  assert.deepEqual(readinessReply.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    "She slept away at her grandparents last summer.",
+    canonicalChildReadinessFreeformReply,
+  ]);
+  assert.deepEqual(
+    readinessReply.presentation.journeyTimeline.visitorContext.find((fact) => fact.key === "child_readiness"),
+    {
+      key: "child_readiness",
+      label: "Child Readiness",
+      value: "handles_new_routines_well",
+      source: "explicit",
+    },
+  );
+  assert.deepEqual(readinessReply.presentation.operatorInspection.promptUnderstanding.summary.contextNeeds, []);
+});
+
+test("GuideSite GUI fixture mode distinguishes specific Child Readiness replies from vague ones", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+  const concerningSessionId = "session_gui_concerning_child_readiness";
+
+  await service.startDemo({ createSessionId: () => concerningSessionId });
+  await service.submitPrompt({
+    promptText: priorSleepawayYesReply,
+    sessionId: concerningSessionId,
+  });
+  const concerningReply = await service.submitPrompt({
+    promptText: concerningChildReadinessFreeformReply,
+    sessionId: concerningSessionId,
+  });
+
+  assert.equal(concerningReply.presentation.answer.status, "assembled_answer");
+  assert.deepEqual(concerningReply.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
+    DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+    priorSleepawayYesReply,
+    concerningChildReadinessFreeformReply,
+  ]);
+  assert.deepEqual(
+    concerningReply.presentation.journeyTimeline.visitorContext.find((fact) => fact.key === "child_readiness"),
+    {
+      key: "child_readiness",
+      label: "Child Readiness",
+      value: "needs_more_readiness_support",
+      source: "explicit",
+    },
+  );
+  assert.deepEqual(concerningReply.presentation.operatorInspection.promptUnderstanding.summary.contextNeeds, []);
+
+  const vagueSessionId = "session_gui_vague_child_readiness";
+  await service.startDemo({ createSessionId: () => vagueSessionId });
+  await service.submitPrompt({
+    promptText: priorSleepawayYesReply,
+    sessionId: vagueSessionId,
+  });
+  const vagueReply = await service.submitPrompt({
+    promptText: vagueChildReadinessFreeformReply,
+    sessionId: vagueSessionId,
+  });
+
+  assert.equal(vagueReply.presentation.answer.status, "context_gathering_response");
+  if (vagueReply.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected vague Child Readiness to keep asking for the remaining required context");
+  }
+  assert.deepEqual(vagueReply.presentation.answer.requiredQuestions.map((question) => question.id), [
+    "prompt_child_readiness",
+  ]);
+  assert.equal(
+    vagueReply.presentation.journeyTimeline.visitorContext.some((fact) => fact.key === "child_readiness"),
+    false,
+  );
+  assert.ok(vagueReply.presentation.operatorInspection.promptUnderstanding.summary.contextNeeds.includes("child_readiness"));
 });
 
 test("GuideSite GUI service restores latest existing demo session without rerunning the canonical Prompt", async () => {

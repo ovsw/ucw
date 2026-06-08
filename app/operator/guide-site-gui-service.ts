@@ -142,27 +142,50 @@ const NO_PRIOR_SLEEPAWAY_MARKERS = [
 ] as const;
 const PRECISE_CHILD_READINESS_MARKERS = [
   "handles new routines",
+  "handles change",
+  "handles changes",
   "new routines",
+  "new situations",
   "time away",
+  "being away",
+  "away from us",
+  "away from me",
+  "away overnight",
   "asks adults",
   "asks for help",
   "does great",
   "did great",
   "does well",
+  "does okay",
+  "does ok",
+  "adapts",
+  "adjusts",
+  "comfortable",
+  "confident",
   "separation",
   "independent",
-  "ready",
 ] as const;
+const BROAD_CHILD_READINESS_MARKERS = ["ready"] as const;
 const CONCERNING_CHILD_READINESS_MARKERS = [
   "struggles",
   "struggle",
   "anxious",
   "cries",
+  "cry",
   "not ready",
   "doesn't handle",
   "does not handle",
   "needs more readiness support",
   "needs more support",
+  "not comfortable",
+  "uncomfortable",
+  "not confident",
+  "not independent",
+  "hard time",
+  "nervous",
+  "worried",
+  "upset",
+  "homesick",
 ] as const;
 
 function createRequiredContextConcerns(): PromptUnderstanding["concerns"] {
@@ -284,8 +307,23 @@ function looksPreciseSleepawayReply(normalizedPromptText: string): boolean {
   return includesAnyMarker(normalizedPromptText, PRECISE_SLEEPAWAY_MARKERS);
 }
 
+function hasConcreteChildReadinessDetail(normalizedPromptText: string): boolean {
+  return (
+    includesAnyMarker(normalizedPromptText, PRECISE_CHILD_READINESS_MARKERS) ||
+    includesAnyMarker(normalizedPromptText, CONCERNING_CHILD_READINESS_MARKERS)
+  );
+}
+
 function looksPreciseChildReadinessReply(normalizedPromptText: string): boolean {
-  return includesAnyMarker(normalizedPromptText, PRECISE_CHILD_READINESS_MARKERS);
+  if (hasConcreteChildReadinessDetail(normalizedPromptText)) {
+    return true;
+  }
+
+  if (looksVagueRequiredContextReply(normalizedPromptText)) {
+    return false;
+  }
+
+  return includesAnyMarker(normalizedPromptText, BROAD_CHILD_READINESS_MARKERS);
 }
 
 function looksPreciseRequiredContextReply(normalizedPromptText: string): boolean {
