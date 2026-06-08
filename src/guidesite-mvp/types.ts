@@ -136,6 +136,7 @@ export interface RetrievalResult {
   rank: number;
   fieldPath: string;
   sourceRevision: string;
+  sourceText: string;
 }
 
 export type RetrievalCoverage = {

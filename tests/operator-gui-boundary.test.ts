@@ -6,6 +6,9 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { createGuideSiteMemoryStores, startGuideSiteRun } from "../src/guidesite-mvp/run-lifecycle.js";
+import { runGuideSiteMvpTurn } from "../src/guidesite-mvp/turn.js";
+import { createSanityGuideSiteRetrievalAdapter } from "../src/guidesite-mvp/sanity-retrieval.js";
+import { createFakePromptUnderstandingProvider, homesicknessConcernUnderstanding } from "./guidesite-mvp/test-helpers.js";
 import type { AnswerComposition, RunState } from "../src/guidesite-mvp/types.js";
 import { createGuideSiteLoadingPresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../src/guidesite-mvp/presentation-dto.js";
 import {
@@ -105,6 +108,7 @@ function createAnsweredRun(): RunState {
           rank: 1,
           fieldPath: "summary",
           sourceRevision: "mock_rev_program_overnight_001",
+          sourceText: "The answer stays product-shaped and source-backed.",
         },
       ],
       diagnostics: [],
@@ -221,6 +225,92 @@ test("GuideSite GUI service defaults demo retrieval to live Sanity config withou
 
   assert.deepEqual(seenRetrievalModes, ["sanity"]);
   assert.equal(result.presentation.answer.status, "assembled_answer");
+});
+
+async function createHomesicknessPresentationFromSanitySourceText(sourceTextMarker: string): Promise<GuideSitePresentation> {
+  const stores = createGuideSiteMemoryStores();
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "live",
+        retrievalMode: "sanity",
+        sanityQueryConfig: {
+          projectId: "project-123",
+          dataset: "production",
+          apiVersion: "2025-02-19",
+          readToken: "read-token",
+        },
+        promptUnderstandingConfig: {
+          apiKey: "openai-key",
+          model: "gpt-test",
+        },
+      };
+    },
+    async runTurn(options) {
+      assert.equal(options.runtimeConfig.retrievalMode, "sanity");
+      return runGuideSiteMvpTurn({
+        promptText: options.promptText,
+        stores,
+        now: () => new Date("2026-01-01T00:00:00.000Z"),
+        createSessionId: () => `session_${sourceTextMarker.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`,
+        createRunId: () => `run_${sourceTextMarker.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`,
+        promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
+        retrievalAdapter: createSanityGuideSiteRetrievalAdapter(() => [
+          {
+            _id: "concern_homesickness",
+            _type: "concern",
+            _rev: "mock_rev_concern_homesickness_dynamic",
+            sourceKind: "sourceOfTruth",
+            title: "Homesickness and Child Readiness",
+            summary: `${sourceTextMarker}: editors say staff name homesickness and normalize the feeling.`,
+          },
+          {
+            _id: "policy_homesickness",
+            _type: "policy",
+            _rev: "mock_rev_policy_homesickness_dynamic",
+            sourceKind: "sourceOfTruth",
+            title: "Homesickness Support Policy",
+            summary: `${sourceTextMarker}: cabin staff use a calm bedtime check-in script before lights-out.`,
+          },
+          {
+            _id: "policy_parent_communication",
+            _type: "policy",
+            _rev: "mock_rev_policy_parent_communication_dynamic",
+            sourceKind: "sourceOfTruth",
+            title: "Parent Communication Policy",
+            summary: `${sourceTextMarker}: parents hear from camp if adjustment support needs family context.`,
+          },
+        ]),
+      });
+    },
+  });
+
+  return (await service.submitPrompt({ promptText: "What happens if my child gets homesick?" })).presentation;
+}
+
+test("GuideSite GUI service presents retained Sanity source text without leaking source internals", async () => {
+  const firstPresentation = await createHomesicknessPresentationFromSanitySourceText("Blue jay source wording");
+  const secondPresentation = await createHomesicknessPresentationFromSanitySourceText("Cedar lake source wording");
+
+  assert.equal(firstPresentation.answer.status, "assembled_answer");
+  assert.equal(secondPresentation.answer.status, "assembled_answer");
+  if (firstPresentation.answer.status !== "assembled_answer" || secondPresentation.answer.status !== "assembled_answer") {
+    assert.fail("Expected assembled answers from fake Sanity source material");
+  }
+
+  const firstAnswerJson = JSON.stringify(firstPresentation.answer);
+  const secondAnswerJson = JSON.stringify(secondPresentation.answer);
+
+  assert.match(firstAnswerJson, /Blue jay source wording: cabin staff use a calm bedtime check-in script/);
+  assert.doesNotMatch(firstAnswerJson, /Cedar lake source wording/);
+  assert.match(secondAnswerJson, /Cedar lake source wording: cabin staff use a calm bedtime check-in script/);
+  assert.doesNotMatch(secondAnswerJson, /Blue jay source wording/);
+  assert.deepEqual(firstPresentation.answer.citations, [
+    { label: "Homesickness and Child Readiness" },
+    { label: "Homesickness Support Policy" },
+    { label: "Parent Communication Policy" },
+  ]);
+  assert.doesNotMatch(firstAnswerJson, /policy_homesickness|mock_rev_|fieldPath|sourceRevision|sourceId|providerRawOutput/);
 });
 
 test("GuideSite GUI service reports missing live config loudly and does not run fixture retrieval", async () => {

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "session_prd_audit_2",
+  "revision": 3,
+  "status": "active",
+  "createdAt": "2026-06-08T03:11:38.975Z",
+  "updatedAt": "2026-06-08T03:11:38.980Z",
+  "visitorFacts": {
+    "child_age": {
+      "value": 8,
+      "source": "explicit",
+      "sourceRunId": "run_3401182d-db63-4c29-9107-0ebc14fd6b69",
+      "status": "active"
+    },
+    "prior_sleepaway_experience": {
+      "value": "slept_with_grandparents",
+      "source": "explicit",
+      "sourceRunId": "run_153a2c02-8f90-49bc-923e-5e8c8f8c55df",
+      "status": "active"
+    }
+  },
+  "concerns": {
+    "homesickness": {
+      "status": "open",
+      "sourceRunIds": [
+        "run_153a2c02-8f90-49bc-923e-5e8c8f8c55df"
+      ]
+    },
+    "child_readiness": {
+      "status": "open",
+      "sourceRunIds": [
+        "run_153a2c02-8f90-49bc-923e-5e8c8f8c55df"
+      ]
+    }
+  },
+  "focus": {
+    "goal": "assess_fit",
+    "contextNeeds": [
+      "child_readiness"
+    ]
+  },
+  "suggestedPrompts": [
+    {
+      "id": "prompt_child_readiness",
+      "purpose": "gather_fit_context",
+      "text": "How does your child usually handle new routines or time away from you?",
+      "contextNeeds": [
+        "child_readiness"
+      ],
+      "concerns": [
+        "child_readiness"
+      ],
+      "templateId": "ask_child_readiness"
+    }
+  ],
+  "promptHistory": [
+    {
+      "runId": "run_3401182d-db63-4c29-9107-0ebc14fd6b69",
+      "text": "Is overnight camp right for my 8-year-old?",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T03:11:38.975Z"
+    },
+    {
+      "runId": "run_153a2c02-8f90-49bc-923e-5e8c8f8c55df",
+      "text": "She slept away from home at grandparents twice.",
+      "source": "typed",
+      "selectedSuggestedPromptId": null,
+      "createdAt": "2026-06-08T03:11:38.980Z"
+    }
+  ],
+  "summary": "Parent is assessing overnight camp Fit for an 8-year-old Child. The Child has prior sleepaway experience with grandparents; Homesickness and Child Readiness remain open concerns; Remaining need: Child Readiness."
+}

@@ -644,6 +644,7 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
               rank: 1,
               fieldPath: "",
               sourceRevision: "mock_rev_program_overnight_001",
+              sourceText: "Unsafe draft source text must stay rejected by Answer Composition validation.",
             },
             {
               sourceId: "policy_homesickness",
@@ -652,6 +653,7 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
               rank: 2,
               fieldPath: "summary",
               sourceRevision: "mock_rev_policy_homesickness_001",
+              sourceText: "Cabin staff watch for homesickness and help children settle into routines.",
             },
             {
               sourceId: "policy_parent_communication",
@@ -660,6 +662,7 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
               rank: 3,
               fieldPath: "summary",
               sourceRevision: "mock_rev_policy_parent_communication_001",
+              sourceText: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
             },
             {
               sourceId: "concern_homesickness",
@@ -668,6 +671,7 @@ test("GuideSite MVP CLI renders the safe fallback when Answer Composition valida
               rank: 4,
               fieldPath: "summary",
               sourceRevision: "mock_rev_concern_homesickness_001",
+              sourceText: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
             },
           ],
           diagnostics: ["fake_invalid_answer_composition_retrieval"],

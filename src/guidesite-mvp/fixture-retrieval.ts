@@ -95,6 +95,10 @@ function chooseFieldPath(source: CanonicalSource): string {
   return "contentMap";
 }
 
+function chooseSourceText(source: CanonicalSource): string {
+  return source.summary?.trim() || source.body?.trim() || source.contentMap?.trim() || "";
+}
+
 function normalizeRetrievalResult(source: CanonicalSource, rank: number): RetrievalResult {
   return {
     sourceId: source._id,
@@ -103,6 +107,7 @@ function normalizeRetrievalResult(source: CanonicalSource, rank: number): Retrie
     rank,
     fieldPath: chooseFieldPath(source),
     sourceRevision: source._rev,
+    sourceText: chooseSourceText(source),
   };
 }
 

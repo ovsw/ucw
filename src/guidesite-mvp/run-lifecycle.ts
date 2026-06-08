@@ -19,7 +19,6 @@ import type {
 import { applySessionPatchOperations } from "./patch-engine.ts";
 import {
   createFixtureGuideSiteRetrievalAdapter,
-  loadCanonicalGuideSiteSourcePack,
   type GuideSiteRetrievalAdapter,
   type GuideSiteRetrievalResult,
 } from "./fixture-retrieval.ts";
@@ -40,12 +39,6 @@ import { formatChildAge } from "./age-formatting.ts";
 import { getApprovedContextNeedPromptTemplate } from "./suggested-prompt-templates.ts";
 
 const canonicalPromptText = "Is overnight camp right for my 8-year-old?";
-const canonicalGuideSiteSourcePack = loadCanonicalGuideSiteSourcePack();
-const canonicalGuideSiteSourceLookup = new Map(
-  canonicalGuideSiteSourcePack.documents.map((document) => [document._id, document] as const),
-);
-
-type CanonicalGuideSiteSource = (typeof canonicalGuideSiteSourcePack.documents)[number];
 
 function createDefaultSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -528,18 +521,7 @@ function createSourceCitationIds(sections: AnswerComposition["sections"]): strin
   return [...new Set(sections.flatMap((section) => section.sourceRefs?.map((sourceRef) => sourceRef.sourceId) ?? []))];
 }
 
-function getCanonicalGuideSiteSource(sourceId: string): CanonicalGuideSiteSource | null {
-  return canonicalGuideSiteSourceLookup.get(sourceId) ?? null;
-}
 
-function getCanonicalGuideSiteSourceText(sourceId: string): string | null {
-  const source = getCanonicalGuideSiteSource(sourceId);
-  if (!source) {
-    return null;
-  }
-
-  return source.summary?.trim() || source.body?.trim() || source.contentMap?.trim() || null;
-}
 
 type SuggestedPromptDerivation = {
   suggestedPrompts: AnswerComposition["suggestedPrompts"];
@@ -778,86 +760,139 @@ function createSourcesSection(retrieval: NonNullable<RunState["retrieval"]>): An
   };
 }
 
-function createConcernAnswerSourceIds(retrieval: NonNullable<RunState["retrieval"]>): {
+const homesicknessAnswerSourceIds = ["concern_homesickness", "policy_homesickness", "policy_parent_communication"] as const;
+
+type HomesicknessAnswerSourceMaterial = {
   available: string[];
-  missing: string[];
-} {
-  const requiredSourceIds = ["concern_homesickness", "policy_homesickness", "policy_parent_communication"] as const;
-  const availableSourceIds = new Set(retrieval.results.map((result) => result.sourceId));
-  const available = requiredSourceIds.filter((sourceId) => availableSourceIds.has(sourceId));
-  const missing = requiredSourceIds.filter((sourceId) => !availableSourceIds.has(sourceId));
+  missingSources: string[];
+  missingSourceText: string[];
+  sourceTextById: Map<string, string>;
+};
+
+function collectHomesicknessAnswerSourceMaterial(
+  retrieval: NonNullable<RunState["retrieval"]>,
+): HomesicknessAnswerSourceMaterial {
+  const resultsById = new Map(retrieval.results.map((result) => [result.sourceId, result] as const));
+  const available: string[] = [];
+  const missingSources: string[] = [];
+  const missingSourceText: string[] = [];
+  const sourceTextById = new Map<string, string>();
+
+  for (const sourceId of homesicknessAnswerSourceIds) {
+    const retrievalResult = resultsById.get(sourceId);
+    if (!retrievalResult) {
+      missingSources.push(sourceId);
+      continue;
+    }
+
+    const sourceText = retrievalResult.sourceText.trim();
+    if (!sourceText) {
+      missingSourceText.push(sourceId);
+      continue;
+    }
+
+    available.push(sourceId);
+    sourceTextById.set(sourceId, sourceText);
+  }
 
   return {
-    available: [...available],
-    missing: [...missing],
+    available,
+    missingSources,
+    missingSourceText,
+    sourceTextById,
   };
 }
 
-function createConcernAnswerDiagnostic(missingSourceIds: string[]): string {
-  return `homesickness_answer_partial_missing_source_material: ${formatList(missingSourceIds)}`;
+function createConcernAnswerDiagnostic(material: HomesicknessAnswerSourceMaterial): string {
+  const gaps: string[] = [];
+
+  if (material.missingSources.length > 0) {
+    gaps.push(`missing sources: ${formatList(material.missingSources)}`);
+  }
+
+  if (material.missingSourceText.length > 0) {
+    gaps.push(`missing selected source text: ${formatList(material.missingSourceText)}`);
+  }
+
+  return `homesickness_answer_partial_missing_source_material: ${gaps.join("; ") || "(none)"}`;
+}
+
+function formatHomesicknessSourceItems(
+  sourceIds: readonly string[],
+  retrieval: NonNullable<RunState["retrieval"]>,
+): string[] {
+  const resultsById = new Map(retrieval.results.map((result) => [result.sourceId, result] as const));
+  return sourceIds.map((sourceId) => {
+    const result = resultsById.get(sourceId);
+    return result ? `${result.title} (${sourceId})` : sourceId;
+  });
 }
 
 function createHomesicknessConcernAnswerComposition(
   retrieval: NonNullable<RunState["retrieval"]>,
 ): AnswerComposition {
-  const { available, missing } = createConcernAnswerSourceIds(retrieval);
-  const sourceRefs = createSourceRefs(available, retrieval);
+  const material = collectHomesicknessAnswerSourceMaterial(retrieval);
   const retrievalDescriptor = describeRetrievalAdapter(retrieval);
-  const concernSummary = getCanonicalGuideSiteSourceText("concern_homesickness");
-  const homesicknessPolicySummary = getCanonicalGuideSiteSourceText("policy_homesickness");
-  const parentCommunicationSummary = getCanonicalGuideSiteSourceText("policy_parent_communication");
-  const availableText = [concernSummary, homesicknessPolicySummary, parentCommunicationSummary]
-    .filter((text): text is string => typeof text === "string" && text.length > 0)
+  const availableText = material.available
+    .map((sourceId) => material.sourceTextById.get(sourceId))
+    .filter((sourceText): sourceText is string => typeof sourceText === "string" && sourceText.length > 0)
     .join(" ");
-  const answered = missing.length === 0;
-  const diagnostics = answered ? [] : [createConcernAnswerDiagnostic(missing)];
+  const diagnostics = material.available.length === homesicknessAnswerSourceIds.length ? [] : [createConcernAnswerDiagnostic(material)];
+
+  if (material.available.length === 0) {
+    return createInsufficientSourceAnswerComposition(retrieval, [
+      ...retrieval.diagnostics,
+      ...diagnostics,
+      "homesickness_answer_missing_selected_source_text",
+    ]);
+  }
+
+  const answered = diagnostics.length === 0;
+  const sourceRefs = createSourceRefs(material.available, retrieval);
+  const sections: AnswerComposition["sections"] = [
+    {
+      kind: "summary",
+      title: "Homesickness Answer",
+      body: availableText,
+      sourceRefs,
+    },
+  ];
+  const concernText = material.sourceTextById.get("concern_homesickness");
+  if (concernText) {
+    sections.push({
+      kind: "concerns",
+      title: "Concern",
+      body: concernText,
+      items: ["homesickness"],
+      sourceRefs: createSourceRefs(["concern_homesickness"], retrieval),
+    });
+  }
+
+  sections.push(
+    {
+      kind: "sources",
+      title: "Sources",
+      body: `Approved source material from ${retrievalDescriptor} was retrieved for the homesickness concern.`,
+      items: formatHomesicknessSourceItems(material.available, retrieval),
+      sourceRefs,
+    },
+    {
+      kind: "diagnostics",
+      title: "Diagnostics",
+      body: answered
+        ? "All required source material was available."
+        : `Partial homesickness answer because ${formatList([...material.missingSources, ...material.missingSourceText])} was unavailable.`,
+    },
+  );
 
   return {
     status: answered ? "answered" : "partial",
     conversationalFraming: answered
       ? `The approved source material from ${retrievalDescriptor} explains how the camp handles homesickness.`
       : `The approved source material from ${retrievalDescriptor} supports a partial homesickness answer, but some source material was unavailable.`,
-    sections: [
-      {
-        kind: "summary",
-        title: "Homesickness Answer",
-        body:
-          availableText ||
-          `Approved source material from ${retrievalDescriptor} for the homesickness concern was not available in full.`,
-        sourceRefs,
-      },
-      {
-        kind: "concerns",
-        title: "Concern",
-        body:
-          getCanonicalGuideSiteSourceText("concern_homesickness") ??
-          "Homesickness remains an open Concern in the validated Prompt Understanding.",
-        items: ["homesickness"],
-        sourceRefs: createSourceRefs(
-          available.length > 0 ? available : ["concern_homesickness"],
-          retrieval,
-        ),
-      },
-      {
-        kind: "sources",
-        title: "Sources",
-        body: `Approved source material from ${retrievalDescriptor} was retrieved for the homesickness concern.`,
-        items: available.map((sourceId) => {
-          const source = getCanonicalGuideSiteSource(sourceId);
-          return source ? `${source.title} (${sourceId})` : sourceId;
-        }),
-        sourceRefs,
-      },
-      {
-        kind: "diagnostics",
-        title: "Diagnostics",
-        body: answered
-          ? "All required source material was available."
-          : `Partial homesickness answer because ${formatList(missing)} was unavailable.`,
-      },
-    ],
+    sections,
     suggestedPrompts: [],
-    citations: available,
+    citations: createSourceCitationIds(sections),
     diagnostics,
   };
 }

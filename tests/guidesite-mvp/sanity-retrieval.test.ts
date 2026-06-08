@@ -111,6 +111,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
       rank: result.rank,
       fieldPath: result.fieldPath,
       sourceRevision: result.sourceRevision,
+      sourceText: result.sourceText,
     })),
     [
       {
@@ -120,6 +121,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
         rank: 1,
         fieldPath: "summary",
         sourceRevision: "mock_rev_concern_homesickness_001",
+        sourceText: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
       },
       {
         sourceId: "program_overnight",
@@ -128,6 +130,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
         rank: 2,
         fieldPath: "body",
         sourceRevision: "mock_rev_program_overnight_001",
+        sourceText: "The overnight program is designed for children who are ready to spend several nights away from home.",
       },
       {
         sourceId: "policy_homesickness",
@@ -136,6 +139,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
         rank: 3,
         fieldPath: "summary",
         sourceRevision: "mock_rev_policy_homesickness_001",
+        sourceText: "Cabin staff watch for homesickness and help children settle into routines.",
       },
       {
         sourceId: "policy_parent_communication",
@@ -144,6 +148,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
         rank: 4,
         fieldPath: "summary",
         sourceRevision: "mock_rev_policy_parent_communication_001",
+        sourceText: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
       },
       {
         sourceId: "prompt_template_sleepaway_experience",
@@ -152,6 +157,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
         rank: 5,
         fieldPath: "text",
         sourceRevision: "mock_rev_prompt_template_sleepaway_experience_001",
+        sourceText: "Has your child slept away from home before?",
       },
       {
         sourceId: "prompt_template_child_readiness",
@@ -160,6 +166,7 @@ test("Sanity GuideSite retrieval adapter normalizes approved source documents in
         rank: 6,
         fieldPath: "text",
         sourceRevision: "mock_rev_prompt_template_child_readiness_001",
+        sourceText: "How does your child usually handle new routines or time away from you?",
       },
     ],
   );
@@ -206,6 +213,30 @@ test("Sanity GuideSite retrieval adapter reports insufficient source diagnostics
   });
   assert.match(retrieval.diagnostics.join(" "), /insufficient_sanity_sources/);
   assert.match(retrieval.diagnostics.join(" "), /sanity_retrieval_rejected_unapproved_sources/);
+});
+
+test("Sanity GuideSite retrieval adapter treats approved documents without selected source text as insufficient material", () => {
+  const adapter = createSanityGuideSiteRetrievalAdapter(() => [
+    {
+      _id: "policy_homesickness",
+      _type: "policy",
+      _rev: "mock_rev_policy_homesickness_001",
+      sourceKind: "sourceOfTruth",
+      title: "Homesickness Support Policy",
+      summary: "   ",
+    },
+  ]);
+
+  const retrieval = adapter.retrieve(canonicalGuideSiteUnderstanding);
+
+  assert.deepEqual(retrieval.results, []);
+  assert.deepEqual(retrieval.coverage, {
+    status: "empty_retrieval",
+    matchedSourceIds: [],
+  });
+  assert.match(retrieval.diagnostics.join(" "), /insufficient_sanity_sources/);
+  assert.match(retrieval.diagnostics.join(" "), /sanity_retrieval_missing_selected_source_text: policy_homesickness/);
+  assert.doesNotMatch(retrieval.diagnostics.join(" "), /rejected_unapproved_sources/);
 });
 
 test("Sanity GuideSite retrieval adapter excludes approved-looking documents that are missing the sourceOfTruth marker", () => {

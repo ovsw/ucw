@@ -302,6 +302,7 @@ test("GuideSite turn falls back safely when Answer Composition validation fails"
                 rank: 1,
                 fieldPath: "",
                 sourceRevision: "mock_rev_program_overnight_001",
+                sourceText: "Unsafe draft source text must stay rejected by Answer Composition validation.",
               },
               {
                 sourceId: "policy_homesickness",
@@ -310,6 +311,7 @@ test("GuideSite turn falls back safely when Answer Composition validation fails"
                 rank: 2,
                 fieldPath: "summary",
                 sourceRevision: "mock_rev_policy_homesickness_001",
+                sourceText: "Cabin staff watch for homesickness and help children settle into routines.",
               },
               {
                 sourceId: "policy_parent_communication",
@@ -318,6 +320,7 @@ test("GuideSite turn falls back safely when Answer Composition validation fails"
                 rank: 3,
                 fieldPath: "summary",
                 sourceRevision: "mock_rev_policy_parent_communication_001",
+                sourceText: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
               },
               {
                 sourceId: "concern_homesickness",
@@ -326,6 +329,7 @@ test("GuideSite turn falls back safely when Answer Composition validation fails"
                 rank: 4,
                 fieldPath: "summary",
                 sourceRevision: "mock_rev_concern_homesickness_001",
+                sourceText: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
               },
             ],
             diagnostics: ["fake_invalid_answer_composition_retrieval"],
@@ -499,6 +503,7 @@ test("GuideSite turn composes a partial homesickness Concern answer when source 
                 rank: 1,
                 fieldPath: "summary",
                 sourceRevision: "mock_rev_policy_homesickness_001",
+                sourceText: "Cabin staff watch for homesickness and help children settle into routines.",
               },
             ],
             diagnostics: ["fake_partial_homesickness_retrieval"],
@@ -550,6 +555,7 @@ test("GuideSite turn composes a partial homesickness Concern answer with Sanity 
                 rank: 1,
                 fieldPath: "summary",
                 sourceRevision: "mock_rev_policy_homesickness_001",
+                sourceText: "Sanity says cabin leaders use a moonlight check-in script and a morning buddy plan.",
               },
             ],
             diagnostics: ["fake_partial_sanity_homesickness_retrieval"],
@@ -572,12 +578,72 @@ test("GuideSite turn composes a partial homesickness Concern answer with Sanity 
       run.answerComposition?.sections.find((section) => section.kind === "sources")?.body ?? "",
       /Approved source material from Sanity Hybrid \[sanityHybrid\] was retrieved for the homesickness concern\./,
     );
+    assert.match(
+      run.answerComposition?.sections.find((section) => section.kind === "summary")?.body ?? "",
+      /Sanity says cabin leaders use a moonlight check-in script and a morning buddy plan/,
+    );
+    assert.doesNotMatch(
+      run.answerComposition?.sections.find((section) => section.kind === "summary")?.body ?? "",
+      /Cabin staff watch for homesickness, help children settle into routines/,
+    );
     const output = renderGuideSiteRunOperatorOutput(run);
     assert.match(output, /Retrieval Adapter: Sanity Hybrid \[sanityHybrid\]/);
     assert.doesNotMatch(output, /fixture source material/i);
     assert.equal(run.patch, null);
     assert.equal(run.committedSessionState, null);
     assert.deepEqual(run.diagnostics, ["fake_partial_sanity_homesickness_retrieval"]);
+  } finally {
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite turn abstains when matched homesickness sources have no selected source text", async () => {
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-turn-"));
+  try {
+    const stores = createGuideSiteMemoryStores({
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+    const run = await runGuideSiteMvpTurn({
+      promptText: "What happens if my child gets homesick?",
+      stores,
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      createSessionId: () => "session_turn_homesickness_empty_source_text",
+      createRunId: () => "run_turn_homesickness_empty_source_text",
+      promptUnderstandingProvider: createFakePromptUnderstandingProvider(homesicknessConcernUnderstanding),
+      retrievalAdapter: {
+        id: "sanityHybrid",
+        label: "Sanity Hybrid",
+        retrieve(input) {
+          return {
+            needs: [...input.retrievalNeeds],
+            concerns: input.concerns.map((concern) => concern.key),
+            results: [
+              {
+                sourceId: "policy_homesickness",
+                sourceType: "policy",
+                title: "Homesickness Support Policy",
+                rank: 1,
+                fieldPath: "summary",
+                sourceRevision: "mock_rev_policy_homesickness_001",
+                sourceText: "   ",
+              },
+            ],
+            diagnostics: ["fake_empty_source_text_retrieval"],
+            coverage: {
+              status: "source_backed",
+              matchedSourceIds: ["policy_homesickness"],
+            },
+          };
+        },
+      },
+    });
+
+    assert.equal(run.answerComposition?.status, "fallback");
+    assert.match(run.answerComposition?.diagnostics.join(" ") ?? "", /missing selected source text: policy_homesickness/);
+    assert.match(run.answerComposition?.diagnostics.join(" ") ?? "", /homesickness_answer_missing_selected_source_text/);
+    assert.doesNotMatch(JSON.stringify(run.answerComposition), /Cabin staff watch for homesickness/);
+    assert.equal(run.patch, null);
+    assert.equal(run.committedSessionState, null);
   } finally {
     rmSync(runStateDirectory, { recursive: true, force: true });
   }

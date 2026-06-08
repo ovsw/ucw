@@ -14,6 +14,7 @@ const retrieval: RetrievalResults = {
       rank: 1,
       fieldPath: "summary",
       sourceRevision: "mock_rev_program_overnight_001",
+      sourceText: "The overnight Camp Program gives children a residential camp experience with cabin life.",
     },
     {
       sourceId: "concern_homesickness",
@@ -22,6 +23,7 @@ const retrieval: RetrievalResults = {
       rank: 2,
       fieldPath: "summary",
       sourceRevision: "mock_rev_concern_homesickness_001",
+      sourceText: "Parents often need to assess Child Readiness by looking at prior sleepaway experience.",
     },
     {
       sourceId: "policy_homesickness",
@@ -30,6 +32,7 @@ const retrieval: RetrievalResults = {
       rank: 3,
       fieldPath: "summary",
       sourceRevision: "mock_rev_policy_homesickness_001",
+      sourceText: "Cabin staff watch for homesickness and help children settle into routines.",
     },
     {
       sourceId: "policy_parent_communication",
@@ -38,6 +41,7 @@ const retrieval: RetrievalResults = {
       rank: 4,
       fieldPath: "summary",
       sourceRevision: "mock_rev_policy_parent_communication_001",
+      sourceText: "Camp contacts parents when staff need family context or when adjustment concerns persist.",
     },
   ],
   diagnostics: [],

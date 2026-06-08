@@ -36,6 +36,11 @@ const DEFAULT_SANITY_ADAPTER_LABEL = "Sanity Hybrid";
 const APPROVED_SOURCE_KIND = "sourceOfTruth";
 const APPROVED_SOURCE_TYPES = new Set(["campProgram", "policy", "concern", "promptTemplate"]);
 
+
+type SelectedSanitySourceText = {
+  fieldPath: string;
+  sourceText: string;
+};
 function formatList(values: string[]): string {
   return values.length === 0 ? "(none)" : values.join(", ");
 }
@@ -70,34 +75,47 @@ export function buildGuideSiteSanitySearchText(
   return shapeSanitySearchQuery(collectSearchTerms(understanding, sessionContext).join(" "));
 }
 
-function chooseFieldPath(source: GuideSiteSanitySourceDocument): string {
-  if (source.summary?.trim()) {
-    return "summary";
+function selectSanitySourceText(source: GuideSiteSanitySourceDocument): SelectedSanitySourceText | null {
+  const summary = source.summary?.trim();
+  if (summary) {
+    return { fieldPath: "summary", sourceText: summary };
   }
 
-  if (source.body?.trim()) {
-    return "body";
+  const body = source.body?.trim();
+  if (body) {
+    return { fieldPath: "body", sourceText: body };
   }
 
-  if (source.text?.trim()) {
-    return "text";
+  const text = source.text?.trim();
+  if (text) {
+    return { fieldPath: "text", sourceText: text };
   }
 
-  return "contentMap";
+  const contentMap = source.contentMap?.trim();
+  if (contentMap) {
+    return { fieldPath: "contentMap", sourceText: contentMap };
+  }
+
+  return null;
 }
 
 function chooseSourceRevision(source: GuideSiteSanitySourceDocument): string {
   return source._rev?.trim() || "unknown";
 }
 
-function normalizeSanitySourceDocument(source: GuideSiteSanitySourceDocument, rank: number): RetrievalResult {
+function normalizeSanitySourceDocument(
+  source: GuideSiteSanitySourceDocument,
+  rank: number,
+  selectedText: SelectedSanitySourceText,
+): RetrievalResult {
   return {
     sourceId: source._id,
     sourceType: source._type,
     title: source.title,
     rank,
-    fieldPath: chooseFieldPath(source),
+    fieldPath: selectedText.fieldPath,
     sourceRevision: chooseSourceRevision(source),
+    sourceText: selectedText.sourceText,
   };
 }
 
@@ -133,25 +151,42 @@ function createSanityDiagnostics(
   sessionContext: PromptUnderstandingSessionContext | null,
   rawSources: GuideSiteSanitySourceDocument[],
   approvedSources: GuideSiteSanitySourceDocument[],
+  approvedSourcesWithSelectedText: GuideSiteSanitySourceDocument[],
 ): string[] {
-  if (approvedSources.length > 0) {
-    return [];
+  const diagnostics: string[] = [];
+
+  if (approvedSourcesWithSelectedText.length === 0) {
+    diagnostics.push(createInsufficientSanitySourceDiagnostic(understanding, sessionContext));
   }
 
-  const diagnostics = [createInsufficientSanitySourceDiagnostic(understanding, sessionContext)];
   const rejectedSourceIds = rawSources
     .filter((source) => !isApprovedSanitySourceDocument(source))
     .map((source) => source._id);
 
-  if (rejectedSourceIds.length > 0) {
+  if (rejectedSourceIds.length > 0 && approvedSourcesWithSelectedText.length === 0) {
     diagnostics.push(`sanity_retrieval_rejected_unapproved_sources: ${formatList(rejectedSourceIds)}`);
+  }
+
+  const missingSelectedTextSourceIds = approvedSources
+    .filter((source) => !selectSanitySourceText(source))
+    .map((source) => source._id);
+
+  if (missingSelectedTextSourceIds.length > 0) {
+    diagnostics.push(`sanity_retrieval_missing_selected_source_text: ${formatList(missingSelectedTextSourceIds)}`);
   }
 
   return diagnostics;
 }
 
 function normalizeApprovedSources(sources: GuideSiteSanitySourceDocument[]): RetrievalResults["results"] {
-  return sources.map((source, index) => normalizeSanitySourceDocument(source, index + 1));
+  return sources.map((source, index) => {
+    const selectedText = selectSanitySourceText(source);
+    if (!selectedText) {
+      throw new Error(`Cannot normalize Sanity source without selected text: ${source._id}`);
+    }
+
+    return normalizeSanitySourceDocument(source, index + 1, selectedText);
+  });
 }
 
 function buildGuideSiteSanityRetrievalResult(
@@ -162,8 +197,15 @@ function buildGuideSiteSanityRetrievalResult(
   adapterLabel: string,
 ): GuideSiteRetrievalResult {
   const approvedSources = rawSources.filter(isApprovedSanitySourceDocument);
-  const results = normalizeApprovedSources(approvedSources);
-  const diagnostics = createSanityDiagnostics(understanding, sessionContext, rawSources, approvedSources);
+  const approvedSourcesWithSelectedText = approvedSources.filter((source) => selectSanitySourceText(source) !== null);
+  const results = normalizeApprovedSources(approvedSourcesWithSelectedText);
+  const diagnostics = createSanityDiagnostics(
+    understanding,
+    sessionContext,
+    rawSources,
+    approvedSources,
+    approvedSourcesWithSelectedText,
+  );
 
   return {
     adapterId,
