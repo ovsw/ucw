@@ -1,7 +1,7 @@
 import { createFixtureGuideSiteRetrievalAdapter } from "../../src/guidesite-mvp/fixture-retrieval.ts";
 import { readGuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeConfig, type GuideSiteGuiRuntimeEnv } from "../../src/guidesite-mvp/gui-runtime.ts";
 import { createOpenAIPromptUnderstandingProvider, type PromptUnderstandingProvider } from "../../src/guidesite-mvp/openai-prompt-understanding.ts";
-import { createGuideSiteLoadingPresentation, createGuideSiteTechnicalFailurePresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
+import { createGuideSiteStartPresentation, createGuideSiteTechnicalFailurePresentation, mapGuideSiteRunStateToPresentation, type GuideSitePresentation } from "../../src/guidesite-mvp/presentation-dto.ts";
 import { buildHardcodedSessionPatch, commitSessionPatch, createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../../src/guidesite-mvp/run-lifecycle.ts";
 import { createGuideSiteFileRunStore } from "../../src/guidesite-mvp/run-store.ts";
 import { createGuideSiteFileSessionStore } from "../../src/guidesite-mvp/session-store.ts";
@@ -404,10 +404,6 @@ function readLatestRestorableGuideSiteGuiRun(stores: GuideSiteStores, sessionId:
   };
 }
 
-function createNewDemoRequest(options: GuideSiteGuiRestoreRequest | GuideSiteGuiStartDemoRequest = {}): GuideSiteGuiStartDemoRequest {
-  const { sessionId: _sessionId, ...newDemoRequest } = options as GuideSiteGuiRestoreRequest;
-  return newDemoRequest;
-}
 
 async function executeGuideSiteGuiTurn(
   request: GuideSiteGuiTurnRequest & {
@@ -499,11 +495,19 @@ export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDepen
     }
   }
 
+  function createStartResult(): GuideSiteGuiActionResult {
+    return {
+      promptText: "",
+      presentation: createGuideSiteStartPresentation(),
+    };
+  }
+
+
   return {
-    createInitialPresentation: () => createGuideSiteLoadingPresentation(),
+    createInitialPresentation: () => createGuideSiteStartPresentation(),
     readRuntimeConfig,
-    startDemo(options: GuideSiteGuiStartDemoRequest = {}) {
-      return executePrompt(DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT, createNewDemoRequest(options));
+    async startDemo(_options: GuideSiteGuiStartDemoRequest = {}) {
+      return createStartResult();
     },
     async restoreDemo(options: GuideSiteGuiRestoreRequest = {}) {
       try {
@@ -516,12 +520,12 @@ export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDepen
         }
       } catch (error) {
         return {
-          promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
+          promptText: "",
           presentation: createGuideSiteGuiTechnicalFailurePresentation(error),
         };
       }
 
-      return executePrompt(DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT, createNewDemoRequest(options));
+      return createStartResult();
     },
     submitPrompt(options: GuideSiteGuiTurnRequest) {
       return executePrompt(options.promptText, options);

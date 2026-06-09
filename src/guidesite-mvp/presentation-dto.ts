@@ -197,6 +197,13 @@ export interface GuideSiteOperatorInspection {
   rawStructuredOutput: GuideSiteRawStructuredOutputInspection;
 }
 
+export interface GuideSiteNotStartedPresentation {
+  status: "not_started";
+  headline: string;
+  message: string;
+  examplePrompt: string;
+}
+
 export interface GuideSiteLoadingPresentation {
   status: "loading";
   headline: string;
@@ -333,6 +340,7 @@ function createJourneyTimeline(run: RunState | null): GuideSiteJourneyTimeline {
 }
 
 export type GuideSitePresentationAnswer =
+  | GuideSiteNotStartedPresentation
   | GuideSiteLoadingPresentation
   | GuideSiteContextGatheringResponsePresentation
   | GuideSiteAssembledAnswerPresentation
@@ -707,7 +715,7 @@ function mapContextGatheringPresentation(
   return {
     status: "context_gathering_response",
     conversationalFraming: conversationalFraming ?? answerComposition.conversationalFraming,
-    requiredQuestions: prompts.requiredQuestions,
+    requiredQuestions: prompts.requiredQuestions.slice(0, 1),
     suggestedPrompts: prompts.suggestedPrompts,
   };
 }
@@ -774,6 +782,23 @@ function mapValidationFailurePresentation(
 
 function createGatedOperatorDiagnostics(run: RunState, diagnostics: string[]): GuideSiteOperatorDiagnostics {
   return createOperatorDiagnostics(run, [...run.diagnostics, ...diagnostics]);
+}
+
+export function createGuideSiteStartPresentation(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSitePresentation {
+  const camp = resolveCampTheme(options);
+
+  return {
+    camp,
+    answer: {
+      status: "not_started",
+      headline: "Ask a parent question.",
+      message: "Type the first question exactly as the parent would ask it. GuideSite will interpret it before deciding what to ask next.",
+      examplePrompt: "Is overnight camp right for my 8-year-old?",
+    },
+    operatorDiagnostics: createOperatorDiagnostics(null),
+    journeyTimeline: createJourneyTimeline(null),
+    operatorInspection: createOperatorInspection(null, [], "not_rendered"),
+  };
 }
 
 export function createGuideSiteLoadingPresentation(options: { camp?: GuideSiteCampThemeStub } = {}): GuideSitePresentation {

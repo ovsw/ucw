@@ -7,7 +7,7 @@ import OperatorPage from "../app/operator/page.js";
 import OperatorLoading from "../app/operator/loading.js";
 import { DEFAULT_GUIDESITE_GUI_RUN_STORE_DIRECTORY, DEFAULT_GUIDESITE_GUI_SESSION_STORE_DIRECTORY } from "../app/operator/guide-site-gui-service.js";
 
-test("operator shell renders the canonical demo surface", async () => {
+test("operator shell starts with a blank parent prompt form", async () => {
   const previousRuntimeMode = process.env.GUIDESITE_GUI_RUNTIME_MODE;
   process.env.GUIDESITE_GUI_RUNTIME_MODE = "fixture";
 
@@ -16,22 +16,17 @@ test("operator shell renders the canonical demo surface", async () => {
 
     for (const expected of [
       /GuideSite demo/,
-      /Parent question/,
-      /Get the missing parent details/,
-      /Questions to ask/,
-      /Type a custom reply/,
-      /Ask a different question/,
-      /Is overnight camp right for my 8-year-old\?/,
-      /Type the parent’s reply/,
-      /New demo/,
-      /name="sessionId"/,
+      /Start here/,
+      /Ask a parent question\./,
+      /First parent question/,
+      /Understand prompt/,
+      /placeholder="Is overnight camp right for my 8-year-old\?"/,
+      /Submit the first parent question to start/,
       /Admin/,
       /href="\/admin"/,
       /Progress/,
-      /Parent path/,
+      /What we know/,
       /Show history/,
-      /Debug/,
-      /Run details/,
       /lg:grid-cols-\[minmax\(0,1fr\)_360px\]/,
       /lg:sticky/,
       /data-camp-id="ultimate-camp-website"/,
@@ -45,6 +40,12 @@ test("operator shell renders the canonical demo surface", async () => {
       /Technical failure/,
       /Can’t answer yet/,
       /Answer ready/,
+      /Question to ask/,
+      /Parent question/,
+      /New demo/,
+      /name="sessionId"/,
+      /Get the missing parent details/,
+      /Questions to ask/,
       /GuideSite operator shell/,
       /Parent-shaped output/,
       /Context Gathering Response/,
