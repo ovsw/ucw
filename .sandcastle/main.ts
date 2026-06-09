@@ -53,7 +53,7 @@ const hooks = {
 // platform-specific binaries and any packages added since the last copy.
 const copyToWorktree = ["node_modules"];
 
-const codexAgent = sandcastle.codex("gpt-5.4-mini", {effort: "medium"});
+const codexAgent = sandcastle.codex("gpt-5.5", {effort: "medium"});
 
 const containerUid = process.getuid?.() ?? 1000;
 const containerGid = process.getgid?.() ?? 1000;
