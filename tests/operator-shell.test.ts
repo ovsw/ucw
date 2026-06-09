@@ -15,23 +15,24 @@ test("operator shell renders the canonical demo surface", async () => {
     const markup = renderToStaticMarkup(await OperatorPage());
 
     for (const expected of [
-      /Operator Demo Surface/,
-      /GuideSite operator shell/,
-      /Answer Presentation/,
-      /Journey Timeline/,
-      /Secondary operator context/,
-      /Context Gathering Response/,
-      /Required context/,
-      /Controlled replies/,
-      /Freeform reply/,
-      /Suggested prompts/,
+      /GuideSite demo/,
+      /Parent question/,
+      /Get the missing parent details/,
+      /Questions to ask/,
+      /Type a custom reply/,
+      /Ask a different question/,
       /Is overnight camp right for my 8-year-old\?/,
-      /Answer in your own words/,
-      /Open a new demo/,
+      /Type the parent’s reply/,
+      /New demo/,
       /name="sessionId"/,
-      /Open Sanity admin/,
+      /Admin/,
       /href="\/admin"/,
-      /lg:grid-cols-\[minmax\(0,1\.4fr\)_minmax\(320px,0\.6fr\)\]/,
+      /Progress/,
+      /Parent path/,
+      /Show history/,
+      /Debug/,
+      /Run details/,
+      /lg:grid-cols-\[minmax\(0,1fr\)_360px\]/,
       /lg:sticky/,
       /data-camp-id="ultimate-camp-website"/,
       /data-answer-accent="amber"/,
@@ -40,12 +41,21 @@ test("operator shell renders the canonical demo surface", async () => {
     ]) {
       assert.match(markup, expected);
     }
-    for (const forbidden of [/Technical failure/, /Responsible abstention/, /Assembled answer/]) {
+    for (const forbidden of [
+      /Technical failure/,
+      /Can’t answer yet/,
+      /Answer ready/,
+      /GuideSite operator shell/,
+      /Parent-shaped output/,
+      /Context Gathering Response/,
+      /Operator Demo Surface/,
+      /Controlled prompts first/,
+      /Session state is not editable/i,
+    ]) {
       assert.doesNotMatch(markup, forbidden);
     }
     assert.doesNotMatch(markup, /uncertain/i);
     assert.doesNotMatch(markup, /chat transcript/i);
-    assert.doesNotMatch(markup, /Session State editing/i);
     assert.doesNotMatch(markup, /NextStudio/);
     assert.doesNotMatch(markup, /Sanity Studio embedded/i);
   } finally {
@@ -70,8 +80,8 @@ test("operator loading route stays simple and readable", () => {
 
   assert.match(markup, /aria-busy="true"/);
   assert.match(markup, /aria-live="polite"/);
-  assert.match(markup, /Loading the validated GuideSite presentation/);
-  assert.match(markup, /canonical Parent journey/i);
+  assert.match(markup, /Loading the operator view/);
+  assert.match(markup, /Preparing the parent question, progress panel, and answer state/);
 });
 
 test("global CSS imports Tailwind 4 and the PostCSS plugin is configured", () => {

@@ -31,6 +31,73 @@ function StatusChip({ label }: { label: string }) {
   );
 }
 
+function formatAnswerStatusLabel(answer: GuideSitePresentation["answer"], isActionPending: boolean): string {
+  if (isActionPending) {
+    return "Updating";
+  }
+
+  switch (answer.status) {
+    case "assembled_answer":
+      return "Answer ready";
+    case "context_gathering_response":
+      return "Needs info";
+    case "responsible_abstention":
+      return "Needs source support";
+    case "technical_failure":
+      return "Error";
+    case "loading":
+      return "Loading";
+    default:
+      return "Unavailable";
+  }
+}
+
+function getParentPromptText(presentation: GuideSitePresentation, fallbackPromptText: string): string {
+  return presentation.journeyTimeline?.prompts[0]?.text ?? fallbackPromptText;
+}
+
+function hasVisitorFact(presentation: GuideSitePresentation, key: string): boolean {
+  return presentation.journeyTimeline?.visitorContext.some((fact) => fact.key === key) ?? false;
+}
+
+function readableRunStatus(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+function cleanOperatorCopy(text: string): string {
+  return text
+    .replace("Required Visitor Context is complete.", "Required details are complete.")
+    .replace(
+      "The source-backed Fit answer is yes: overnight camp is a supported fit for this Child.",
+      "Yes — overnight camp looks like a supported fit for this child.",
+    )
+    .replace(
+      "The source-backed Fit answer is not yet: overnight camp is not a supported fit for this Child until readiness concerns are resolved.",
+      "Not yet — readiness concerns should be resolved before recommending overnight camp.",
+    )
+    .replace(/\bVisitor Context\b/g, "details")
+    .replace(/\bChild Readiness\b/g, "readiness")
+    .replace(/\bOvernight Camp Program\b/g, "overnight camp program")
+    .replace(/\bCamp Program\b/g, "camp program")
+    .replace(/\bParent Communication Policy\b/g, "parent communication policy")
+    .replace(/\bFit\b/g, "fit")
+    .replace(/\bChild\b/g, "child")
+    .replace(/\bParent\b/g, "parent");
+}
+
+function cleanSectionTitle(title: string): string {
+  switch (title) {
+    case "Fit Answer":
+      return "Recommendation";
+    case "Readiness Context":
+      return "Readiness";
+    case "Homesickness and Parent Communication":
+      return "Homesickness and communication";
+    default:
+      return cleanOperatorCopy(title);
+  }
+}
+
 const SANITY_ADMIN_BASE_PATH = "/admin";
 
 function createSanityAdminIntentPath(source: {
@@ -54,15 +121,15 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
   const citations = section.citations;
 
   return (
-    <article className="overflow-hidden rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5 shadow-sm">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">{section.title}</p>
+        <h3 className="text-base font-semibold text-slate-950">{cleanSectionTitle(section.title)}</h3>
         {citations.length > 0 ? (
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2" aria-label="Sources">
             {citations.map((citation) => (
               <span
                 key={citation.label}
-                className="rounded-full border border-amber-900/10 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-950"
+                className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-950"
               >
                 {citation.label}
               </span>
@@ -70,28 +137,15 @@ function SectionCard({ section }: { section: GuideSitePresentationSection }) {
           </div>
         ) : null}
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-700">{section.body}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-700">{cleanOperatorCopy(section.body)}</p>
       {section.items && section.items.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {section.items.map((item) => (
-            <li
-              key={item}
-              className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700"
-            >
-              {item}
+            <li key={item} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+              {cleanOperatorCopy(item)}
             </li>
           ))}
         </ul>
-      ) : null}
-      {citations.length > 0 ? (
-        <div className="mt-4 grid gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cited source labels</p>
-          {citations.map((citation) => (
-            <div key={citation.label} className="rounded-[1rem] bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
-              {citation.label}
-            </div>
-          ))}
-        </div>
       ) : null}
     </article>
   );
@@ -107,24 +161,18 @@ function RequiredQuestionCard({
   submitPromptAction: FormAction;
 }) {
   return (
-    <article className="rounded-[1.5rem] border border-amber-900/10 bg-amber-50/80 px-5 py-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Required question</p>
-      <p className="mt-3 text-sm font-semibold leading-6 text-slate-950">{question.text}</p>
-      {question.rationale ? <p className="mt-2 text-sm leading-6 text-slate-700">{question.rationale}</p> : null}
+    <article className="rounded-2xl border border-slate-200 bg-white p-5">
+      <h3 className="text-base font-semibold leading-6 text-slate-950">{question.text}</h3>
       {question.controlledReplies.length > 0 ? (
-        <div className="mt-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Controlled replies</p>
-          <div className="mt-3 grid gap-3">
-            {question.controlledReplies.map((reply) => (
-              <PromptButton
-                key={reply.id}
-                promptText={reply.text}
-                sessionId={sessionId}
-                submitPromptAction={submitPromptAction}
-                badgeLabel="Controlled reply"
-              />
-            ))}
-          </div>
+        <div className="mt-4 grid gap-2" aria-label="Suggested replies">
+          {question.controlledReplies.map((reply) => (
+            <PromptButton
+              key={reply.id}
+              promptText={reply.text}
+              sessionId={sessionId}
+              submitPromptAction={submitPromptAction}
+            />
+          ))}
         </div>
       ) : null}
 
@@ -143,28 +191,27 @@ function FreeformReplyCard({
   submitPromptAction: FormAction;
 }) {
   return (
-    <div className="mt-4 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Freeform reply</p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">
-        Answer in your own words if the controlled replies do not cover the context you want to provide.
-      </p>
+    <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <summary className="cursor-pointer text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
+        Type a custom reply
+      </summary>
       <form action={submitPromptAction} className="mt-3 space-y-3">
         <input
           name="promptText"
-          aria-label={`Freeform reply for ${questionText}`}
-          placeholder="Answer in your own words"
-          className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
+          aria-label={`Custom reply for ${questionText}`}
+          placeholder="Type the parent’s reply"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
         />
         <SessionIdField sessionId={sessionId} />
         <input type="hidden" name="operatorAction" value="submitPrompt" />
         <button
           type="submit"
-          className="inline-flex w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-amber-500 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950/35"
         >
-          Submit freeform reply
+          Submit reply
         </button>
       </form>
-    </div>
+    </details>
   );
 }
 
@@ -172,12 +219,10 @@ function PromptButton({
   promptText,
   sessionId,
   submitPromptAction,
-  badgeLabel = "Prompt",
 }: {
   promptText: string;
   sessionId: string;
   submitPromptAction: FormAction;
-  badgeLabel?: string;
 }) {
   return (
     <form action={submitPromptAction}>
@@ -186,10 +231,10 @@ function PromptButton({
       <SessionIdField sessionId={sessionId} />
       <button
         type="submit"
-        className="inline-flex w-full items-start justify-between gap-4 rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:border-amber-500 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
+        className="inline-flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-900 transition hover:border-amber-400 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
       >
         <span className="min-w-0 break-words">{promptText}</span>
-        <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-amber-800">{badgeLabel}</span>
+        <span aria-hidden="true" className="shrink-0 text-slate-400">→</span>
       </button>
     </form>
   );
@@ -217,36 +262,34 @@ function renderAnswerContent(
   switch (answer.status) {
     case "loading":
       return (
-        <div className="rounded-[1.75rem] border border-slate-900/10 bg-white px-5 py-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Loading</p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950">{answer.headline}</h2>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-sm font-medium text-slate-500">Loading</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">{answer.headline}</h2>
           <p className="mt-3 text-sm leading-6 text-slate-700">{answer.message}</p>
         </div>
       );
     case "context_gathering_response":
       return (
-        <div className="space-y-6">
-          <div className="rounded-[1.75rem] border border-amber-900/10 bg-gradient-to-br from-amber-50 to-white px-5 py-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">
-              Context Gathering Response
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
-              {answer.conversationalFraming}
+        <div className="space-y-5">
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5" aria-labelledby="needed-info-title">
+            <p className="text-sm font-medium text-amber-900">Next step</p>
+            <h2 id="needed-info-title" className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+              Get the missing parent details.
             </h2>
-          </div>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Pick the closest reply. If neither fits, type a custom reply under the question.
+            </p>
+          </section>
 
-          <section aria-labelledby="required-context-title">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Required context</p>
-                <h3 id="required-context-title" className="mt-2 text-xl font-semibold tracking-[-0.05em]">
-                  Questions the system needs before answering
-                </h3>
-              </div>
-              <StatusChip label="Primary path" />
+          <section aria-labelledby="questions-title">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="questions-title" className="text-lg font-semibold tracking-[-0.03em] text-slate-950">
+                Questions to ask
+              </h2>
+              <StatusChip label={`${answer.requiredQuestions.length} remaining`} />
             </div>
 
-            <div className="mt-4 grid gap-4">
+            <div className="mt-3 grid gap-3">
               {answer.requiredQuestions.map((question) => (
                 <RequiredQuestionCard
                   key={question.id}
@@ -259,20 +302,11 @@ function renderAnswerContent(
           </section>
 
           {answer.suggestedPrompts.length > 0 ? (
-            <section aria-labelledby="suggested-prompts-title">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">
-                    Suggested prompts
-                  </p>
-                  <h3 id="suggested-prompts-title" className="mt-2 text-xl font-semibold tracking-[-0.05em]">
-                    Controlled follow-up options
-                  </h3>
-                </div>
-                <StatusChip label="Secondary path" />
-              </div>
-
-              <div className="mt-4 grid gap-3">
+            <details className="rounded-2xl border border-slate-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
+                Other suggested next steps
+              </summary>
+              <div className="mt-3 grid gap-2">
                 {answer.suggestedPrompts.map((prompt) => (
                   <PromptButton
                     key={prompt.id}
@@ -282,26 +316,26 @@ function renderAnswerContent(
                   />
                 ))}
               </div>
-            </section>
+            </details>
           ) : null}
         </div>
       );
     case "assembled_answer":
       return (
-        <div className="space-y-6">
-          <div className="rounded-[1.75rem] border border-amber-900/10 bg-gradient-to-br from-amber-50 to-white px-5 py-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Assembled answer</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
-              {answer.conversationalFraming}
+        <div className="space-y-5">
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            <p className="text-sm font-medium text-emerald-900">Answer ready</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+              Review the recommendation.
             </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-700">
+            <p className="mt-2 text-sm leading-6 text-slate-700">
               {answer.completeness === "partial"
-                ? "The answer is source-backed but still limited by the available context."
-                : "The answer is source-backed and validated for the current demo state."}
+                ? "This answer has source support, but is still limited by available details."
+                : "This answer has source support and is ready to review."}
             </p>
-          </div>
+          </section>
 
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {answer.sections.map((section) => (
               <SectionCard key={section.title} section={section} />
             ))}
@@ -310,14 +344,14 @@ function renderAnswerContent(
       );
     case "responsible_abstention":
       return (
-        <div className="rounded-[1.75rem] border border-slate-900/10 bg-white px-5 py-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Responsible abstention</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-slate-950">
-            {answer.conversationalFraming}
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <p className="text-sm font-medium text-amber-900">Can’t answer yet</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+            {cleanOperatorCopy(answer.conversationalFraming)}
           </h2>
-          <div className="mt-5 grid gap-3">
+          <div className="mt-4 grid gap-2">
             {answer.nextSteps.map((nextStep) => (
-              <div key={nextStep} className="rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+              <div key={nextStep} className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700">
                 {nextStep}
               </div>
             ))}
@@ -335,99 +369,123 @@ function renderAnswerContent(
       );
   }
 }
-function JourneyTimeline({ timeline }: { timeline: GuideSitePresentation["journeyTimeline"] | undefined }) {
-  const safeTimeline = timeline ?? {
+function ProgressPanel({ presentation }: { presentation: GuideSitePresentation }) {
+  const safeTimeline = presentation.journeyTimeline ?? {
     prompts: [],
     visitorContext: [],
     concerns: [],
     sessionSummary: null,
   };
+  const progressItems = [
+    {
+      key: "prior_sleepaway_experience",
+      label: "Sleepaway experience",
+      complete: hasVisitorFact(presentation, "prior_sleepaway_experience"),
+    },
+    {
+      key: "child_readiness",
+      label: "Readiness",
+      complete: hasVisitorFact(presentation, "child_readiness"),
+    },
+  ];
+
   return (
-    <aside
-      aria-labelledby="journey-timeline-title"
-      className="rounded-[2rem] border border-black/10 bg-white/82 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)]"
-    >
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Journey Timeline</p>
-      <h2 id="journey-timeline-title" className="mt-3 text-xl font-semibold tracking-[-0.05em] text-slate-950">
-        Secondary operator context
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-slate-700">
-        Compact Prompt path, learned Visitor Context, and Concerns. This panel is context only, not a replay surface.
-      </p>
-
-      <div className="mt-5 grid gap-4">
-        <section aria-labelledby="journey-prompts-title">
-          <p id="journey-prompts-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Prior prompts
-          </p>
-          <div className="mt-2 grid gap-2">
-            {safeTimeline.prompts.length > 0 ? (
-              safeTimeline.prompts.map((prompt, index) => (
-                <div key={prompt.runId.length > 0 ? prompt.runId : `prompt-${index}`} className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Prompt {index + 1} · {prompt.source.replace(/_/g, " ")}
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-800">{prompt.text}</p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
-                No prior Prompts in this GuideSite Session yet.
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section aria-labelledby="journey-context-title">
-          <p id="journey-context-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Visitor Context
-          </p>
-          <div className="mt-2 grid gap-2">
-            {safeTimeline.visitorContext.length > 0 ? (
-              safeTimeline.visitorContext.map((fact) => (
-                <div key={fact.key} className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{fact.label}</div>
-                  <p className="mt-1 text-sm leading-6 text-slate-800">
-                    {fact.value} <span className="text-slate-500">({fact.source})</span>
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[1rem] border border-slate-900/10 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
-                No learned Visitor Context yet.
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section aria-labelledby="journey-concerns-title">
-          <p id="journey-concerns-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Concerns
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {safeTimeline.concerns.length > 0 ? (
-              safeTimeline.concerns.map((concern) => (
-                <span
-                  key={concern.key}
-                  className="rounded-full border border-slate-900/10 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
-                >
-                  {concern.label}: {concern.status}
-                </span>
-              ))
-            ) : (
-              <span className="rounded-full border border-slate-900/10 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
-                No open or addressed Concerns yet
-              </span>
-            )}
-          </div>
-        </section>
-
-        {safeTimeline.sessionSummary ? (
-          <div className="rounded-[1rem] border border-amber-900/10 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
-            {safeTimeline.sessionSummary}
-          </div>
-        ) : null}
+    <aside aria-labelledby="progress-title" className="rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-slate-500">Progress</p>
+          <h2 id="progress-title" className="mt-1 text-xl font-semibold tracking-[-0.04em] text-slate-950">
+            Parent path
+          </h2>
+        </div>
+        <StatusChip label={formatAnswerStatusLabel(presentation.answer, false)} />
       </div>
+
+      <ol className="mt-5 grid gap-2">
+        {progressItems.map((item) => (
+          <li key={item.key} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <span
+              aria-hidden="true"
+              className={`grid size-5 place-items-center rounded-full text-xs font-semibold ${
+                item.complete ? "bg-emerald-600 text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"
+              }`}
+            >
+              {item.complete ? "✓" : ""}
+            </span>
+            <span className="text-sm font-medium text-slate-800">{item.label}</span>
+          </li>
+        ))}
+      </ol>
+
+
+      <details className="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
+          Show history
+        </summary>
+        <div className="mt-3 grid gap-4">
+          <section aria-labelledby="history-prompts-title">
+            <h3 id="history-prompts-title" className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Prompts
+            </h3>
+            <div className="mt-2 grid gap-2">
+              {safeTimeline.prompts.length > 0 ? (
+                safeTimeline.prompts.map((prompt, index) => (
+                  <div key={prompt.runId.length > 0 ? prompt.runId : `prompt-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="text-xs font-medium text-slate-500">Prompt {index + 1}</div>
+                    <p className="mt-1 text-sm leading-6 text-slate-800">{prompt.text}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+                  No prompts yet.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section aria-labelledby="history-context-title">
+            <h3 id="history-context-title" className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Collected details
+            </h3>
+            <div className="mt-2 grid gap-2">
+              {safeTimeline.visitorContext.length > 0 ? (
+                safeTimeline.visitorContext.map((fact) => (
+                  <div key={fact.key} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="text-xs font-medium text-slate-500">{fact.label}</div>
+                    <p className="mt-1 text-sm leading-6 text-slate-800">{fact.value}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
+                  No details collected yet.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section aria-labelledby="history-concerns-title">
+            <h3 id="history-concerns-title" className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Checks
+            </h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {safeTimeline.concerns.length > 0 ? (
+                safeTimeline.concerns.map((concern) => (
+                  <span
+                    key={concern.key}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                  >
+                    {concern.label}: {concern.status}
+                  </span>
+                ))
+              ) : (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                  No checks yet
+                </span>
+              )}
+            </div>
+          </section>
+        </div>
+      </details>
     </aside>
   );
 }
@@ -524,20 +582,17 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
   const providerSummary = operatorInspection.providerMetadata.summary;
 
   return (
-    <aside className="rounded-[1.75rem] border border-black/10 bg-white/72 p-4 shadow-[0_18px_48px_rgba(48,28,8,0.08)] backdrop-blur-sm sm:p-5 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-auto">
+    <aside className="rounded-2xl border border-slate-200 bg-white p-4">
       <details className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[1.25rem] border border-slate-900/10 bg-slate-50 px-4 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-2 py-2 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">Operator inspection</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-[-0.04em] text-slate-950">Inspection drawer</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              Secondary summaries for debugging the current answer state.
-            </p>
+            <p className="text-sm font-medium text-slate-500">Debug</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-950">Run details</h2>
           </div>
           <span className="flex flex-col items-end gap-2">
-            <StatusChip label={operatorDiagnostics.runStatus} />
-            <span className="text-xs font-semibold text-slate-500 group-open:hidden">Expand</span>
-            <span className="hidden text-xs font-semibold text-slate-500 group-open:inline">Collapse</span>
+            <StatusChip label={readableRunStatus(operatorDiagnostics.runStatus)} />
+            <span className="text-xs font-semibold text-slate-500 group-open:hidden">Show</span>
+            <span className="hidden text-xs font-semibold text-slate-500 group-open:inline">Hide</span>
           </span>
         </summary>
 
@@ -670,7 +725,8 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
   const { presentation } = currentResult;
   const { answer, camp } = presentation;
   const sessionId = presentation.operatorDiagnostics.sessionId ?? "";
-  const answerStateLabel = answer.status.replace(/_/g, " ");
+  const parentPromptText = getParentPromptText(presentation, currentResult.promptText);
+  const statusLabel = formatAnswerStatusLabel(answer, isActionPending);
 
   React.useEffect(() => {
     if (!sessionId) {
@@ -681,150 +737,86 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
   }, [sessionId]);
 
   return (
-    <main aria-labelledby="operator-title" className="min-h-screen px-3 py-4 text-slate-950 sm:px-6 lg:px-10 lg:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-7xl flex-col gap-5 lg:min-h-[calc(100vh-4rem)] lg:gap-6">
-        <header className="rounded-[1.75rem] border border-black/10 bg-white/72 px-5 py-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:rounded-[2rem] sm:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">
-                Operator Demo Surface
-              </p>
-              <h1 id="operator-title" className="mt-3 text-4xl font-semibold tracking-[-0.06em] sm:text-5xl">
-                GuideSite operator shell
+    <main aria-labelledby="operator-title" className="min-h-screen px-4 py-4 text-slate-950 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-6xl flex-col gap-5">
+        <header className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">{camp.campName}</p>
+              <h1 id="operator-title" className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                GuideSite demo
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-700 sm:text-lg">
-                The GUI opens directly into the canonical Parent journey for one configured Ultimate Camp Website
-                instance. Controlled prompts stay visible, and the main canvas stays focused on the validated
-                product output.
-              </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusChip label={statusLabel} />
               <a
                 href={SANITY_ADMIN_BASE_PATH}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-amber-500 hover:bg-amber-50"
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-amber-400 hover:bg-amber-50"
               >
-                Open Sanity admin
+                Admin
               </a>
-              <StatusChip label="Canonical journey" />
-              <StatusChip label="Desktop-first" />
-              <StatusChip label={isActionPending ? "updating" : answerStateLabel} />
+              <form action={startDemoFormAction}>
+                <input type="hidden" name="operatorAction" value="startDemo" />
+                <button
+                  type="submit"
+                  className="inline-flex rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950/35"
+                >
+                  New demo
+                </button>
+              </form>
             </div>
           </div>
         </header>
 
         <section
-          aria-label="Demo surface"
-          className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]"
+          aria-label="Operator workspace"
+          className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]"
         >
           <article
             data-camp-id={camp.campId}
             data-answer-accent={camp.answerAccent}
             data-surface-tone={camp.surfaceTone}
-            className="min-w-0 rounded-[1.75rem] border border-black/10 bg-[color:var(--ucw-answer-surface)] p-4 shadow-[0_24px_70px_rgba(48,28,8,0.1)] sm:rounded-[2rem] sm:p-8"
+            className="min-w-0 rounded-2xl border border-slate-200 bg-[color:var(--ucw-answer-surface)] p-5 shadow-sm sm:p-6"
           >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Answer Presentation</p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-3xl">
-                  Parent-shaped output
-                </h2>
-              </div>
-              <StatusChip label={camp.campName} />
-            </div>
-
-            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">
-              {answer.status === "context_gathering_response"
-                ? "The first visible product output is a context gathering response because the canonical Parent prompt still lacks required Visitor Context."
-                : "The validated product output is ready for the operator surface."}
-            </p>
-
-            <div className="mt-6">{renderAnswerContent(answer, submitPromptFormAction, sessionId)}</div>
-
-            <div className="mt-6 rounded-[1.5rem] border border-slate-900/10 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">New demo</p>
-              <p className="mt-3 text-sm leading-6 text-slate-700">
-                Start a fresh operator demo to clear the current prompt path and begin a new Parent journey.
-              </p>
-              <form action={startDemoFormAction} className="mt-4">
-                <input type="hidden" name="operatorAction" value="startDemo" />
-                <button
-                  type="submit"
-                  className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950/35"
-                >
-                  Open a new demo
-                </button>
-              </form>
-            </div>
-          </article>
-
-          <div className="space-y-6">
-            <JourneyTimeline timeline={presentation.journeyTimeline} />
-            {renderDiagnostics(presentation, currentResult.promptText)}
-          </div>
-        </section>
-
-        <section aria-label="Prompt controls" className="rounded-[1.75rem] border border-black/10 bg-white/82 p-5 shadow-[0_24px_70px_rgba(48,28,8,0.1)] backdrop-blur-sm sm:rounded-[2rem] sm:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Prompt controls</p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.05em] text-slate-950">
-                Controlled prompts first, typed prompt second
+            <section aria-labelledby="parent-question-title" className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-sm font-medium text-slate-500">Parent question</p>
+              <h2 id="parent-question-title" className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                {parentPromptText}
               </h2>
-            </div>
-            <StatusChip label="Session state is not editable here" />
-          </div>
+            </section>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.7fr)]">
-            <div className="space-y-4">
-              <div className="rounded-[1.5rem] border border-slate-900/10 bg-slate-50 px-5 py-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
-                  Controlled suggested prompts
-                </p>
-                <div className="mt-4 grid gap-3">
-                  {answer.status === "context_gathering_response" && answer.suggestedPrompts.length > 0 ? (
-                    answer.suggestedPrompts.map((prompt) => (
-                      <PromptButton
-                        key={prompt.id}
-                        promptText={prompt.text}
-                        sessionId={sessionId}
-                        submitPromptAction={submitPromptFormAction}
-                      />
-                    ))
-                  ) : (
-                    <div className="rounded-[1.25rem] border border-slate-900/10 bg-white px-4 py-4 text-sm leading-6 text-slate-700">
-                      Suggested prompts will appear when the current turn needs more context or wants to offer a controlled next step.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <div className="mt-5">{renderAnswerContent(answer, submitPromptFormAction, sessionId)}</div>
 
-            <div className="rounded-[1.5rem] border border-slate-900/10 bg-white px-5 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Typed prompt</p>
-              <p className="mt-3 text-sm leading-6 text-slate-700">
-                Use freeform input for secondary exploration. This keeps the surface flexible without exposing direct session editing.
-              </p>
+            <details className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
+                Ask a different question
+              </summary>
               <form action={submitPromptFormAction} className="mt-4 space-y-3">
                 <input
                   id="operator-prompt"
                   name="promptText"
-                  defaultValue={currentResult.promptText}
-                  aria-label="Typed prompt"
-                  className="w-full rounded-[1rem] border border-slate-900/10 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
+                  aria-label="Ask a different question"
+                  placeholder="Type a parent question or follow-up"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
                 />
                 <SessionIdField sessionId={sessionId} />
                 <input type="hidden" name="operatorAction" value="submitPrompt" />
                 <button
                   type="submit"
-                  className="inline-flex w-full items-center justify-center rounded-full border border-amber-900/10 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-amber-200 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35"
                 >
-                  Run typed prompt
+                  Submit question
                 </button>
               </form>
-            </div>
+            </details>
+          </article>
+
+          <div className="space-y-5">
+            <ProgressPanel presentation={presentation} />
+            {renderDiagnostics(presentation, currentResult.promptText)}
           </div>
         </section>
       </div>

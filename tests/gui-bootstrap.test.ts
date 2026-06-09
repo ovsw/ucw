@@ -26,7 +26,7 @@ test("App Router bootstraps the root route into the operator surface", () => {
   const adminPageSource = readRepoFile("app/admin/[[...tool]]/page.tsx");
 
   assert.match(homePageSource, /redirect\("\/operator"\)/);
-  assert.match(rootLayoutSource, /GuideSite Operator Demo Surface/);
+  assert.match(rootLayoutSource, /GuideSite Demo Operator View/);
   assert.match(operatorPageSource, /createGuideSiteGuiService/);
   assert.match(operatorPageSource, /OperatorDemoClient/);
   assert.match(operatorPageSource, /restoreDemo\(\{\s*sessionId/s);

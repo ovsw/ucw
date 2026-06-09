@@ -1141,8 +1141,8 @@ test("operator demo client renders assembled answers as text-first sections with
     }),
   );
 
-  assert.match(markup, /Assembled answer/);
-  assert.match(markup, /The approved source material explains how overnight camp supports the Child\./);
+  assert.match(markup, /Answer ready/);
+  assert.match(markup, /Review the recommendation\./);
   assert.ok(markup.indexOf("Summary") < markup.indexOf("Overnight Camp Program"));
   assert.ok(markup.indexOf("Overnight Camp Program") < markup.indexOf("The camp offers overnight programming for age-appropriate campers."));
   assert.doesNotMatch(markup, /campProgram/);
@@ -1152,7 +1152,7 @@ test("operator demo client renders assembled answers as text-first sections with
   assert.doesNotMatch(markup, /Contact Path/);
 });
 
-test("operator demo client renders Journey Timeline as secondary non-replay context", () => {
+test("operator demo client renders progress as secondary non-replay context", () => {
   const presentation = mapGuideSiteRunStateToPresentation(createAnsweredRun());
   const result: GuideSiteGuiActionResult = {
     promptText: DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
@@ -1167,17 +1167,18 @@ test("operator demo client renders Journey Timeline as secondary non-replay cont
     }),
   );
 
-  const answerIndex = markup.indexOf("Answer Presentation");
-  const timelineIndex = markup.indexOf("Journey Timeline");
-  const inspectionIndex = markup.indexOf("Inspection drawer");
+  const answerIndex = markup.indexOf("Parent question");
+  const progressIndex = markup.indexOf("Parent path");
+  const debugIndex = markup.indexOf("Run details");
 
   assert.ok(answerIndex >= 0);
-  assert.ok(timelineIndex > answerIndex);
-  assert.ok(inspectionIndex > timelineIndex);
-  assert.match(markup, /Secondary operator context/);
-  assert.match(markup, /Prior prompts/);
+  assert.ok(progressIndex > answerIndex);
+  assert.ok(debugIndex > progressIndex);
+  assert.match(markup, /Progress/);
+  assert.match(markup, /Show history/);
+  assert.match(markup, /Prompts/);
   assert.match(markup, /Is overnight camp right for my 8-year-old\?/);
-  assert.match(markup, /Visitor Context/);
+  assert.match(markup, /Collected details/);
   assert.match(markup, /Child Age/);
   assert.match(markup, /Homesickness: open/);
   assert.doesNotMatch(markup, /replay prior turn|answer history|chat transcript/i);
@@ -1199,7 +1200,7 @@ test("operator inspection drawer renders summaries first with raw structured out
   );
 
   assert.match(markup, /<details class="group">/);
-  assert.match(markup, /Inspection drawer/);
+  assert.match(markup, /Run details/);
   assert.match(markup, /Prompt understanding/);
   assert.match(markup, /Retrieval\/source coverage/);
   assert.match(markup, /Validation\/product-state reasoning/);
@@ -1226,10 +1227,10 @@ test("operator source inspection links to separate Sanity admin without entering
       submitPromptAction: async () => result,
     }),
   );
-  const answerSurfaceIndex = markup.indexOf("Parent-shaped output");
-  const inspectionIndex = markup.indexOf("Inspection drawer");
+  const answerSurfaceIndex = markup.indexOf("Parent question");
+  const inspectionIndex = markup.indexOf("Run details");
 
-  assert.match(markup, /Open Sanity admin/);
+  assert.match(markup, /Admin/);
   assert.match(markup, /href="\/admin"/);
   assert.match(markup, /Inspect source in Sanity admin/);
   assert.match(markup, /href="\/admin\/intent\/edit\?id=program_overnight&amp;type=campProgram&amp;path=summary"/);
@@ -1255,8 +1256,8 @@ test("operator client keeps provider metadata out of the answer surface", () => 
     }),
   );
 
-  const answerSurfaceIndex = markup.indexOf("Parent-shaped output");
-  const inspectionIndex = markup.indexOf("Inspection drawer");
+  const answerSurfaceIndex = markup.indexOf("Parent question");
+  const inspectionIndex = markup.indexOf("Run details");
   const providerIndex = markup.indexOf("gpt-test");
 
   assert.ok(answerSurfaceIndex >= 0);
@@ -1344,7 +1345,7 @@ test("operator demo client renders every allowed presentation state distinctly",
           },
         },
       },
-      expectations: [/Context Gathering Response/, /Required context/, /Controlled replies/, /Freeform reply/, /Suggested prompts/],
+      expectations: [/Get the missing parent details/, /Questions to ask/, /Type a custom reply/, /Other suggested next steps/],
     },
     {
       label: "responsible abstention",
@@ -1359,7 +1360,7 @@ test("operator demo client renders every allowed presentation state distinctly",
           },
         },
       },
-      expectations: [/Responsible abstention/, /Provide more context in a follow-up turn\./],
+      expectations: [/Can’t answer yet/, /Provide more context in a follow-up turn\./],
     },
     {
       label: "technical failure",
@@ -1391,7 +1392,7 @@ test("operator demo client renders every allowed presentation state distinctly",
       assert.match(markup, expectation, label);
     }
 
-    assert.match(markup, /Inspection drawer/, label);
+    assert.match(markup, /Run details/, label);
     assert.match(markup, /Answer disposition/, label);
     assert.match(markup, /Raw structured output/, label);
   }
@@ -1444,8 +1445,8 @@ test("operator demo client hides unsupported answer statuses behind technical fa
 test("operator demo client keeps the answer presentation usable at mobile preview widths", () => {
   const clientSource = readFileSync(join(process.cwd(), "app/operator/operator-demo-client.tsx"), "utf8");
 
-  assert.match(clientSource, /min-w-0 rounded-\[1\.75rem\]/);
-  assert.match(clientSource, /bg-\[color:var\(--ucw-answer-surface\)\] p-4 shadow-\[0_24px_70px_rgba\(48,28,8,0\.1\)\] sm:rounded-\[2rem\] sm:p-8/);
+  assert.match(clientSource, /min-w-0 rounded-2xl/);
+  assert.match(clientSource, /bg-\[color:var\(--ucw-answer-surface\)\] p-5 shadow-sm sm:p-6/);
   assert.match(clientSource, /flex flex-col gap-4 sm:flex-row/);
   assert.match(clientSource, /min-w-0 break-words/);
   assert.doesNotMatch(clientSource, /requiredMedia|mandatoryMedia|heroImage|videoUrl/);

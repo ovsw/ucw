@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GuideSite Operator Demo Surface",
-  description: "Foundation shell for the operator-led GuideSite demo.",
+  title: "GuideSite Demo Operator View",
+  description: "Operator view for the GuideSite MVP demo.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
