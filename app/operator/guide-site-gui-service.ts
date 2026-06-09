@@ -441,21 +441,22 @@ async function executeGuideSiteGuiTurn(
     retrievalAdapter,
     sanityRetrievalAdapterResolver,
   });
+  const storedRun = request.stores.runs.update(composed);
 
   if (
-    composed.promptUnderstandingValidation?.valid &&
-    (composed.answerComposition?.status === "needs_context" || composed.answerComposition?.status === "answered")
+    storedRun.promptUnderstandingValidation?.valid &&
+    (storedRun.answerComposition?.status === "needs_context" || storedRun.answerComposition?.status === "answered")
   ) {
-    const patch = buildHardcodedSessionPatch(composed);
+    const patch = buildHardcodedSessionPatch(storedRun);
     return commitSessionPatch({
       stores: request.stores,
-      run: composed,
+      run: storedRun,
       patch,
       now: request.now,
     }).run;
   }
 
-  return composed;
+  return storedRun;
 }
 
 export function createGuideSiteGuiService(dependencies: GuideSiteGuiServiceDependencies = {}) {

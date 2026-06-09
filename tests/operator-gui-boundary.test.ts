@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { createGuideSiteMemoryStores, startGuideSiteRun, withProviderBackedUnderstandingAndComposition } from "../src/guidesite-mvp/run-lifecycle.js";
+import { createGuideSiteFileRunStore } from "../src/guidesite-mvp/run-store.js";
+import { createGuideSiteFileSessionStore } from "../src/guidesite-mvp/session-store.js";
 import { runGuideSiteMvpTurn } from "../src/guidesite-mvp/turn.js";
 import { createSanityGuideSiteRetrievalAdapter } from "../src/guidesite-mvp/sanity-retrieval.js";
 import { createFakePromptUnderstandingProvider, homesicknessConcernUnderstanding } from "./guidesite-mvp/test-helpers.js";
@@ -763,6 +766,157 @@ test("GuideSite GUI service restores latest existing demo session without rerunn
   assert.deepEqual(newDemo.presentation.journeyTimeline.prompts.map((prompt) => prompt.text), [
     DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT,
   ]);
+});
+
+test("GuideSite GUI service persists file-backed Run State across fresh service instances", async () => {
+  const sessionStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-gui-sessions-"));
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-gui-runs-"));
+  const createStores = () =>
+    createGuideSiteMemoryStores({
+      sessions: createGuideSiteFileSessionStore(sessionStateDirectory),
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+  const readRuntimeConfig = () => ({
+    runtimeMode: "fixture" as const,
+    retrievalMode: "fixture" as const,
+  });
+  const sessionId = "session_gui_file_restore";
+
+  try {
+    const writer = createGuideSiteGuiService({
+      readRuntimeConfig,
+      createStores,
+    });
+
+    await writer.startDemo({
+      createSessionId: () => sessionId,
+      createRunId: () => "run_gui_file_start",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await writer.submitPrompt({
+      promptText: priorSleepawayYesReply,
+      sessionId,
+      createRunId: () => "run_gui_file_sleepaway",
+      now: () => new Date("2026-01-01T00:01:00.000Z"),
+    });
+    const readinessResult = await writer.submitPrompt({
+      promptText: childReadinessPositiveReply,
+      sessionId,
+      createRunId: () => "run_gui_file_readiness",
+      now: () => new Date("2026-01-01T00:02:00.000Z"),
+    });
+
+    assert.equal(readinessResult.presentation.answer.status, "assembled_answer");
+
+    const restoredService = createGuideSiteGuiService({
+      readRuntimeConfig,
+      createStores,
+    });
+    const restored = await restoredService.restoreDemo({ sessionId });
+
+    assert.equal(restored.promptText, childReadinessPositiveReply);
+    assert.equal(restored.presentation.answer.status, "assembled_answer");
+    assert.equal(restored.presentation.operatorDiagnostics.sessionId, sessionId);
+    assert.equal(restored.presentation.operatorDiagnostics.runId, "run_gui_file_readiness");
+    assert.equal(restored.presentation.operatorDiagnostics.runStatus, "committed");
+
+    const freshStores = createStores();
+    const reloadedRun = freshStores.runs.read("run_gui_file_readiness");
+
+    assert.ok(reloadedRun);
+    assert.equal(reloadedRun.status, "committed");
+    assert.equal(reloadedRun.prompt.text, childReadinessPositiveReply);
+    assert.equal(reloadedRun.createdAt, "2026-01-01T00:02:00.000Z");
+    assert.equal(reloadedRun.updatedAt, "2026-01-01T00:02:00.000Z");
+    assert.equal(reloadedRun.promptUnderstandingProvider?.provider, "fake");
+    assert.equal(reloadedRun.promptUnderstandingValidation?.valid, true);
+    assert.equal(reloadedRun.retrieval?.coverage.status, "source_backed");
+    assert.equal(reloadedRun.answerCompositionValidation?.valid, true);
+    assert.equal(reloadedRun.answerComposition?.status, "answered");
+    assert.ok(reloadedRun.patch);
+    assert.ok(reloadedRun.committedSessionState);
+    assert.equal(reloadedRun.committedSessionState.revision, 4);
+    assert.deepEqual(reloadedRun.diagnostics, []);
+
+    const savedRun = JSON.parse(
+      readFileSync(join(runStateDirectory, "run_gui_file_readiness.json"), "utf8"),
+    ) as RunState;
+    assert.equal(savedRun.status, "committed");
+    assert.equal(savedRun.prompt.text, childReadinessPositiveReply);
+    assert.equal(savedRun.retrieval?.coverage.status, "source_backed");
+    assert.equal(savedRun.answerComposition?.status, "answered");
+  } finally {
+    rmSync(sessionStateDirectory, { recursive: true, force: true });
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
+});
+
+test("GuideSite GUI service persists non-committed product-safe Run State for inspection", async () => {
+  const sessionStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-gui-sessions-"));
+  const runStateDirectory = mkdtempSync(join(tmpdir(), "guidesite-gui-runs-"));
+  const createStores = () =>
+    createGuideSiteMemoryStores({
+      sessions: createGuideSiteFileSessionStore(sessionStateDirectory),
+      runs: createGuideSiteFileRunStore(runStateDirectory),
+    });
+  const readRuntimeConfig = () => ({
+    runtimeMode: "fixture" as const,
+    retrievalMode: "fixture" as const,
+  });
+  const sessionId = "session_gui_file_uncertainty";
+  const uncertainRunId = "run_gui_file_uncertain_child_readiness";
+
+  try {
+    const writer = createGuideSiteGuiService({
+      readRuntimeConfig,
+      createStores,
+    });
+
+    await writer.startDemo({
+      createSessionId: () => sessionId,
+      createRunId: () => "run_gui_file_uncertainty_start",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await writer.submitPrompt({
+      promptText: priorSleepawayYesReply,
+      sessionId,
+      createRunId: () => "run_gui_file_uncertainty_sleepaway",
+      now: () => new Date("2026-01-01T00:01:00.000Z"),
+    });
+    const uncertainResult = await writer.submitPrompt({
+      promptText: unknownChildReadinessFreeformReply,
+      sessionId,
+      createRunId: () => uncertainRunId,
+      now: () => new Date("2026-01-01T00:02:00.000Z"),
+    });
+
+    assert.equal(uncertainResult.presentation.answer.status, "context_gathering_response");
+
+    const freshStores = createStores();
+    const reloadedRun = freshStores.runs.read(uncertainRunId);
+
+    assert.ok(reloadedRun);
+    assert.equal(reloadedRun.status, "composed");
+    assert.equal(reloadedRun.prompt.text, unknownChildReadinessFreeformReply);
+    assert.equal(reloadedRun.createdAt, "2026-01-01T00:02:00.000Z");
+    assert.equal(reloadedRun.updatedAt, "2026-01-01T00:02:00.000Z");
+    assert.equal(reloadedRun.promptUnderstandingProvider?.provider, "fake");
+    assert.equal(reloadedRun.promptUnderstandingValidation?.valid, false);
+    assert.deepEqual(reloadedRun.retrieval, null);
+    assert.equal(reloadedRun.answerCompositionValidation?.valid, true);
+    assert.equal(reloadedRun.answerComposition?.status, "needs_context");
+    assert.equal(reloadedRun.patch, null);
+    assert.equal(reloadedRun.committedSessionState, null);
+    assert.match(reloadedRun.diagnostics.join(" "), /prompt_understanding_goal_required/);
+
+    const savedRun = JSON.parse(readFileSync(join(runStateDirectory, `${uncertainRunId}.json`), "utf8")) as RunState;
+    assert.equal(savedRun.status, "composed");
+    assert.equal(savedRun.answerComposition?.status, "needs_context");
+    assert.equal(savedRun.committedSessionState, null);
+  } finally {
+    rmSync(sessionStateDirectory, { recursive: true, force: true });
+    rmSync(runStateDirectory, { recursive: true, force: true });
+  }
 });
 
 
