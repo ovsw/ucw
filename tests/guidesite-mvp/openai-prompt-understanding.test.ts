@@ -5,6 +5,7 @@ import {
   PromptUnderstandingProviderError,
   createOpenAIPromptUnderstandingProvider,
   readOpenAIPromptUnderstandingConfig,
+  validatePromptUnderstandingProviderOutput,
 } from "../../src/guidesite-mvp/openai-prompt-understanding.js";
 import type { PromptUnderstandingSessionContext } from "../../src/guidesite-mvp/types.js";
 
@@ -150,7 +151,7 @@ test("OpenAI Prompt Understanding uses fetch, Structured Outputs, and local sche
   const requestBody = JSON.parse(String(capturedInit?.body ?? "{}")) as {
     model?: string;
     input?: Array<{ role: string; content: string }>;
-    text?: { format?: { type?: string; strict?: boolean; schema?: { required?: string[] } } };
+    text?: { format?: { type?: string; strict?: boolean; schema?: { required?: string[]; properties?: Record<string, unknown> } } };
   };
   const userPayload = JSON.parse(requestBody.input?.[1]?.content ?? "{}") as {
     prompt?: string;
@@ -164,6 +165,7 @@ test("OpenAI Prompt Understanding uses fetch, Structured Outputs, and local sche
   assert.equal(requestBody.text?.format?.type, "json_schema");
   assert.equal(requestBody.text?.format?.strict, true);
   assert.ok(requestBody.text?.format?.schema?.required?.includes("contextNeeds"));
+  assert.equal((requestBody.text?.format?.schema?.properties?.facts as { type?: string } | undefined)?.type, "array");
   assert.equal(userPayload.prompt, "Is overnight camp right for my 8-year-old?");
   assert.deepEqual(userPayload.session, sessionContext.session);
   assert.deepEqual(result.understanding, validUnderstanding);
@@ -174,6 +176,26 @@ test("OpenAI Prompt Understanding uses fetch, Structured Outputs, and local sche
     parsedOutput: validUnderstanding,
     diagnostics: [],
   });
+});
+
+test("OpenAI Prompt Understanding accepts fact arrays from Structured Outputs", () => {
+  const rawOutput = JSON.stringify({
+    ...validUnderstanding,
+    facts: [
+      {
+        key: "child_age",
+        value: 8,
+        provenance: {
+          source: "explicit",
+          promptText: "8-year-old",
+        },
+      },
+    ],
+  });
+
+  const understanding = validatePromptUnderstandingProviderOutput(rawOutput);
+
+  assert.deepEqual(understanding, validUnderstanding);
 });
 
 test("OpenAI Prompt Understanding rejects invalid JSON while preserving raw provider output", async () => {
@@ -251,7 +273,7 @@ test("OpenAI Prompt Understanding rejects invalid schema output while preserving
       assert.ok(error instanceof PromptUnderstandingProviderError);
       assert.match(error.message, /failed local schema validation/);
       assert.deepEqual(error.parsedOutput, invalidOutput);
-      assert.ok(error.diagnostics.some((diagnostic) => diagnostic.includes("facts.child_age.value")));
+      assert.ok(error.diagnostics.some((diagnostic) => diagnostic.includes("facts")));
       return true;
     },
   );

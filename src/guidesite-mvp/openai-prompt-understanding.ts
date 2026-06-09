@@ -54,20 +54,23 @@ const visitorFactSourceSchema = z.enum(["explicit", "inferred"]);
 const concernStatusSchema = z.enum(["open", "addressed", "deferred"]);
 const focusGoalSchema = z.enum(["answer_factual", "assess_fit", "gather_context", "address_concern", "compare_options"]);
 
-const promptUnderstandingSchema = z
+const visitorFactSchema = z.object({
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  provenance: z.object({
+    source: visitorFactSourceSchema,
+    promptText: z.string(),
+  }),
+});
+const providerFactSchema = visitorFactSchema.extend({
+  key: z.string(),
+});
+
+const promptUnderstandingProviderOutputSchema = z
   .object({
     goal: z.union([focusGoalSchema, z.literal("unknown")]),
     promptType: z.enum(["fit", "factual", "unknown"]),
     fitQuestion: z.string().nullable(),
-    facts: z.record(
-      z.object({
-        value: z.union([z.string(), z.number(), z.boolean()]),
-        provenance: z.object({
-          source: visitorFactSourceSchema,
-          promptText: z.string(),
-        }),
-      }),
-    ),
+    facts: z.union([z.record(visitorFactSchema), z.array(providerFactSchema)]),
     concerns: z.array(
       z.object({
         key: z.string(),
@@ -96,12 +99,18 @@ export const promptUnderstandingJsonSchema = {
       type: ["string", "null"],
     },
     facts: {
-      type: "object",
-      additionalProperties: {
+      type: "array",
+      description:
+        "Explicit facts extracted from the typed prompt. Use an empty array when the prompt gives no concrete facts.",
+      items: {
         type: "object",
         additionalProperties: false,
-        required: ["value", "provenance"],
+        required: ["key", "value", "provenance"],
         properties: {
+          key: {
+            type: "string",
+            description: "Stable snake_case fact key, e.g. child_age or prior_sleepaway_experience.",
+          },
           value: {
             type: ["string", "number", "boolean"],
           },
@@ -115,6 +124,7 @@ export const promptUnderstandingJsonSchema = {
               },
               promptText: {
                 type: "string",
+                description: "Exact substring from the typed prompt supporting this fact.",
               },
             },
           },
@@ -211,7 +221,7 @@ function buildOpenAIPromptUnderstandingRequest(
       {
         role: "system",
         content:
-          "You perform only GuideSite Prompt Understanding. Return structured Prompt Understanding for the typed Prompt and the supplied Session context. Do not compose final answers, invent source-backed claims, mutate Session State, or produce Session Patch operations.",
+          "You perform only GuideSite Prompt Understanding. Return structured Prompt Understanding for the typed Prompt and supplied Session context. Do not compose final answers, invent source-backed claims, mutate Session State, or produce Session Patch operations. Return facts as an array of {key,value,provenance}; provenance.promptText must be an exact substring from the typed Prompt.",
       },
       {
         role: "user",
@@ -287,9 +297,22 @@ function parseOutputJson(outputText: string): unknown {
   }
 }
 
+type PromptUnderstandingProviderOutput = z.infer<typeof promptUnderstandingProviderOutputSchema>;
+
+function normalizePromptUnderstandingProviderOutput(output: PromptUnderstandingProviderOutput): PromptUnderstanding {
+  const facts = Array.isArray(output.facts)
+    ? Object.fromEntries(output.facts.map((fact) => [fact.key, { value: fact.value, provenance: fact.provenance }]))
+    : output.facts;
+
+  return {
+    ...output,
+    facts,
+  };
+}
+
 export function validatePromptUnderstandingProviderOutput(rawOutput: string): PromptUnderstanding {
   const parsedOutput = parseOutputJson(rawOutput);
-  const validation = promptUnderstandingSchema.safeParse(parsedOutput);
+  const validation = promptUnderstandingProviderOutputSchema.safeParse(parsedOutput);
 
   if (!validation.success) {
     throw new PromptUnderstandingProviderError("OpenAI Prompt Understanding response failed local schema validation.", {
@@ -299,7 +322,7 @@ export function validatePromptUnderstandingProviderOutput(rawOutput: string): Pr
     });
   }
 
-  return validation.data;
+  return normalizePromptUnderstandingProviderOutput(validation.data);
 }
 
 export function createOpenAIPromptUnderstandingProvider(

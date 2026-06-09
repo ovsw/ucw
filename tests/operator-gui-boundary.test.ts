@@ -391,6 +391,42 @@ test("GuideSite GUI fixture mode keeps vague required-context replies in the con
   assert.ok(vagueReply.presentation.journeyTimeline.visitorContext.some((fact) => fact.key === "child_age"));
 });
 
+test("GuideSite GUI fixture mode interprets natural first-prompt variants", async () => {
+  const service = createGuideSiteGuiService({
+    readRuntimeConfig() {
+      return {
+        runtimeMode: "fixture",
+        retrievalMode: "fixture",
+      };
+    },
+    createStores: () => createGuideSiteMemoryStores(),
+  });
+
+  const result = await service.submitPrompt({
+    promptText: "is overnight camp right for my 8 year old?",
+    createSessionId: () => "session_gui_natural_first_prompt",
+  });
+
+  assert.equal(result.presentation.answer.status, "context_gathering_response");
+  if (result.presentation.answer.status !== "context_gathering_response") {
+    assert.fail("Expected the first prompt variant to start context gathering");
+  }
+  assert.deepEqual(result.presentation.answer.requiredQuestions.map((question) => question.id), [
+    "prompt_prior_sleepaway_experience",
+  ]);
+  assert.deepEqual(
+    result.presentation.journeyTimeline.visitorContext.find((fact) => fact.key === "child_age"),
+    {
+      key: "child_age",
+      label: "Child Age",
+      value: "8",
+      source: "explicit",
+    },
+  );
+  assert.equal(result.presentation.operatorInspection.promptUnderstanding.summary.goal, "assess_fit");
+  assert.equal(result.presentation.operatorInspection.promptUnderstanding.summary.promptType, "fit");
+});
+
 test("GuideSite GUI fixture mode records controlled replies through the Prompt path", async () => {
   const service = createGuideSiteGuiService({
     readRuntimeConfig() {

@@ -62,17 +62,20 @@ function createGuideSiteGuiTechnicalFailurePresentation(error: unknown): GuideSi
   return createGuideSiteTechnicalFailurePresentation([message]);
 }
 
-function createCanonicalFixturePromptUnderstanding() {
+function createCanonicalFixturePromptUnderstanding(options: { childAge?: number; childAgePromptText?: string } = {}) {
+  const childAge = options.childAge ?? 8;
+  const childAgePromptText = options.childAgePromptText ?? "8-year-old";
+
   return {
     goal: "assess_fit" as const,
     promptType: "fit" as const,
-    fitQuestion: "Assess whether overnight camp is a good fit for the Parent's 8-year-old Child.",
+    fitQuestion: `Assess whether overnight camp is a good fit for the Parent's ${childAge}-year-old Child.`,
     facts: {
       child_age: {
-        value: 8,
+        value: childAge,
         provenance: {
           source: "explicit" as const,
-          promptText: "8-year-old",
+          promptText: childAgePromptText,
         },
       },
     },
@@ -93,6 +96,58 @@ function createCanonicalFixturePromptUnderstanding() {
     retrievalNeeds: ["overnight_readiness", "homesickness_support"],
     contextNeeds: ["prior_sleepaway_experience", "child_readiness"],
   };
+}
+
+const childAgeWordValues = new Map([
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+  ["eleven", 11],
+  ["twelve", 12],
+  ["thirteen", 13],
+  ["fourteen", 14],
+  ["fifteen", 15],
+  ["sixteen", 16],
+  ["seventeen", 17],
+  ["eighteen", 18],
+]);
+
+function extractChildAgeFromPrompt(promptText: string): { value: number; promptText: string } | null {
+  const childAgeMatch = /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen)(?:\s*-\s*|\s+)years?(?:\s*-\s*|\s+)old\b/i.exec(promptText);
+  if (!childAgeMatch) {
+    return null;
+  }
+
+  const ageToken = childAgeMatch[1] ?? "";
+  const numericAge = Number.parseInt(ageToken, 10);
+  const wordAge = childAgeWordValues.get(ageToken.toLowerCase());
+  const value = Number.isFinite(numericAge) ? numericAge : wordAge;
+
+  if (!value) {
+    return null;
+  }
+
+  return {
+    value,
+    promptText: childAgeMatch[0],
+  };
+}
+
+function looksInitialOvernightCampFitQuestion(normalizedPromptText: string): boolean {
+  return (
+    normalizedPromptText.includes("overnight camp") &&
+    (normalizedPromptText.includes("right for") ||
+      normalizedPromptText.includes("ready for") ||
+      normalizedPromptText.includes("good fit") ||
+      normalizedPromptText.includes("fit for"))
+  );
 }
 
 const DEFAULT_REQUIRED_CONTEXT_NEEDS = ["prior_sleepaway_experience", "child_readiness"] as const;
@@ -339,6 +394,12 @@ function createFixturePromptUnderstandingProvider(): PromptUnderstandingProvider
 
       if (trimmedPromptText === DEFAULT_GUIDESITE_GUI_CANONICAL_PROMPT) {
         understanding = createCanonicalFixturePromptUnderstanding();
+      } else if (looksInitialOvernightCampFitQuestion(normalizedPromptText)) {
+        const childAge = extractChildAgeFromPrompt(trimmedPromptText);
+        understanding = createCanonicalFixturePromptUnderstanding({
+          childAge: childAge?.value,
+          childAgePromptText: childAge?.promptText,
+        });
       } else if (looksWithheldRequiredContextReply(normalizedPromptText)) {
         understanding = createWithheldRequiredContextUnderstanding();
       } else if (looksPreciseRequiredContextReply(normalizedPromptText)) {
