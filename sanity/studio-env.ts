@@ -13,7 +13,10 @@ function missingConfigError(missingKeys: string[]): Error {
 }
 
 export function readSanityStudioConfig(
-  env: SanityStudioConfigEnv = process.env as SanityStudioConfigEnv,
+  env: SanityStudioConfigEnv = {
+    NEXT_PUBLIC_SANITY_PROJECT_ID: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
+    NEXT_PUBLIC_SANITY_DATASET: process.env.NEXT_PUBLIC_SANITY_DATASET,
+  },
 ): { projectId: string; dataset: string } {
   const projectId = normalize(env.NEXT_PUBLIC_SANITY_PROJECT_ID);
   const dataset = normalize(env.NEXT_PUBLIC_SANITY_DATASET);

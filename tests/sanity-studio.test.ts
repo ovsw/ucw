@@ -19,6 +19,20 @@ test("Sanity Studio config requires public project and dataset values", () => {
   );
 });
 
+test("Sanity Studio config uses direct public env references for client bundling", () => {
+  const envSource = readFileSync(join(process.cwd(), "sanity/studio-env.ts"), "utf8");
+
+  assert.match(
+    envSource,
+    /NEXT_PUBLIC_SANITY_PROJECT_ID:\s*process\.env\.NEXT_PUBLIC_SANITY_PROJECT_ID/,
+  );
+  assert.match(
+    envSource,
+    /NEXT_PUBLIC_SANITY_DATASET:\s*process\.env\.NEXT_PUBLIC_SANITY_DATASET/,
+  );
+  assert.doesNotMatch(envSource, /process\.env\s+as\s+SanityStudioConfigEnv/);
+});
+
 test("Sanity Studio config is mounted at /admin with the current source schema", async () => {
   const originalProjectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID;
   const originalDataset = process.env.NEXT_PUBLIC_SANITY_DATASET;
