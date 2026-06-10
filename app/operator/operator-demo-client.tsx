@@ -17,6 +17,25 @@ type GuideSiteGuiActionResult = {
 type OperatorDemoAction = (formData: FormData) => Promise<GuideSiteGuiActionResult>;
 type FormAction = (formData: FormData) => void | Promise<void>;
 
+type PromptTextareaKeyDownEvent = React.KeyboardEvent<HTMLTextAreaElement>;
+
+export function shouldSubmitPromptOnKeyDown(
+  event: Pick<PromptTextareaKeyDownEvent, "key" | "shiftKey"> & {
+    nativeEvent: Pick<PromptTextareaKeyDownEvent["nativeEvent"], "isComposing">;
+  },
+): boolean {
+  return event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing;
+}
+
+export function submitPromptOnEnter(event: PromptTextareaKeyDownEvent) {
+  if (!shouldSubmitPromptOnKeyDown(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.currentTarget.form?.requestSubmit();
+}
+
 type OperatorDemoClientProps = {
   result: GuideSiteGuiActionResult;
   startDemoAction: OperatorDemoAction;
@@ -272,6 +291,7 @@ function FirstPromptForm({
           aria-label="First parent question"
           placeholder={answer.examplePrompt}
           rows={4}
+          onKeyDown={submitPromptOnEnter}
           className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/30"
         />
         <input type="hidden" name="operatorAction" value="submitPrompt" />
@@ -423,7 +443,7 @@ function ProgressPanel({ presentation }: { presentation: GuideSitePresentation }
   const hasStarted = safeTimeline.prompts.length > 0 || presentation.answer.status !== "not_started";
 
   return (
-    <aside aria-labelledby="progress-title" className="rounded-2xl border border-slate-200 bg-white p-5 lg:sticky lg:top-6">
+    <aside aria-labelledby="progress-title" className="self-start rounded-2xl border border-slate-200 bg-white p-5 xl:sticky xl:top-6">
       <div>
         <p className="text-sm font-medium text-slate-500">Progress</p>
         <h2 id="progress-title" className="mt-1 text-xl font-semibold tracking-[-0.04em] text-slate-950">
@@ -619,7 +639,7 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
   const providerSummary = operatorInspection.providerMetadata.summary;
 
   return (
-    <aside className="rounded-2xl border border-slate-200 bg-white p-4">
+    <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-2 py-2 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35">
           <div>
@@ -633,7 +653,7 @@ function renderDiagnostics(presentation: GuideSitePresentation, promptText: stri
           </span>
         </summary>
 
-        <div className="mt-4 grid gap-4">
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
           <InspectionCard eyebrow="Run context" title="Prompt and run">
             <InspectionSummaryRow label="Prompt" value={promptText || "Pending"} />
             <InspectionSummaryRow
@@ -781,7 +801,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
 
   return (
     <main aria-labelledby="operator-title" className="min-h-screen px-4 py-4 text-slate-950 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-6xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-5">
         <header className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -818,7 +838,7 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
 
         <section
           aria-label="Operator workspace"
-          className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]"
+          className="grid flex-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]"
         >
           <article
             data-camp-id={camp.campId}
@@ -863,11 +883,14 @@ export default function OperatorDemoClient({ result, startDemoAction, submitProm
             ) : null}
           </article>
 
-          <div className="space-y-5">
-            <ProgressPanel presentation={presentation} />
-            {hasSubmittedPrompt ? renderDiagnostics(presentation, currentResult.promptText) : null}
-          </div>
+          <ProgressPanel presentation={presentation} />
         </section>
+
+        {hasSubmittedPrompt ? (
+          <section aria-label="Operator debug details" className="min-w-0">
+            {renderDiagnostics(presentation, currentResult.promptText)}
+          </section>
+        ) : null}
       </div>
     </main>
   );

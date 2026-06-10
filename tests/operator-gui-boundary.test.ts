@@ -23,7 +23,7 @@ import {
 import {
   createGuideSiteOperatorDemoActions,
 } from "../app/operator/actions.js";
-import OperatorDemoClient from "../app/operator/operator-demo-client.js";
+import OperatorDemoClient, { submitPromptOnEnter } from "../app/operator/operator-demo-client.js";
 
 const priorSleepawayYesReply = "Yes, with grandparents.";
 const priorSleepawayNoReply = "No, not yet - she has not slept away from home.";
@@ -147,6 +147,41 @@ function createAnsweredRun(): RunState {
     diagnostics: ["run_diagnostic_note"],
   };
 }
+
+test("operator prompt textarea submits the form on Enter without stealing Shift+Enter", () => {
+  let defaultPrevented = false;
+  let submitCount = 0;
+  const enterEvent = {
+    key: "Enter",
+    shiftKey: false,
+    nativeEvent: { isComposing: false },
+    preventDefault() {
+      defaultPrevented = true;
+    },
+    currentTarget: {
+      form: {
+        requestSubmit() {
+          submitCount += 1;
+        },
+      },
+    },
+  } as unknown as React.KeyboardEvent<HTMLTextAreaElement>;
+
+  submitPromptOnEnter(enterEvent);
+
+  assert.equal(defaultPrevented, true);
+  assert.equal(submitCount, 1);
+
+  defaultPrevented = false;
+  submitCount = 0;
+  submitPromptOnEnter({
+    ...enterEvent,
+    shiftKey: true,
+  } as React.KeyboardEvent<HTMLTextAreaElement>);
+
+  assert.equal(defaultPrevented, false);
+  assert.equal(submitCount, 0);
+});
 
 test("GuideSite GUI service starts blank and only runs prompt understanding after user input", async () => {
   const seenRuntimeModes: Array<"live" | "fixture"> = [];
@@ -1226,6 +1261,12 @@ test("operator demo client renders progress as secondary non-replay context", ()
   assert.match(markup, /Prompts/);
   assert.match(markup, /Child Age/);
   assert.match(markup, /Known details/);
+  assert.match(markup, /aria-label="Operator debug details"/);
+  assert.match(markup, /xl:grid-cols-2/);
+  assert.match(markup, /max-w-\[1500px\]/);
+  assert.match(markup, /xl:grid-cols-\[minmax\(0,1fr\)_420px\]/);
+  assert.match(markup, /2xl:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+  assert.match(markup, /self-start rounded-2xl border border-slate-200 bg-white p-5 xl:sticky xl:top-6/);
   assert.doesNotMatch(markup, /replay prior turn|answer history|chat transcript/i);
 });
 
@@ -1501,20 +1542,26 @@ test("operator demo client keeps the answer presentation usable at mobile previe
   const clientSource = readFileSync(join(process.cwd(), "app/operator/operator-demo-client.tsx"), "utf8");
 
   assert.match(clientSource, /min-w-0 rounded-2xl/);
+  assert.match(clientSource, /max-w-\[1500px\]/);
+  assert.match(clientSource, /xl:grid-cols-\[minmax\(0,1fr\)_420px\]/);
+  assert.match(clientSource, /2xl:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+  assert.match(clientSource, /aria-label="Operator debug details"/);
+  assert.match(clientSource, /xl:grid-cols-2/);
   assert.match(clientSource, /bg-\[color:var\(--ucw-answer-surface\)\] p-5 shadow-sm sm:p-6/);
   assert.match(clientSource, /flex flex-col gap-4 sm:flex-row/);
   assert.match(clientSource, /min-w-0 break-words/);
   assert.doesNotMatch(clientSource, /requiredMedia|mandatoryMedia|heroImage|videoUrl/);
 });
 
-test("operator demo client exposes native controls without custom keyboard shortcuts", () => {
+test("operator demo client keeps native controls and limits Enter handling to the prompt textarea", () => {
   const clientSource = readFileSync(join(process.cwd(), "app/operator/operator-demo-client.tsx"), "utf8");
 
   assert.match(clientSource, /<details className="group">/);
   assert.match(clientSource, /<summary className="flex cursor-pointer list-none/);
   assert.match(clientSource, /focus-visible:outline-none focus-visible:ring-2/);
   assert.match(clientSource, /type="submit"/);
-  assert.doesNotMatch(clientSource, /onKeyDown|onKeyUp|onKeyPress|addEventListener\(["']keydown/);
+  assert.match(clientSource, /onKeyDown=\{submitPromptOnEnter\}/);
+  assert.doesNotMatch(clientSource, /onKeyUp|onKeyPress|addEventListener\(["']keydown/);
   assert.doesNotMatch(clientSource, /accessKey=/);
 });
 
